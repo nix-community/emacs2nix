@@ -30,5 +30,6 @@
                  packages)))
 
 (defun print-archive-contents-as-json (archive-contents)
+  "Print the packages listed in file ARCHIVE-CONTENTS in JSON encoding."
   (let ((packages (cdr (read (find-file-noselect archive-contents)))))
     (princ (json-encode (packages-for-json packages)))))
