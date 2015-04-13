@@ -9,8 +9,7 @@
   (let* ((ver (elt info 0))
          (deps (elt info 1))
          (desc (elt info 2))
-         (type (elt info 3))
-         (props (when (> (length info) 4) (elt info 4))))
+         (type (elt info 3)))
     (list :ver ver
           :deps (apply 'append
                        (mapcar (lambda (dep)
@@ -18,8 +17,7 @@
                                        (cadr dep)))
                                deps))
           :desc desc
-          :dist type
-          :props props)))
+          :dist type)))
 
 (defun packages-for-json (packages)
   "Return the packages list in a form suitable for JSON encoding."
