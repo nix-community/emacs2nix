@@ -24,8 +24,8 @@ import qualified Data.Text as T
 import Data.Traversable (for)
 import GHC.Generics
 import Network.HTTP.Client
-  ( Manager, defaultManagerSettings, httpLbs, parseUrl, responseBody
-  , withManager )
+  ( Manager, httpLbs, parseUrl, responseBody, withManager )
+import Network.HTTP.Client.TLS (tlsManagerSettings)
 import System.Console.GetOpt
 import System.Environment (getArgs)
 import System.Exit (exitFailure)
@@ -87,7 +87,7 @@ die str = hPutStrLn stderr str >> exitFailure
 
 getArchives :: Options -> IO (Map Text Package)
 getArchives Options {..} =
-  withManager defaultManagerSettings $ \man -> do
+  withManager tlsManagerSettings $ \man -> do
     archives <- runConcurrently $ for uris $ \uri ->
       Concurrently (getPackages man uri)
     let pkgs = foldr (M.unionWith keepLatestVersion) M.empty archives
