@@ -7,6 +7,7 @@ import Data.Map.Strict (Map)
 import Data.Text (Text)
 import Data.Traversable (traverse)
 import GHC.Generics
+import Network.HTTP.Client
 import Network.URI (URI, parseURI)
 import System.Environment (getArgs)
 import System.Exit (exitFailure)
@@ -20,9 +21,9 @@ data Package =
   { ver :: [Int]
   , deps :: Map Text [Int]
   , desc :: Text
-  , dist :: Text
+  , dist :: Text -- TODO: replace with an enumeration
   , props :: Map Text Text
-  , hash :: Maybe Text
+  , hash :: Maybe ByteString
   , archive :: Maybe String
   }
   deriving (Eq, Generic)
@@ -44,13 +45,14 @@ die str = hPutStrLn stderr str >> exitFailure
 
 generatePackagesFromArchives :: [URI] -> Map Text Package
 
-fetchArchiveContents :: URI -> IO FilePath
+fetchArchiveContents :: URI -> IO ByteString
 
 readArchiveContents :: FilePath -> IO (Map Text Package)
 
 readEncodedPackages :: FilePath -> IO (Map Text Package)
+readEncodedPackages = decode . B.readFile
 
-hashPackage :: Map Text Package -> URI -> Package -> IO Package
+hashPackage :: Map Text Package -> Manager -> URI -> Text -> Package -> IO Package
 
 encodePackages :: Map Text Package -> IO ()
 encodePackages = B.putStrLn . encode
