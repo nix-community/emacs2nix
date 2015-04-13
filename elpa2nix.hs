@@ -134,13 +134,14 @@ readPackages path =
     let Just pkgs = JSON.decode json
     return pkgs
 
-hashPackage :: Map Text Package -> Manager -> Text -> Package -> Concurrently Package
+hashPackage :: Map Text Package -> Manager -> Text -> Package
+            -> Concurrently Package
 hashPackage pkgs man name pkg =
   Concurrently $ handle brokenPkg $
   case M.lookup name pkgs of
     Just pkg' | isJust (hash pkg') -> return pkg'
     _ -> do
-      let uri = fromMaybe (errorPkg "missing archive URI") (archive pkg)
+      let uri = fromMaybe (error "missing archive URI") (archive pkg)
           filename = T.unpack name ++ version
           version =
             case ver pkg of
@@ -149,15 +150,17 @@ hashPackage pkgs man name pkg =
           ext = case dist pkg of
                   "single" -> "el"
                   "tar" -> "tar"
-                  other ->
-                    errorPkg $ "unrecognized distribution type " ++ T.unpack other
+                  other -> error "unrecognized distribution type"
           pkgurl = uri </> filename <.> ext
       req <- parseUrl pkgurl
       hash_ <- T.pack . showDigest . sha256 . responseBody <$> httpLbs req man
       return pkg { hash = Just hash_ }
   where
-    errorPkg msg = error $ T.unpack name ++ ": " ++ msg
-    brokenPkg (SomeException _) = return pkg { broken = Just True }
+    errorPkg msg = error $ nameS ++ ": " ++ msg
+    nameS = T.unpack name
+    brokenPkg (SomeException e) = do
+      putStrLn $ "marking " ++ nameS ++ " broken due to exception:\n" ++ show e
+      return pkg { broken = Just True }
 
 writePackages :: FilePath -> Map Text Package -> IO ()
 writePackages path pkgs = BC.writeFile path (JSON.encode pkgs)
