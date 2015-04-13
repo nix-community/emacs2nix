@@ -10,8 +10,6 @@ import Control.Exception (SomeException(..), handle)
 import Data.Aeson (FromJSON(..), ToJSON(..))
 import qualified Data.Aeson as JSON
 import qualified Data.Aeson.Types as JSON
-import Data.ByteString.Base32 (Base32)
-import qualified Data.ByteString.Base32 as Base32
 import Data.ByteString.Lazy (ByteString)
 import qualified Data.ByteString.Lazy as B
 import qualified Data.ByteString.Lazy.Char8 as BC
@@ -23,7 +21,6 @@ import Data.Maybe (fromMaybe, isJust)
 import Data.Ord (comparing)
 import Data.Text (Text)
 import qualified Data.Text as T
-import qualified Data.Text.Encoding as T
 import Data.Traversable (for)
 import GHC.Generics
 import Network.HTTP.Client
@@ -142,21 +139,20 @@ hashPackage pkgs man name pkg =
     Just pkg' | isJust (hash pkg') -> return pkg'
     _ -> do
       let uri = fromMaybe (error "missing archive URI") (archive pkg)
-          filename = T.unpack name ++ version
-          version =
+          filename = T.unpack name ++ version_
+          version_ =
             case ver pkg of
               [] -> ""
               vers -> "-" ++ intercalate "." (map show vers)
           ext = case dist pkg of
                   "single" -> "el"
                   "tar" -> "tar"
-                  other -> error "unrecognized distribution type"
+                  other -> error $ "unrecognized distribution type " ++ T.unpack other
           pkgurl = uri </> filename <.> ext
       req <- parseUrl pkgurl
       hash_ <- T.pack . showDigest . sha256 . responseBody <$> httpLbs req man
       return pkg { hash = Just hash_ }
   where
-    errorPkg msg = error $ nameS ++ ": " ++ msg
     nameS = T.unpack name
     brokenPkg (SomeException e) = do
       putStrLn $ "marking " ++ nameS ++ " broken due to exception:\n" ++ show e
