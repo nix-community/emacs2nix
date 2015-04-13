@@ -18,7 +18,7 @@
                                        (cadr dep)))
                                deps))
           :desc desc
-          :type type
+          :dist type
           :props props)))
 
 (defun packages-for-json (packages)
