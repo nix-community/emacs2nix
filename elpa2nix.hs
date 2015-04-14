@@ -9,6 +9,7 @@ import Control.Concurrent (getNumCapabilities)
 import Control.Concurrent.Async
 import Control.Concurrent.QSem
 import Control.Exception (SomeException(..), bracket_, handle)
+import Control.Lens hiding ((<.>))
 import Data.Aeson (FromJSON(..), ToJSON(..))
 import qualified Data.Aeson as JSON
 import qualified Data.Aeson.Types as JSON
@@ -24,9 +25,9 @@ import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Traversable (for)
 import GHC.Generics
-import Network.HTTP.Client
-  ( Manager, httpLbs, parseUrl, responseBody, withManager )
-import Network.HTTP.Client.TLS (tlsManagerSettings)
+import qualified Network.Wreq.Lens as W
+import Network.Wreq.Session (Session)
+import qualified Network.Wreq.Session as W
 import OpenSSL.Digest (MessageDigest(SHA256), toHex)
 import OpenSSL.Digest.ByteString.Lazy (digest)
 import System.Console.GetOpt
@@ -98,13 +99,13 @@ die str = hPutStrLn stderr str >> exitFailure
 
 getArchives :: Options -> IO (Map Text Package)
 getArchives Options {..} =
-  withManager tlsManagerSettings $ \man -> do
+  W.withSession $ \ses -> do
     archives <- runConcurrently $ for uris $ \uri ->
-      Concurrently (getPackages man uri)
+      Concurrently (getPackages ses uri)
     let pkgs = foldr (M.unionWith keepLatestVersion) M.empty archives
     oldPkgs <- readPackages output
     sem <- newQSem threads
-    runConcurrently $ M.traverseWithKey (hashPackage oldPkgs sem man) pkgs
+    runConcurrently $ M.traverseWithKey (hashPackage oldPkgs sem ses) pkgs
   where
     keepLatestVersion a b =
       case comparing ver a b of
@@ -112,9 +113,9 @@ getArchives Options {..} =
         GT -> a
         EQ -> b
 
-getPackages :: Manager -> String -> IO (Map Text Package)
-getPackages man uri = do
-  archive <- fetchArchive man uri
+getPackages :: Session -> String -> IO (Map Text Package)
+getPackages ses uri = do
+  archive <- fetchArchive ses uri
   withSystemTempFile "elpa2nix-archive-contents-" $ \path h -> do
     B.hPutStr h archive
     hClose h
@@ -122,10 +123,9 @@ getPackages man uri = do
   where
     setArchive pkg = pkg { archive = Just uri }
 
-fetchArchive :: Manager -> String -> IO ByteString
-fetchArchive man uri = do
-  req <- parseUrl (uri </> "archive-contents")
-  responseBody <$> httpLbs req man
+fetchArchive :: Session -> String -> IO ByteString
+fetchArchive ses uri =
+  view W.responseBody <$> W.get ses (uri </> "archive-contents")
 
 readArchive :: FilePath -> IO (Map Text Package)
 readArchive path = do
@@ -143,9 +143,9 @@ readPackages path =
     let Just pkgs = JSON.decode json
     return pkgs
 
-hashPackage :: Map Text Package -> QSem -> Manager -> Text -> Package
+hashPackage :: Map Text Package -> QSem -> Session -> Text -> Package
             -> Concurrently Package
-hashPackage pkgs sem man name pkg =
+hashPackage pkgs sem ses name pkg =
   Concurrently $ handle brokenPkg $
   case M.lookup name pkgs of
     Just pkg' | isJust (hash pkg') -> return pkg' { desc = "" }
@@ -161,8 +161,7 @@ hashPackage pkgs sem man name pkg =
                   "tar" -> "tar"
                   other -> error $ "unrecognized distribution type " ++ T.unpack other
           pkgurl = uri </> filename <.> ext
-      req <- parseUrl pkgurl
-      body <- responseBody <$> withQSem sem (httpLbs req man)
+      body <- withQSem sem (view W.responseBody <$> W.get ses pkgurl)
       hash_ <- sha256 body
       return pkg { hash = Just hash_, desc = "" }
   where
