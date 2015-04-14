@@ -65,6 +65,7 @@ data Options =
   Options
   { output :: FilePath
   , uris :: [String]
+  , threads :: Int
   }
 
 getOptions :: IO Options
@@ -76,13 +77,20 @@ getOptions = do
            return (foldl (flip id) defaultOptions opts, uris_)
          (_, _, errs) -> do
            error (concat errs ++ usageInfo header optdescr)
-  return opts { uris = uris_ }
+  ncap <- getNumCapabilities
+  return opts
+    { uris = uris_
+    , threads = if threads opts == 0 then ncap else threads opts
+    }
   where
     header = "Usage: elpa2nix [OPTION...] URIs..."
-    defaultOptions = Options { output = "", uris = [] }
+    defaultOptions = Options { output = "", uris = [], threads = 0 }
     optdescr =
-      [ Option ['o'] [] (ReqArg setOutput "FILE") "output FILE" ]
+      [ Option ['o'] [] (ReqArg setOutput "FILE") "output FILE"
+      , Option ['t'] [] (ReqArg setThreads "N") "use N threads"
+      ]
     setOutput out opts = opts { output = out }
+    setThreads n opts = opts { threads = read n }
 
 die :: String -> IO ()
 die str = hPutStrLn stderr str >> exitFailure
@@ -94,7 +102,7 @@ getArchives Options {..} =
       Concurrently (getPackages man uri)
     let pkgs = foldr (M.unionWith keepLatestVersion) M.empty archives
     oldPkgs <- readPackages output
-    sem <- getNumCapabilities >>= newQSem
+    sem <- newQSem threads
     runConcurrently $ M.traverseWithKey (hashPackage oldPkgs sem man) pkgs
   where
     keepLatestVersion a b =
