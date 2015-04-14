@@ -27,7 +27,8 @@ import GHC.Generics
 import Network.HTTP.Client
   ( Manager, httpLbs, parseUrl, responseBody, withManager )
 import Network.HTTP.Client.TLS (tlsManagerSettings)
-import OpenSSL.Digest (MessageDigest(SHA256), digest, toHex)
+import OpenSSL.Digest (MessageDigest(SHA256), toHex)
+import OpenSSL.Digest.ByteString.Lazy (digest)
 import System.Console.GetOpt
 import System.Environment (getArgs)
 import System.Exit (exitFailure)
@@ -178,5 +179,5 @@ withQSem qsem go = bracket_ (waitQSem qsem) (signalQSem qsem) go
 
 sha256 :: ByteString -> IO Text
 sha256 bytes = do
-  hash <- digest SHA256 (B.unpack bytes)
+  hash <- digest SHA256 bytes
   return (T.pack (hash >>= toHex))
