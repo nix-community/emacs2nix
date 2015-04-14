@@ -5,8 +5,10 @@
 module Main where
 
 import Control.Applicative
+import Control.Concurrent (getNumCapabilities)
 import Control.Concurrent.Async
-import Control.Exception (SomeException(..), handle)
+import Control.Concurrent.QSem
+import Control.Exception (SomeException(..), bracket_, handle)
 import Data.Aeson (FromJSON(..), ToJSON(..))
 import qualified Data.Aeson as JSON
 import qualified Data.Aeson.Types as JSON
@@ -92,7 +94,8 @@ getArchives Options {..} =
       Concurrently (getPackages man uri)
     let pkgs = foldr (M.unionWith keepLatestVersion) M.empty archives
     oldPkgs <- readPackages output
-    runConcurrently $ M.traverseWithKey (hashPackage oldPkgs man) pkgs
+    sem <- getNumCapabilities >>= newQSem
+    runConcurrently $ M.traverseWithKey (hashPackage oldPkgs sem man) pkgs
   where
     keepLatestVersion a b =
       case comparing ver a b of
@@ -131,9 +134,9 @@ readPackages path =
     let Just pkgs = JSON.decode json
     return pkgs
 
-hashPackage :: Map Text Package -> Manager -> Text -> Package
+hashPackage :: Map Text Package -> QSem -> Manager -> Text -> Package
             -> Concurrently Package
-hashPackage pkgs man name pkg =
+hashPackage pkgs sem man name pkg =
   Concurrently $ handle brokenPkg $
   case M.lookup name pkgs of
     Just pkg' | isJust (hash pkg') -> return pkg'
@@ -150,7 +153,7 @@ hashPackage pkgs man name pkg =
                   other -> error $ "unrecognized distribution type " ++ T.unpack other
           pkgurl = uri </> filename <.> ext
       req <- parseUrl pkgurl
-      hash_ <- T.pack . showDigest . sha256 . responseBody <$> httpLbs req man
+      hash_ <- T.pack . showDigest . sha256 . responseBody <$> withQSem sem (httpLbs req man)
       return pkg { hash = Just hash_ }
   where
     nameS = T.unpack name
@@ -160,3 +163,6 @@ hashPackage pkgs man name pkg =
 
 writePackages :: FilePath -> Map Text Package -> IO ()
 writePackages path pkgs = BC.writeFile path (JSON.encode pkgs)
+
+withQSem :: QSem -> IO a -> IO a
+withQSem qsem go = bracket_ (waitQSem qsem) (signalQSem qsem) go
