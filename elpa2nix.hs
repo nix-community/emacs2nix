@@ -147,7 +147,7 @@ hashPackage :: Map Text Package -> QSem -> Manager -> Text -> Package
 hashPackage pkgs sem man name pkg =
   Concurrently $ handle brokenPkg $
   case M.lookup name pkgs of
-    Just pkg' | isJust (hash pkg') -> return pkg'
+    Just pkg' | isJust (hash pkg') -> return pkg' { desc = "" }
     _ -> do
       let uri = fromMaybe (error "missing archive URI") (archive pkg)
           filename = T.unpack name ++ version_
@@ -162,7 +162,7 @@ hashPackage pkgs sem man name pkg =
           pkgurl = uri </> filename <.> ext
       req <- parseUrl pkgurl
       hash_ <- T.pack . showDigest . sha256 . responseBody <$> withQSem sem (httpLbs req man)
-      return pkg { hash = Just hash_ }
+      return pkg { hash = Just hash_, desc = "" }
   where
     nameS = T.unpack name
     brokenPkg (SomeException e) = do
