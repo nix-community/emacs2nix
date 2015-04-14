@@ -1,9 +1,11 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE ViewPatterns #-}
 
 module Main where
 
+import qualified Codec.Compression.GZip as GZ
 import Control.Applicative
 import Control.Concurrent (getNumCapabilities)
 import Control.Concurrent.Async
@@ -150,18 +152,7 @@ hashPackage pkgs sem ses name pkg =
   case M.lookup name pkgs of
     Just pkg' | isJust (hash pkg') -> return pkg' { desc = "" }
     _ -> do
-      let uri = fromMaybe (error "missing archive URI") (archive pkg)
-          filename = T.unpack name ++ version_
-          version_ =
-            case ver pkg of
-              [] -> ""
-              vers -> "-" ++ intercalate "." (map show vers)
-          ext = case dist pkg of
-                  "single" -> "el"
-                  "tar" -> "tar"
-                  other -> error $ "unrecognized distribution type " ++ T.unpack other
-          pkgurl = uri </> filename <.> ext
-      body <- withQSem sem (view W.responseBody <$> W.get ses pkgurl)
+      body <- getPackage sem ses name pkg
       hash_ <- sha256 body
       return pkg { hash = Just hash_, desc = "" }
   where
@@ -169,6 +160,29 @@ hashPackage pkgs sem ses name pkg =
     brokenPkg (SomeException e) = do
       putStrLn $ "marking " ++ nameS ++ " broken due to exception:\n" ++ show e
       return pkg { broken = Just True }
+
+getPackage :: QSem -> Session -> Text -> Package -> IO ByteString
+getPackage sem ses name pkg = do
+  let uri = fromMaybe (error "missing archive URI") (archive pkg)
+      filename = T.unpack name ++ version_
+      version_ =
+        case ver pkg of
+          [] -> ""
+          vers -> "-" ++ intercalate "." (map show vers)
+      ext = case dist pkg of
+              "single" -> "el"
+              "tar" -> "tar"
+              other -> error $ "unrecognized distribution type " ++ T.unpack other
+      pkgurl = uri </> filename <.> ext
+  resp <- withQSem sem (W.get ses pkgurl)
+  let decompress =
+        case view (W.responseHeader "Content-Encoding") resp of
+          "gzip" -> GZ.decompress
+          "identity" -> id
+          "" -> id
+          (BC.unpack . B.fromStrict -> other) ->
+            error ("unsupported content encoding " ++ other)
+  return $ decompress (view W.responseBody resp)
 
 writePackages :: FilePath -> Map Text Package -> IO ()
 writePackages path pkgs = BC.writeFile path (JSON.encode pkgs)
