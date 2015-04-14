@@ -26,7 +26,7 @@ executable elpa2nix
     , http-client == 0.4.*
     , http-client-tls == 0.2.*
     , process == 1.2.*
-    , SHA == 1.6.*
+    , hopenssl == 1.7.*
     , temporary == 1.2.*
     , text == 1.2.*
   default-language:    Haskell2010

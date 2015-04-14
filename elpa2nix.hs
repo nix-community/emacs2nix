@@ -15,7 +15,6 @@ import qualified Data.Aeson.Types as JSON
 import Data.ByteString.Lazy (ByteString)
 import qualified Data.ByteString.Lazy as B
 import qualified Data.ByteString.Lazy.Char8 as BC
-import Data.Digest.Pure.SHA (showDigest, sha256)
 import Data.List (intercalate)
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as M
@@ -28,6 +27,7 @@ import GHC.Generics
 import Network.HTTP.Client
   ( Manager, httpLbs, parseUrl, responseBody, withManager )
 import Network.HTTP.Client.TLS (tlsManagerSettings)
+import OpenSSL.Digest (MessageDigest(SHA256), digest, toHex)
 import System.Console.GetOpt
 import System.Environment (getArgs)
 import System.Exit (exitFailure)
@@ -161,7 +161,8 @@ hashPackage pkgs sem man name pkg =
                   other -> error $ "unrecognized distribution type " ++ T.unpack other
           pkgurl = uri </> filename <.> ext
       req <- parseUrl pkgurl
-      hash_ <- T.pack . showDigest . sha256 . responseBody <$> withQSem sem (httpLbs req man)
+      body <- responseBody <$> withQSem sem (httpLbs req man)
+      hash_ <- sha256 body
       return pkg { hash = Just hash_, desc = "" }
   where
     nameS = T.unpack name
@@ -174,3 +175,8 @@ writePackages path pkgs = BC.writeFile path (JSON.encode pkgs)
 
 withQSem :: QSem -> IO a -> IO a
 withQSem qsem go = bracket_ (waitQSem qsem) (signalQSem qsem) go
+
+sha256 :: ByteString -> IO Text
+sha256 bytes = do
+  hash <- digest SHA256 (B.unpack bytes)
+  return (T.pack (hash >>= toHex))
