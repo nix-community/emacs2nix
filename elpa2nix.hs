@@ -5,7 +5,6 @@
 
 module Main where
 
-import qualified Codec.Compression.GZip as GZ
 import Control.Applicative
 import Control.Concurrent (getNumCapabilities)
 import Control.Concurrent.Async
@@ -27,6 +26,8 @@ import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Traversable (for)
 import GHC.Generics
+import Network.HTTP.Client (managerModifyRequest, decompress)
+import Network.HTTP.Client.TLS (tlsManagerSettings)
 import qualified Network.Wreq.Lens as W
 import Network.Wreq.Session (Session)
 import qualified Network.Wreq.Session as W
@@ -101,7 +102,7 @@ die str = hPutStrLn stderr str >> exitFailure
 
 getArchives :: Options -> IO (Map Text Package)
 getArchives Options {..} =
-  W.withSession $ \ses -> do
+  W.withSessionWith mgrSettings $ \ses -> do
     archives <- runConcurrently $ for uris $ \uri ->
       Concurrently (getPackages ses uri)
     let pkgs = foldr (M.unionWith keepLatestVersion) M.empty archives
@@ -114,6 +115,11 @@ getArchives Options {..} =
         LT -> b
         GT -> a
         EQ -> b
+    mgrSettings =
+      tlsManagerSettings
+      { managerModifyRequest = \req ->
+          return req { decompress = \_ -> True }
+      }
 
 getPackages :: Session -> String -> IO (Map Text Package)
 getPackages ses uri = do
@@ -174,15 +180,7 @@ getPackage sem ses name pkg = do
               "tar" -> "tar"
               other -> error $ "unrecognized distribution type " ++ T.unpack other
       pkgurl = uri </> filename <.> ext
-  resp <- withQSem sem (W.get ses pkgurl)
-  let decompress =
-        case view (W.responseHeader "Content-Encoding") resp of
-          "gzip" -> GZ.decompress
-          "identity" -> id
-          "" -> id
-          (BC.unpack . B.fromStrict -> other) ->
-            error ("unsupported content encoding " ++ other)
-  return $ decompress (view W.responseBody resp)
+  withQSem sem (view W.responseBody <$> W.get ses pkgurl)
 
 writePackages :: FilePath -> Map Text Package -> IO ()
 writePackages path pkgs = BC.writeFile path (JSON.encode pkgs)
