@@ -10,7 +10,6 @@ import Control.Concurrent (getNumCapabilities)
 import Control.Concurrent.Async
 import Control.Concurrent.QSem
 import Control.Exception (SomeException(..), bracket_, handle)
-import Control.Lens hiding ((<.>))
 import Data.Aeson (FromJSON(..), ToJSON(..))
 import qualified Data.Aeson as JSON
 import qualified Data.Aeson.Types as JSON
@@ -26,11 +25,10 @@ import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Traversable (for)
 import GHC.Generics
-import Network.HTTP.Client (managerModifyRequest, decompress)
+import Network.HTTP.Client
+  ( Manager, decompress, httpLbs, managerModifyRequest, parseUrl, responseBody
+  , withManager )
 import Network.HTTP.Client.TLS (tlsManagerSettings)
-import qualified Network.Wreq.Lens as W
-import Network.Wreq.Session (Session)
-import qualified Network.Wreq.Session as W
 import OpenSSL.Digest (MessageDigest(SHA256), toHex)
 import OpenSSL.Digest.ByteString.Lazy (digest)
 import System.Console.GetOpt
@@ -102,7 +100,7 @@ die str = hPutStrLn stderr str >> exitFailure
 
 getArchives :: Options -> IO (Map Text Package)
 getArchives Options {..} =
-  W.withSessionWith mgrSettings $ \ses -> do
+  withManager mgrSettings $ \ses -> do
     archives <- runConcurrently $ for uris $ \uri ->
       Concurrently (getPackages ses uri)
     let pkgs = foldr (M.unionWith keepLatestVersion) M.empty archives
@@ -121,9 +119,9 @@ getArchives Options {..} =
           return req { decompress = \_ -> True }
       }
 
-getPackages :: Session -> String -> IO (Map Text Package)
-getPackages ses uri = do
-  archive <- fetchArchive ses uri
+getPackages :: Manager -> String -> IO (Map Text Package)
+getPackages man uri = do
+  archive <- fetchArchive man uri
   withSystemTempFile "elpa2nix-archive-contents-" $ \path h -> do
     B.hPutStr h archive
     hClose h
@@ -131,9 +129,10 @@ getPackages ses uri = do
   where
     setArchive pkg = pkg { archive = Just uri }
 
-fetchArchive :: Session -> String -> IO ByteString
-fetchArchive ses uri =
-  view W.responseBody <$> W.get ses (uri </> "archive-contents")
+fetchArchive :: Manager -> String -> IO ByteString
+fetchArchive man uri = do
+  req <- parseUrl (uri </> "archive-contents")
+  responseBody <$> httpLbs req man
 
 readArchive :: FilePath -> IO (Map Text Package)
 readArchive path = do
@@ -151,14 +150,14 @@ readPackages path =
     let Just pkgs = JSON.decode json
     return pkgs
 
-hashPackage :: Map Text Package -> QSem -> Session -> Text -> Package
+hashPackage :: Map Text Package -> QSem -> Manager -> Text -> Package
             -> Concurrently Package
-hashPackage pkgs sem ses name pkg =
+hashPackage pkgs sem man name pkg =
   Concurrently $ handle brokenPkg $
   case M.lookup name pkgs of
     Just pkg' | isJust (hash pkg') -> return pkg' { desc = "" }
     _ -> do
-      body <- getPackage sem ses name pkg
+      body <- getPackage sem man name pkg
       hash_ <- sha256 body
       return pkg { hash = Just hash_, desc = "" }
   where
@@ -167,8 +166,8 @@ hashPackage pkgs sem ses name pkg =
       putStrLn $ "marking " ++ nameS ++ " broken due to exception:\n" ++ show e
       return pkg { broken = Just True }
 
-getPackage :: QSem -> Session -> Text -> Package -> IO ByteString
-getPackage sem ses name pkg = do
+getPackage :: QSem -> Manager -> Text -> Package -> IO ByteString
+getPackage sem man name pkg = do
   let uri = fromMaybe (error "missing archive URI") (archive pkg)
       filename = T.unpack name ++ version_
       version_ =
@@ -179,8 +178,8 @@ getPackage sem ses name pkg = do
               "single" -> "el"
               "tar" -> "tar"
               other -> error $ "unrecognized distribution type " ++ T.unpack other
-      pkgurl = uri </> filename <.> ext
-  withQSem sem (view W.responseBody <$> W.get ses pkgurl)
+  req <- parseUrl (uri </> filename <.> ext)
+  withQSem sem (responseBody <$> httpLbs req man)
 
 writePackages :: FilePath -> Map Text Package -> IO ()
 writePackages path pkgs = BC.writeFile path (JSON.encode pkgs)

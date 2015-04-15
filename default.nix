@@ -1,6 +1,6 @@
 { mkDerivation, aeson, async, base, bytestring, containers
-, filepath, hopenssl, http-client, http-client-tls, lens, process
-, stdenv, temporary, text, wreq
+, filepath, hopenssl, http-client, http-client-tls, process, stdenv
+, temporary, text
 }:
 mkDerivation {
   pname = "elpa2nix";
@@ -10,7 +10,7 @@ mkDerivation {
   isExecutable = true;
   buildDepends = [
     aeson async base bytestring containers filepath hopenssl
-    http-client http-client-tls lens process temporary text wreq
+    http-client http-client-tls process temporary text
   ];
   homepage = "http://github.com/ttuegel/elpa2nix";
   description = "Automatically generate Nix expressions for Emacs packages";
