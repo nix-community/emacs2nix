@@ -26,8 +26,8 @@ import qualified Data.Text as T
 import Data.Traversable (for)
 import GHC.Generics
 import Network.HTTP.Client
-  ( Manager, decompress, httpLbs, managerModifyRequest, parseUrl, responseBody
-  , withManager )
+  ( Manager, Request, decompress, httpLbs, managerModifyRequest, parseUrl
+  , responseBody, withManager )
 import Network.HTTP.Client.TLS (tlsManagerSettings)
 import OpenSSL.Digest (MessageDigest(SHA256), toHex)
 import OpenSSL.Digest.ByteString.Lazy (digest)
@@ -116,7 +116,7 @@ getArchives Options {..} =
     mgrSettings =
       tlsManagerSettings
       { managerModifyRequest = \req ->
-          return req { decompress = \_ -> True }
+            alwaysDecompress <$> managerModifyRequest tlsManagerSettings req
       }
 
 getPackages :: Manager -> String -> IO (Map Text Package)
@@ -131,7 +131,7 @@ getPackages man uri = do
 
 fetchArchive :: Manager -> String -> IO ByteString
 fetchArchive man uri = do
-  req <- parseUrl (uri </> "archive-contents")
+  req <- alwaysDecompress <$> parseUrl (uri </> "archive-contents")
   responseBody <$> httpLbs req man
 
 readArchive :: FilePath -> IO (Map Text Package)
@@ -157,7 +157,7 @@ hashPackage pkgs sem man name pkg =
   case M.lookup name pkgs of
     Just pkg' | isJust (hash pkg') -> return pkg' { desc = "" }
     _ -> do
-      body <- getPackage sem man name pkg
+      body <- fetchPackage sem man name pkg
       hash_ <- sha256 body
       return pkg { hash = Just hash_, desc = "" }
   where
@@ -166,8 +166,8 @@ hashPackage pkgs sem man name pkg =
       putStrLn $ "marking " ++ nameS ++ " broken due to exception:\n" ++ show e
       return pkg { broken = Just True }
 
-getPackage :: QSem -> Manager -> Text -> Package -> IO ByteString
-getPackage sem man name pkg = do
+fetchPackage :: QSem -> Manager -> Text -> Package -> IO ByteString
+fetchPackage sem man name pkg = do
   let uri = fromMaybe (error "missing archive URI") (archive pkg)
       filename = T.unpack name ++ version_
       version_ =
@@ -178,7 +178,7 @@ getPackage sem man name pkg = do
               "single" -> "el"
               "tar" -> "tar"
               other -> error $ "unrecognized distribution type " ++ T.unpack other
-  req <- parseUrl (uri </> filename <.> ext)
+  req <- alwaysDecompress <$> parseUrl (uri </> filename <.> ext)
   withQSem sem (responseBody <$> httpLbs req man)
 
 writePackages :: FilePath -> Map Text Package -> IO ()
@@ -191,3 +191,6 @@ sha256 :: ByteString -> IO Text
 sha256 bytes = do
   hash <- digest SHA256 bytes
   return (T.pack (hash >>= toHex))
+
+alwaysDecompress :: Request -> Request
+alwaysDecompress req = req { decompress = \_ -> True }
