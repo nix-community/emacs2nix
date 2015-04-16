@@ -1,6 +1,6 @@
 { mkDerivation, aeson, async, base, bytestring, containers
-, filepath, hopenssl, http-client, http-client-tls, process, stdenv
-, temporary, text
+, cryptohash, filepath, http-client, http-client-tls, process
+, stdenv, temporary, text
 }:
 mkDerivation {
   pname = "elpa2nix";
@@ -9,7 +9,7 @@ mkDerivation {
   isLibrary = false;
   isExecutable = true;
   buildDepends = [
-    aeson async base bytestring containers filepath hopenssl
+    aeson async base bytestring containers cryptohash filepath
     http-client http-client-tls process temporary text
   ];
   homepage = "http://github.com/ttuegel/elpa2nix";

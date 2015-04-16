@@ -10,6 +10,7 @@ import Control.Concurrent (getNumCapabilities)
 import Control.Concurrent.Async
 import Control.Concurrent.QSem
 import Control.Exception (SomeException(..), bracket_, handle)
+import Crypto.Hash (Digest, SHA256, digestToHexByteString, hashlazy)
 import Data.Aeson (FromJSON(..), ToJSON(..))
 import qualified Data.Aeson as JSON
 import qualified Data.Aeson.Types as JSON
@@ -23,14 +24,13 @@ import Data.Maybe (fromMaybe, isJust)
 import Data.Ord (comparing)
 import Data.Text (Text)
 import qualified Data.Text as T
+import qualified Data.Text.Encoding as T
 import Data.Traversable (for)
 import GHC.Generics
 import Network.HTTP.Client
   ( Manager, Request, decompress, httpLbs, managerModifyRequest, parseUrl
   , responseBody, withManager )
 import Network.HTTP.Client.TLS (tlsManagerSettings)
-import OpenSSL.Digest (MessageDigest(SHA256), toHex)
-import OpenSSL.Digest.ByteString.Lazy (digest)
 import System.Console.GetOpt
 import System.Environment (getArgs)
 import System.Exit (exitFailure)
@@ -158,8 +158,7 @@ hashPackage pkgs sem man name pkg =
     Just pkg' | isJust (hash pkg') -> return pkg' { desc = "" }
     _ -> do
       body <- fetchPackage sem man name pkg
-      hash_ <- sha256 body
-      return pkg { hash = Just hash_, desc = "" }
+      return pkg { hash = Just (sha256 body), desc = "" }
   where
     nameS = T.unpack name
     brokenPkg (SomeException e) = do
@@ -187,10 +186,11 @@ writePackages path pkgs = BC.writeFile path (JSON.encode pkgs)
 withQSem :: QSem -> IO a -> IO a
 withQSem qsem go = bracket_ (waitQSem qsem) (signalQSem qsem) go
 
-sha256 :: ByteString -> IO Text
-sha256 bytes = do
-  hash <- digest SHA256 bytes
-  return (T.pack (hash >>= toHex))
+sha256 :: ByteString -> Text
+sha256 bytes =
+  let dig :: Digest SHA256
+      dig = hashlazy bytes
+  in T.decodeUtf8 (digestToHexByteString dig)
 
 alwaysDecompress :: Request -> Request
 alwaysDecompress req = req { decompress = \_ -> True }
