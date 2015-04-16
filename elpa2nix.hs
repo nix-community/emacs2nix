@@ -67,6 +67,7 @@ instance ToJSON Package where
 data Options =
   Options
   { output :: FilePath
+  , input :: FilePath
   , uris :: [String]
   , threads :: Int
   }
@@ -84,15 +85,18 @@ getOptions = do
   return opts
     { uris = uris_
     , threads = if threads opts == 0 then ncap else threads opts
+    , input = if input opts == "" then output opts else input opts
     }
   where
     header = "Usage: elpa2nix [OPTION...] URIs..."
     defaultOptions = Options { output = "", uris = [], threads = 0 }
     optdescr =
       [ Option ['o'] [] (ReqArg setOutput "FILE") "output FILE"
+      , Option ['i'] [] (ReqArg setInput "FILE") "input FILE (defaults to output)"
       , Option ['t'] [] (ReqArg setThreads "N") "use N threads"
       ]
     setOutput out opts = opts { output = out }
+    setInput inp opts = opts { input = inp }
     setThreads n opts = opts { threads = read n }
 
 die :: String -> IO ()
@@ -103,8 +107,8 @@ getArchives Options {..} =
   withManager mgrSettings $ \ses -> do
     archives <- runConcurrently $ for uris $ \uri ->
       Concurrently (getPackages ses uri)
-    let pkgs = foldr (M.unionWith keepLatestVersion) M.empty archives
-    oldPkgs <- readPackages output
+    oldPkgs <- readPackages input
+    let pkgs = foldr (M.unionWith keepLatestVersion) oldPkgs archives
     sem <- newQSem threads
     runConcurrently $ M.traverseWithKey (hashPackage oldPkgs sem ses) pkgs
   where
