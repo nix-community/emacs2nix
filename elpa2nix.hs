@@ -7,14 +7,14 @@ module Main where
 
 import Control.Applicative
 import Control.Concurrent (forkIO, getNumCapabilities)
-import Control.Concurrent.Async
+import Control.Concurrent.Async (Concurrently(..))
 import Control.Concurrent.QSem
 import Control.Exception (SomeException(..), bracket_, handle)
 import Crypto.Hash
   (Digest, HashAlgorithm(..), SHA256, digestToHexByteString, hashUpdate)
-import Data.Aeson
+import Data.Aeson (FromJSON(..), ToJSON(..), json')
 import Data.Aeson.Encode (encodeToByteStringBuilder)
-import Data.Aeson.Types hiding (Options)
+import Data.Aeson.Types (defaultOptions, genericParseJSON, genericToJSON, parseMaybe)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as B8
 import Data.List (intercalate)
@@ -26,7 +26,7 @@ import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import Data.Traversable (for)
-import GHC.Generics
+import GHC.Generics (Generic)
 import qualified Network.Http.Client as Http
 import System.Console.GetOpt
 import System.Environment (getArgs)
