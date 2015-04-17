@@ -6,18 +6,17 @@
 module Main where
 
 import Control.Applicative
-import Control.Concurrent (getNumCapabilities)
+import Control.Concurrent (forkIO, getNumCapabilities)
 import Control.Concurrent.Async
 import Control.Concurrent.QSem
 import Control.Exception (SomeException(..), bracket_, handle)
-import Crypto.Hash (Digest, SHA256, digestToHexByteString, hashlazy)
-import Data.Aeson (FromJSON(..), ToJSON(..))
-import qualified Data.Aeson as JSON
-import qualified Data.Aeson.Encode as JSON
-import qualified Data.Aeson.Types as JSON
-import qualified Data.ByteString as BS
-import Data.ByteString.Lazy (ByteString)
-import qualified Data.ByteString.Lazy as B
+import Crypto.Hash
+  (Digest, HashAlgorithm(..), SHA256, digestToHexByteString, hashUpdate)
+import Data.Aeson
+import Data.Aeson.Encode (encodeToByteStringBuilder)
+import Data.Aeson.Types hiding (Options)
+import Data.ByteString (ByteString)
+import qualified Data.ByteString.Char8 as B8
 import Data.List (intercalate)
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as M
@@ -28,15 +27,13 @@ import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import Data.Traversable (for)
 import GHC.Generics
-import Network.HTTP.Client
-  ( Manager, Request, decompress, httpLbs, managerModifyRequest, parseUrl
-  , responseBody, withManager )
-import Network.HTTP.Client.TLS (tlsManagerSettings)
+import qualified Network.Http.Client as Http
 import System.Console.GetOpt
 import System.Environment (getArgs)
 import System.Exit (exitFailure)
 import System.FilePath ((</>), (<.>))
 import System.IO (hClose, hPutStrLn, stderr)
+import System.IO.Streams (InputStream)
 import qualified System.IO.Streams as S
 import qualified System.IO.Streams.Attoparsec as S
 import System.IO.Temp (withSystemTempFile)
@@ -61,10 +58,10 @@ data Package =
   deriving (Eq, Generic, Read, Show)
 
 instance FromJSON Package where
-  parseJSON = JSON.genericParseJSON JSON.defaultOptions
+  parseJSON = genericParseJSON defaultOptions
 
 instance ToJSON Package where
-  toJSON = JSON.genericToJSON JSON.defaultOptions
+  toJSON = genericToJSON defaultOptions
 
 data Options =
   Options
@@ -79,10 +76,8 @@ getOptions = do
   args <- getArgs
   (opts, uris_) <-
        case getOpt Permute optdescr args of
-         (opts, uris_, []) ->
-           return (foldl (flip id) defaultOptions opts, uris_)
-         (_, _, errs) -> do
-           error (concat errs ++ usageInfo header optdescr)
+         (opts, uris_, []) -> return (foldl (flip id) dftl opts, uris_)
+         (_, _, errs) -> error (concat errs ++ usageInfo header optdescr)
   ncap <- getNumCapabilities
   return opts
     { uris = uris_
@@ -91,7 +86,7 @@ getOptions = do
     }
   where
     header = "Usage: elpa2nix [OPTION...] URIs..."
-    defaultOptions = Options { output = "", uris = [], threads = 0, input = "" }
+    dftl = Options { output = "", uris = [], threads = 0, input = "" }
     optdescr =
       [ Option ['o'] [] (ReqArg setOutput "FILE") "output FILE"
       , Option ['i'] [] (ReqArg setInput "FILE") "input FILE (defaults to output)"
@@ -105,105 +100,88 @@ die :: String -> IO ()
 die str = hPutStrLn stderr str >> exitFailure
 
 getArchives :: Options -> IO (Map Text Package)
-getArchives Options {..} =
-  withManager mgrSettings $ \ses -> do
-    archives <- runConcurrently $ for uris $ \uri ->
-      Concurrently (getPackages ses uri)
-    oldPkgs <- readPackages input
-    let pkgs = foldr (M.unionWith keepLatestVersion) oldPkgs archives
-    sem <- newQSem threads
-    runConcurrently $ M.traverseWithKey (hashPackage oldPkgs sem ses) pkgs
+getArchives Options {..} = do
+  archives <- runConcurrently $ for uris $ \uri -> Concurrently (getPackages uri)
+  oldPkgs <- readPackages input
+  let pkgs = foldr (M.unionWith keepLatestVersion) oldPkgs archives
+  sem <- newQSem threads
+  runConcurrently $ M.traverseWithKey (hashPackage oldPkgs sem) pkgs
   where
     keepLatestVersion a b =
       case comparing ver a b of
         LT -> b
         GT -> a
         EQ -> b
-    mgrSettings =
-      tlsManagerSettings
-      { managerModifyRequest = \req ->
-            alwaysDecompress <$> managerModifyRequest tlsManagerSettings req
-      }
 
-getPackages :: Manager -> String -> IO (Map Text Package)
-getPackages man uri = do
-  archive <- fetchArchive man uri
-  withSystemTempFile "elpa2nix-archive-contents-" $ \path h -> do
-    B.hPutStr h archive
-    hClose h
-    M.map setArchive <$> readArchive path
+getPackages :: String -> IO (Map Text Package)
+getPackages uri = do
+  Http.get (B8.pack $ uri </> "archive-contents") $ \_ str -> do
+    withSystemTempFile "elpa2nix-archive-contents-" $ \path _h -> do
+      _h <- S.handleToOutputStream _h >>= S.atEndOfOutput (hClose _h)
+      S.supply str _h
+      S.write Nothing _h
+      M.map setArchive <$> readArchive path
   where
     setArchive pkg = pkg { archive = Just uri }
-
-fetchArchive :: Manager -> String -> IO ByteString
-fetchArchive man uri = do
-  req <- alwaysDecompress <$> parseUrl (uri </> "archive-contents")
-  responseBody <$> httpLbs req man
 
 readArchive :: FilePath -> IO (Map Text Package)
 readArchive path = do
   load <- getDataFileName "elpa2json.el"
-  (inp, out, _, pid) <- S.runInteractiveProcess "emacs"
-                        ["--batch", "--load", load, "--eval", eval]
-                        Nothing Nothing
-  S.write Nothing inp
-  JSON.Success pkgs <- parseJsonFromStream out
+  (_, out, err, pid) <- S.runInteractiveProcess "emacs"
+                      ["--batch", "--load", load, "--eval", eval]
+                      Nothing Nothing
+  _ <- forkIO $ S.supply err S.stderr
+  Just pkgs <- parseJsonFromStream out
   S.waitForProcess pid >> return pkgs
   where
     eval = "(print-archive-contents-as-json " ++ show path ++ ")"
 
 readPackages :: FilePath -> IO (Map Text Package)
 readPackages path =
-  handle (\(SomeException _) -> return M.empty) $ do
-    JSON.Success pkgs <- S.withFileAsInput path parseJsonFromStream
-    return pkgs
+  handle (\(SomeException _) -> return M.empty)
+    $ fromMaybe M.empty <$> S.withFileAsInput path parseJsonFromStream
 
-parseJsonFromStream :: JSON.FromJSON a => S.InputStream BS.ByteString -> IO (JSON.Result a)
-parseJsonFromStream stream = JSON.fromJSON <$> S.parseFromStream JSON.json' stream
+parseJsonFromStream :: FromJSON a => S.InputStream ByteString -> IO (Maybe a)
+parseJsonFromStream stream = parseMaybe parseJSON <$> S.parseFromStream json' stream
 
-hashPackage :: Map Text Package -> QSem -> Manager -> Text -> Package
-            -> Concurrently Package
-hashPackage pkgs sem man name pkg =
+hashPackage :: Map Text Package -> QSem -> Text -> Package -> Concurrently Package
+hashPackage pkgs sem name pkg =
   Concurrently $ handle brokenPkg $
   case M.lookup name pkgs of
     Just pkg' | isJust (hash pkg') -> return pkg' { desc = "" }
     _ -> do
-      body <- fetchPackage sem man name pkg
-      return pkg { hash = Just (sha256 body), desc = "" }
+      let uri = fromMaybe (error "missing archive URI") (archive pkg)
+          filename = T.unpack name ++ version_
+          version_ =
+            case ver pkg of
+              [] -> ""
+              vers -> "-" ++ intercalate "." (map show vers)
+          ext = case dist pkg of
+                  "single" -> "el"
+                  "tar" -> "tar"
+                  other -> error $ "unrecognized distribution type " ++ T.unpack other
+      hash_ <- withQSem sem $ Http.get (B8.pack $ uri </> filename <.> ext) $ \_ -> sha256
+      return pkg { hash = Just hash_, desc = "" }
   where
     nameS = T.unpack name
     brokenPkg (SomeException e) = do
       putStrLn $ "marking " ++ nameS ++ " broken due to exception:\n" ++ show e
       return pkg { broken = Just True }
 
-fetchPackage :: QSem -> Manager -> Text -> Package -> IO ByteString
-fetchPackage sem man name pkg = do
-  let uri = fromMaybe (error "missing archive URI") (archive pkg)
-      filename = T.unpack name ++ version_
-      version_ =
-        case ver pkg of
-          [] -> ""
-          vers -> "-" ++ intercalate "." (map show vers)
-      ext = case dist pkg of
-              "single" -> "el"
-              "tar" -> "tar"
-              other -> error $ "unrecognized distribution type " ++ T.unpack other
-  req <- alwaysDecompress <$> parseUrl (uri </> filename <.> ext)
-  withQSem sem (responseBody <$> httpLbs req man)
-
 writePackages :: FilePath -> Map Text Package -> IO ()
 writePackages path pkgs =
-  S.withFileAsOutput path $ \out -> S.builderStream out >>= S.write (Just builder)
-  where builder = JSON.encodeToByteStringBuilder (JSON.toJSON pkgs)
+  S.withFileAsOutput path $ \_out -> do
+    _out <- S.builderStream _out
+    S.write (Just builder) _out
+    S.write Nothing _out
+  where builder = encodeToByteStringBuilder (toJSON pkgs)
 
 withQSem :: QSem -> IO a -> IO a
 withQSem qsem go = bracket_ (waitQSem qsem) (signalQSem qsem) go
 
-sha256 :: ByteString -> Text
-sha256 bytes =
+sha256 :: InputStream ByteString -> IO Text
+sha256 stream = do
+  ctx <- S.fold hashUpdate hashInit stream
   let dig :: Digest SHA256
-      dig = hashlazy bytes
-  in T.decodeUtf8 (digestToHexByteString dig)
-
-alwaysDecompress :: Request -> Request
-alwaysDecompress req = req { decompress = \_ -> True }
+      dig = hashFinalize ctx
+  return $ T.decodeUtf8 (digestToHexByteString dig)
