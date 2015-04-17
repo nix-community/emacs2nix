@@ -12,10 +12,11 @@ import Control.Concurrent.QSem
 import Control.Exception (SomeException(..), bracket_, handle)
 import Data.Aeson (FromJSON(..), ToJSON(..))
 import qualified Data.Aeson as JSON
+import qualified Data.Aeson.Encode as JSON
 import qualified Data.Aeson.Types as JSON
+import qualified Data.ByteString as BS
 import Data.ByteString.Lazy (ByteString)
 import qualified Data.ByteString.Lazy as B
-import qualified Data.ByteString.Lazy.Char8 as BC
 import Data.List (intercalate)
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as M
@@ -36,8 +37,9 @@ import System.Environment (getArgs)
 import System.Exit (exitFailure)
 import System.FilePath ((</>), (<.>))
 import System.IO (hClose, hPutStrLn, stderr)
+import qualified System.IO.Streams as S
+import qualified System.IO.Streams.Attoparsec as S
 import System.IO.Temp (withSystemTempFile)
-import System.Process (readProcess)
 
 import Paths_elpa2nix
 
@@ -137,18 +139,23 @@ fetchArchive man uri = do
 readArchive :: FilePath -> IO (Map Text Package)
 readArchive path = do
   load <- getDataFileName "elpa2json.el"
-  json <- readProcess "emacs" ["--batch", "--load", load, "--eval", eval] ""
-  let Just pkgs = JSON.decode $ BC.pack json
-  return pkgs
+  (inp, out, _, pid) <- S.runInteractiveProcess "emacs"
+                        ["--batch", "--load", load, "--eval", eval]
+                        Nothing Nothing
+  S.write Nothing inp
+  JSON.Success pkgs <- parseJsonFromStream out
+  S.waitForProcess pid >> return pkgs
   where
     eval = "(print-archive-contents-as-json " ++ show path ++ ")"
 
 readPackages :: FilePath -> IO (Map Text Package)
 readPackages path =
   handle (\(SomeException _) -> return M.empty) $ do
-    json <- B.readFile path
-    let Just pkgs = JSON.decode json
+    JSON.Success pkgs <- S.withFileAsInput path parseJsonFromStream
     return pkgs
+
+parseJsonFromStream :: JSON.FromJSON a => S.InputStream BS.ByteString -> IO (JSON.Result a)
+parseJsonFromStream stream = JSON.fromJSON <$> S.parseFromStream JSON.json' stream
 
 hashPackage :: Map Text Package -> QSem -> Manager -> Text -> Package
             -> Concurrently Package
@@ -182,7 +189,9 @@ getPackage sem man name pkg = do
   withQSem sem (responseBody <$> httpLbs req man)
 
 writePackages :: FilePath -> Map Text Package -> IO ()
-writePackages path pkgs = BC.writeFile path (JSON.encode pkgs)
+writePackages path pkgs =
+  S.withFileAsOutput path $ \out -> S.builderStream out >>= S.write (Just builder)
+  where builder = JSON.encodeToByteStringBuilder (JSON.toJSON pkgs)
 
 withQSem :: QSem -> IO a -> IO a
 withQSem qsem go = bracket_ (waitQSem qsem) (signalQSem qsem) go

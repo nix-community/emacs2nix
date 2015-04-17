@@ -25,6 +25,7 @@ executable elpa2nix
     , filepath == 1.3.*
     , http-client == 0.4.*
     , http-client-tls == 0.2.*
+    , io-streams == 1.3.*
     , process == 1.2.*
     , hopenssl == 1.7.*
     , temporary == 1.2.*
