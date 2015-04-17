@@ -91,7 +91,7 @@ getOptions = do
     }
   where
     header = "Usage: elpa2nix [OPTION...] URIs..."
-    defaultOptions = Options { output = "", uris = [], threads = 0 }
+    defaultOptions = Options { output = "", uris = [], threads = 0, input = "" }
     optdescr =
       [ Option ['o'] [] (ReqArg setOutput "FILE") "output FILE"
       , Option ['i'] [] (ReqArg setInput "FILE") "input FILE (defaults to output)"
