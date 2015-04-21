@@ -1,0 +1,22 @@
+name:                melpa2nix
+version:             0.1.0.0
+synopsis:            Automatically generate Nix expressions for Emacs packages
+-- description:         
+license:             GPL-3
+license-file:        LICENSE
+author:              Thomas Tuegel
+maintainer:          ttuegel@gmail.com
+-- copyright:           
+category:            Distribution
+build-type:          Simple
+extra-source-files:  ChangeLog.md
+cabal-version:       >=1.10
+
+library
+  exposed-modules:
+    Distribution.Melpa
+  build-depends:
+      base >=4.7 && <4.9
+    , aeson >= 0.8
+    , unordered-containers >= 0.2
+  default-language:    Haskell2010
