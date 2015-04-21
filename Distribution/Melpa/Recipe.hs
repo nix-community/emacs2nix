@@ -1,11 +1,10 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 
-module Distribution.Melpa where
+module Distribution.Melpa.Recipe where
 
 import Control.Applicative
 import Data.Aeson
-import qualified Data.Char as Char
 import qualified Data.HashMap.Strict as HM
 import Data.Maybe (catMaybes)
 
@@ -117,6 +116,14 @@ instance ToJSON Recipe where
         $ HM.fromList
         $ catMaybes
         [ Just ("fetcher", "bzr")
+        , Just ("url", toJSON url)
+        , (,) "files" . toJSON <$> files
+        ]
+      Hg {..} ->
+        Object
+        $ HM.fromList
+        $ catMaybes
+        [ Just ("fetcher", "hg")
         , Just ("url", toJSON url)
         , (,) "files" . toJSON <$> files
         ]
