@@ -8,7 +8,7 @@ import Data.Monoid
 import GHC.Generics
 
 newtype Version = Version [Integer]
-  deriving (Eq, Generic)
+  deriving (Eq, Generic, Read, Show)
 
 instance Ord Version where
   compare (Version as) (Version bs) = foldr mappend EQ (zipWith compare as bs)
