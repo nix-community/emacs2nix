@@ -1,44 +1,50 @@
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module Distribution.Melpa.Files where
 
 import Control.Applicative
-import Data.Aeson
-import Data.Aeson.Types (typeMismatch)
-import qualified Data.HashMap.Strict as HM
 import Data.Monoid
 
-data File = File FilePath | Dir Files | Defaults Files | Exclude Files
-  deriving (Eq, Read, Show)
+import Data.Aeson
+import Data.Aeson.Types (Parser, defaultOptions, typeMismatch)
+import Data.Function (on)
+import qualified Data.HashMap.Strict as HM
+import Data.Maybe (fromMaybe)
+import GHC.Generics
 
-instance ToJSON File where
-  toJSON (File path) = toJSON path
-  toJSON (Dir files) = toJSON files
-  toJSON (Defaults path) = Object (HM.fromList [("defaults", toJSON path)])
-  toJSON (Exclude path) = Object (HM.fromList [("exclude", toJSON path)])
-
-instance FromJSON File where
-  parseJSON files@(Array _) = Dir <$> parseJSON files
-  parseJSON file@(String _) = File <$> parseJSON file
-  parseJSON (Object obj) = do
-    dflt <- obj .:? "defaults"
-    excl <- obj .:? "exclude"
-    case dflt of
-      Nothing -> case excl of
-        Nothing -> fail "expected defaults or exclude"
-        Just path -> return (Exclude path)
-      Just path -> return (Defaults path)
-  parseJSON other = typeMismatch "file" other
-
-newtype Files = Files [File]
-  deriving (Eq, Monoid, Read, Show)
+data Files =
+  Files
+  { files :: [FilePath]
+  , defaults :: [FilePath]
+  , exclude :: [FilePath]
+  }
+  deriving (Eq, Generic, Read, Show)
 
 instance ToJSON Files where
-  toJSON (Files files) = toJSON files
+  toJSON = genericToJSON defaultOptions
 
 instance FromJSON Files where
-  parseJSON files@(Array _) = Files <$> parseJSON files
-  parseJSON file@(Object _) = Files . (: []) <$> parseJSON file
-  parseJSON file@(String _) = Files . (: []) <$> parseJSON file
-  parseJSON other = typeMismatch "files" other
+  parseJSON = genericParseJSON defaultOptions
+
+instance Monoid Files where
+  mempty = Files { files = [], defaults = [], exclude = [] }
+  mappend a b =
+    Files
+    { files = on mappend files a b
+    , defaults = on mappend defaults a b
+    , exclude = on mappend exclude a b
+    }
+
+fromMelpa :: Value -> Parser Files
+fromMelpa path@(String _) = (\f -> mempty { files = [f] }) <$> parseJSON path
+fromMelpa (Array fs) = foldr mappend mempty <$> traverse fromMelpa fs
+fromMelpa (Object obj) = do
+  dflts <- fromMaybe mempty <$> traverse fromMelpa (HM.lookup "defaults" obj)
+  excl <- fromMaybe mempty <$> traverse fromMelpa (HM.lookup "exclude" obj)
+  return mempty
+    { defaults = files dflts
+    , exclude = files excl
+    }
+fromMelpa other = typeMismatch "file or files" other
