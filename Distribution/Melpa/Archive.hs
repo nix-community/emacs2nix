@@ -14,7 +14,11 @@ import qualified System.IO.Streams.Attoparsec as S
 
 import Distribution.Melpa.Version
 
-newtype Archive = Archive { deps :: Maybe (HashMap Text Version) }
+data Archive =
+  Archive
+  { ver :: Version
+  , deps :: Maybe (HashMap Text Version)
+  }
   deriving (Eq, Generic, Read, Show)
 
 instance FromJSON Archive where
