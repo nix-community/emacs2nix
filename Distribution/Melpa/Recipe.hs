@@ -5,7 +5,7 @@ module Distribution.Melpa.Recipe where
 
 import Control.Applicative
 import Data.Aeson
-import Data.Aeson.Types (parseEither)
+import Data.Aeson.Types (parseMaybe)
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HM
 import Data.Monoid
@@ -41,7 +41,6 @@ instance FromJSON Recipe where
     fetcher <- obj .: "fetcher"
     let val = Object obj
     files <- obj .:? "files" .!= mempty
-    -- let files = mempty
     case fetcher of
       "git" -> Git <$> parseJSON val <*> pure files
       "github" -> GitHub <$> parseJSON val <*> pure files
@@ -75,7 +74,5 @@ instance ToJSON Recipe where
 fetchRecipes :: IO (HashMap Text Recipe)
 fetchRecipes =
   get "http://melpa.org/recipes.json" $ \_ inp -> do
-    parseResult <- parseEither parseJSON <$> S.parseFromStream json' inp
-    case parseResult of
-      Left err -> error err
-      Right rcps -> return rcps
+    Just parseResult <- parseMaybe parseJSON <$> S.parseFromStream json' inp
+    return parseResult
