@@ -28,6 +28,7 @@ library
     Distribution.Melpa.Package
     Distribution.Melpa.Recipe
     Distribution.Melpa.Version
+  hs-source-dirs: src
   build-depends:
       base >=4.7 && <4.9
     , aeson >= 0.8
@@ -35,5 +36,14 @@ library
     , io-streams >= 1.3
     , text >= 1.2
     , unordered-containers >= 0.2
-  default-language:    Haskell2010
+  default-language: Haskell2010
+  ghc-options: -Wall
+
+executable melpa2nix
+  main-is: melpa2nix.hs
+  build-depends:
+      base
+    , melpa2nix
+    , text
+  default-language: Haskell2010
   ghc-options: -Wall
