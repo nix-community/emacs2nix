@@ -14,7 +14,9 @@ cabal-version:       >=1.10
 
 library
   exposed-modules:
+    Distribution.Melpa
     Distribution.Melpa.Archive
+    Distribution.Melpa.Fetcher
     Distribution.Melpa.Fetcher.Bzr
     Distribution.Melpa.Fetcher.CVS
     Distribution.Melpa.Fetcher.Darcs
@@ -28,13 +30,19 @@ library
     Distribution.Melpa.Package
     Distribution.Melpa.Recipe
     Distribution.Melpa.Version
+  other-modules:
+    Paths_melpa2nix
   hs-source-dirs: src
   build-depends:
       base >=4.7 && <4.9
     , aeson >= 0.8
+    , bytestring >= 0.10
+    , filepath >= 1.4
     , http-streams >= 0.8
     , io-streams >= 1.3
+    , process >= 1.2
     , text >= 1.2
+    , transformers >= 0.4
     , unordered-containers >= 0.2
   default-language: Haskell2010
   ghc-options: -Wall
@@ -43,7 +51,10 @@ executable melpa2nix
   main-is: melpa2nix.hs
   build-depends:
       base
+    , aeson-pretty >= 0.7.2
+    , io-streams
     , melpa2nix
     , text
+    , unordered-containers
   default-language: Haskell2010
   ghc-options: -Wall

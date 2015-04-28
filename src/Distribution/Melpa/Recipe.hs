@@ -11,6 +11,7 @@ import qualified Data.HashMap.Strict as HM
 import Data.Monoid
 import Data.Text (Text)
 import Network.Http.Client (get)
+import qualified System.IO.Streams as S
 import qualified System.IO.Streams.Attoparsec as S
 
 import Distribution.Melpa.Fetcher.Bzr (Bzr)
@@ -41,7 +42,6 @@ data Recipe =
   Recipe
   { fetcher :: Fetcher
   , files :: Maybe Files
-  , hash :: Maybe Text
   }
   deriving (Eq, Read, Show)
 
@@ -50,7 +50,6 @@ instance FromJSON Recipe where
     fetch <- obj .: "fetcher"
     let val = Object obj
     files <- traverse Files.fromMelpa (HM.lookup "files" obj)
-    hash <- obj .:? "hash"
     fetcher <- case fetch of
       "git" -> Git <$> parseJSON val
       "github" -> GitHub <$> parseJSON val
@@ -66,7 +65,7 @@ instance FromJSON Recipe where
 
 instance ToJSON Recipe where
   toJSON Recipe {..} =
-      addFiles $ addHash $ case fetcher of
+      addFiles $ case fetcher of
         Git git -> addFetcher "git" (toJSON git)
         GitHub github -> addFetcher "github" (toJSON github)
         Bzr bzr -> addFetcher "bzr" (toJSON bzr)
@@ -81,15 +80,15 @@ instance ToJSON Recipe where
       addFetcher other _ = other
       addFiles (Object obj) = Object (HM.insert "files" (toJSON files) obj)
       addFiles other = other
-      addHash obj@(Object _obj) = case hash of
-        Nothing -> obj
-        Just _hash -> Object (HM.insert "hash" (toJSON hash) _obj)
-      addHash other = other
 
 fetchRecipes :: IO (HashMap Text Recipe)
 fetchRecipes =
   get "http://melpa.org/recipes.json" $ \_ inp -> do
-    parseResult <- parseEither parseJSON <$> S.parseFromStream json' inp
-    case parseResult of
-      Left err -> error err
-      Right rcps -> return rcps
+    result <- parseEither parseJSON <$> S.parseFromStream json' inp
+    either error return result
+
+readRecipes :: FilePath -> IO (HashMap Text Recipe)
+readRecipes path =
+  S.withFileAsInput path $ \inp -> do
+    result <- parseEither parseJSON <$> S.parseFromStream json' inp
+    either error return result
