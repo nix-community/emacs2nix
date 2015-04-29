@@ -10,6 +10,7 @@ import GHC.Generics
 data Hg =
   Fetcher
   { url :: Text
+  , commit :: Maybe Text
   }
   deriving (Eq, Generic, Read, Show)
 

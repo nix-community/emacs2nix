@@ -7,8 +7,10 @@ module Distribution.Melpa.Fetcher.Git
        ) where
 
 import Control.Monad.Trans.Maybe (MaybeT(..))
+import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HM
 import Data.Maybe (fromMaybe, maybeToList)
+import Data.Monoid ((<>))
 import Data.Text (Text)
 import qualified Data.Text as T
 
@@ -21,7 +23,8 @@ import qualified Distribution.Melpa.Package as Package
 import Distribution.Melpa.Recipe
 import Distribution.Melpa.Utils
 
-hash :: FilePath -> FilePath -> Bool -> Text -> Archive -> Recipe -> IO (Maybe Package)
+hash :: FilePath -> FilePath -> Bool -> Text -> Archive -> Recipe
+     -> IO (Maybe Package)
 hash melpa nixpkgs stable name arch rcp = runMaybeT $ do
   let Git _git@(Fetcher {..}) = fetcher rcp
   _commit <- getCommit melpa stable name _git
@@ -35,20 +38,21 @@ hash melpa nixpkgs stable name arch rcp = runMaybeT $ do
     }
 
 getCommit :: FilePath -> Bool -> Text -> Git -> MaybeT IO Text
-getCommit melpa stable name Fetcher {..} = MaybeT $ do
-  let env = HM.fromList
-            $ [ ("melpa", T.pack melpa), ("name", name), ("url", url) ]
-            ++ maybeToList ((,) "commit" <$> commit)
-            ++ maybeToList ((,) "branch" <$> branch)
+getCommit melpa stable name git = MaybeT $ do
+  let env = HM.singleton "melpa" (T.pack melpa) <> gitEnv name git
   HM.lookup name <$> runScript script env
   where
     script | stable = "get-stable-commit.sh"
            | otherwise = "get-commit.sh"
 
 prefetch :: FilePath -> Text -> Git -> MaybeT IO Text
-prefetch nixpkgs name Fetcher {..} = MaybeT $ do
-  let env = HM.fromList
-            $ [ ("nixpkgs", T.pack nixpkgs), ("name", name), ("url", url) ]
-            ++ maybeToList ((,) "commit" <$> commit)
-            ++ maybeToList ((,) "branch" <$> branch)
+prefetch nixpkgs name git = MaybeT $ do
+  let env = HM.singleton "nixpkgs" (T.pack nixpkgs) <> gitEnv name git
   HM.lookup name <$> runScript "prefetch.sh" env
+
+gitEnv :: Text -> Git -> HashMap Text Text
+gitEnv name Fetcher {..} =
+  HM.fromList
+  $ [ ("name", name), ("url", url) ]
+  ++ maybeToList ((,) "commit" <$> commit)
+  ++ maybeToList ((,) "branch" <$> branch)

@@ -25,6 +25,22 @@ case $fetcher in
             echo "{ }"
         fi
         ;;
+    wiki)
+        if [[ -n "$url" ]]; then
+            hash=$(nix-prefetch-url $url)
+            if [[ -n "$hash" ]]; then
+                echo "{ \"$name\": \"$hash\" }"
+            else
+                echo "{ }"
+            fi
+        else
+            hash=$(nix-prefetch-url "http://www.emacswiki.org/emacs/download/$name.el")
+            if [[ -n "$hash" ]]; then
+                echo "{ \"$name\": \"$hash\" }"
+            else
+                echo "{ }"
+            fi
+        fi
     *)
         echo "{ }"
         echo "$name: fetcher $fetcher unimplemented" >&2
