@@ -5,7 +5,7 @@ cd $melpa/working/$name
 case $fetcher in
     git|github)
         if [[ -a .git ]]; then
-            commit=$(git log --first-parent -n1 --pretty=format:'%H')
+            commit=$(git log --first-parent -n1 --pretty=format:'%H' $branch)
             echo "{ \"$name\": \"$commit\" }"
         else
             echo "{ }"

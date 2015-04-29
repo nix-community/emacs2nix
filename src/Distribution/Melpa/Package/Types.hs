@@ -1,7 +1,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE RecordWildCards #-}
 
-module Distribution.Melpa.Package where
+module Distribution.Melpa.Package.Types where
 
 import Control.Monad.Trans.Maybe
 import Data.Aeson
@@ -13,21 +13,5 @@ import Data.Text (Text)
 import qualified Data.Text as T
 import GHC.Generics
 
-import Distribution.Melpa.Archive
 import Distribution.Melpa.Recipe
 import Distribution.Melpa.Version
-
-data Package =
-  Package
-  { ver :: Version
-  , deps :: HashMap Text Version
-  , recipe :: Recipe
-  , hash :: Text
-  }
-  deriving (Eq, Generic)
-
-instance FromJSON Package where
-  parseJSON = genericParseJSON defaultOptions
-
-instance ToJSON Package where
-  toJSON = genericToJSON defaultOptions

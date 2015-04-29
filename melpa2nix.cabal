@@ -16,19 +16,29 @@ library
   exposed-modules:
     Distribution.Melpa
     Distribution.Melpa.Archive
-    Distribution.Melpa.Fetcher
     Distribution.Melpa.Fetcher.Bzr
+    Distribution.Melpa.Fetcher.Bzr.Types
     Distribution.Melpa.Fetcher.CVS
+    Distribution.Melpa.Fetcher.CVS.Types
     Distribution.Melpa.Fetcher.Darcs
+    Distribution.Melpa.Fetcher.Darcs.Types
     Distribution.Melpa.Fetcher.Fossil
+    Distribution.Melpa.Fetcher.Fossil.Types
     Distribution.Melpa.Fetcher.Git
+    Distribution.Melpa.Fetcher.Git.Types
     Distribution.Melpa.Fetcher.GitHub
+    Distribution.Melpa.Fetcher.GitHub.Types
     Distribution.Melpa.Fetcher.Hg
+    Distribution.Melpa.Fetcher.Hg.Types
     Distribution.Melpa.Fetcher.SVN
+    Distribution.Melpa.Fetcher.SVN.Types
     Distribution.Melpa.Fetcher.Wiki
+    Distribution.Melpa.Fetcher.Wiki.Types
     Distribution.Melpa.Files
+    Distribution.Melpa.Hash
     Distribution.Melpa.Package
     Distribution.Melpa.Recipe
+    Distribution.Melpa.Utils
     Distribution.Melpa.Version
   other-modules:
     Paths_melpa2nix
@@ -37,6 +47,7 @@ library
       base >=4.7 && <4.9
     , aeson >= 0.8
     , bytestring >= 0.10
+    , directory >= 1.2
     , filepath >= 1.4
     , http-streams >= 0.8
     , io-streams >= 1.3

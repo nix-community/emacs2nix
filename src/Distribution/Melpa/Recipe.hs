@@ -14,29 +14,9 @@ import Network.Http.Client (get)
 import qualified System.IO.Streams as S
 import qualified System.IO.Streams.Attoparsec as S
 
-import Distribution.Melpa.Fetcher.Bzr (Bzr)
-import Distribution.Melpa.Fetcher.CVS (CVS)
-import Distribution.Melpa.Fetcher.Darcs (Darcs)
-import Distribution.Melpa.Fetcher.Fossil (Fossil)
-import Distribution.Melpa.Fetcher.Git (Git)
-import Distribution.Melpa.Fetcher.GitHub (GitHub)
-import Distribution.Melpa.Fetcher.Hg (Hg)
-import Distribution.Melpa.Fetcher.SVN (SVN)
-import Distribution.Melpa.Fetcher.Wiki (Wiki)
+import Distribution.Melpa.Fetcher
 import Distribution.Melpa.Files (Files)
 import qualified Distribution.Melpa.Files as Files
-
-data Fetcher
-  = Git !Git
-  | GitHub !GitHub
-  | Bzr !Bzr
-  | Hg !Hg
-  | Darcs !Darcs
-  | Fossil !Fossil
-  | SVN !SVN
-  | CVS !CVS
-  | Wiki !Wiki
-  deriving (Eq, Read, Show)
 
 data Recipe =
   Recipe

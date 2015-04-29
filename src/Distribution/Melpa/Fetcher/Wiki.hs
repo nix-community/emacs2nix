@@ -1,7 +1,10 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE RecordWildCards #-}
 
-module Distribution.Melpa.Fetcher.Wiki where
+module Distribution.Melpa.Fetcher.Wiki
+       ( module Distribution.Melpa.Fetcher.Wiki.Types
+       , hash
+       ) where
 
 import Data.Aeson
 import Data.Aeson.Types (defaultOptions)
@@ -10,22 +13,8 @@ import qualified Data.Text as T
 import GHC.Generics
 import System.Process (readProcess)
 
+import Distribution.Melpa.Fetcher.Wiki.Types
 import Distribution.Melpa.Version
-
-data Wiki =
-  Fetcher
-  { url :: Maybe Text
-  }
-  deriving (Eq, Generic, Read, Show)
-
-instance ToJSON Wiki where
-  toJSON = genericToJSON defaultOptions
-
-instance FromJSON Wiki where
-  parseJSON = genericParseJSON defaultOptions
-
-stabilize :: FilePath -> Text -> Version -> Wiki -> Wiki
-stabilize _ _ _ = id
 
 hash :: FilePath -> Text -> Wiki -> IO Text
 hash _ name Fetcher {..} = do
