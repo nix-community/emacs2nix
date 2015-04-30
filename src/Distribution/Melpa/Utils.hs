@@ -18,7 +18,7 @@ runScript :: FilePath -> HashMap Text Text -> IO (HashMap Text Text)
 runScript _script _env = do
   _script <- getDataFileName _script
   _env <- return $ map (T.unpack *** T.unpack) (HM.toList _env)
-  _env <- (_env ++) <$> getEnvironment
+  _env <- (++ _env) <$> getEnvironment
   let process = (proc _script [])
                 { env = Just _env
                 , std_out = CreatePipe

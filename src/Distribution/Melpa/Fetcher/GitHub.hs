@@ -53,6 +53,6 @@ prefetch nixpkgs name github@(Fetcher {..}) = MaybeT $ do
 githubEnv :: Text -> GitHub -> HashMap Text Text
 githubEnv name Fetcher {..} =
   HM.fromList
-  $ [ ("name", name), ("repo", repo) ]
+  $ [ ("fetcher", "github"), ("name", name), ("repo", repo) ]
   ++ maybeToList ((,) "commit" <$> commit)
   ++ maybeToList ((,) "branch" <$> branch)

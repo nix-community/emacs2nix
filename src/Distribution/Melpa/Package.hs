@@ -24,7 +24,7 @@ data Package =
   , recipe :: Recipe
   , hash :: Text
   }
-  deriving (Eq, Generic)
+  deriving (Eq, Generic, Read, Show)
 
 instance FromJSON Package where
   parseJSON = genericParseJSON defaultOptions

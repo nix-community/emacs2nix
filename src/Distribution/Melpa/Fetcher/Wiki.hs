@@ -43,4 +43,6 @@ prefetch nixpkgs name wiki = MaybeT $ do
 
 wikiEnv :: Text -> Wiki -> HashMap Text Text
 wikiEnv name Fetcher {..} =
-  HM.fromList $ [ ("name", name) ] ++ maybeToList ((,) "url" <$> url)
+  HM.fromList
+  $ [ ("fetcher", "wiki"), ("name", name) ]
+  ++ maybeToList ((,) "url" <$> url)

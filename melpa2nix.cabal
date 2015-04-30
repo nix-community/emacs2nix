@@ -11,11 +11,14 @@ category:            Distribution
 build-type:          Simple
 extra-source-files:  ChangeLog.md
 cabal-version:       >=1.10
+data-dir: scripts
+data-files: *.sh
 
 library
   exposed-modules:
     Distribution.Melpa
     Distribution.Melpa.Archive
+    Distribution.Melpa.Fetcher
     Distribution.Melpa.Fetcher.Bzr
     Distribution.Melpa.Fetcher.Bzr.Types
     Distribution.Melpa.Fetcher.CVS
@@ -63,6 +66,7 @@ executable melpa2nix
   build-depends:
       base
     , aeson-pretty >= 0.7.2
+    , filepath
     , io-streams
     , melpa2nix
     , text

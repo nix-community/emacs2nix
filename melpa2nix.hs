@@ -11,19 +11,20 @@ import System.Environment (getArgs)
 import System.FilePath ((</>))
 import qualified System.IO.Streams as S
 
+import Distribution.Melpa
+
 main :: IO ()
 main = do
   args <- getArgs
   case args of
-    [melpa, nixpkgs] -> main_go melpa nixpkgs
+    [melpa, nixpkgs] -> main_go melpa nixpkgs True >> main_go melpa nixpkgs False
     _ -> T.putStrLn usage
   where
-    main_go melpa nixpkgs = do
-      stable <- updateMelpaStable melpa
-      unstable <- updateMelpa melpa
-      let packages = HM.union stable unstable -- prefers stable
-      encoded <- S.fromLazyByteString (encodePretty packages)
-      let filename = (nixpkgs </> "pkgs/top-level/emacs-packages.json")
+    main_go melpa nixpkgs stable = do
+      pkgs <- updateMelpa melpa nixpkgs stable
+      encoded <- S.fromLazyByteString (encodePretty pkgs)
+      let filename | stable = (nixpkgs </> "pkgs/top-level/emacs-packages.json")
+                   | otherwise = (nixpkgs </> "pkgs/top-level/emacs-packages-unstable.json")
       S.withFileAsOutput filename (S.connect encoded)
 
 usage :: Text

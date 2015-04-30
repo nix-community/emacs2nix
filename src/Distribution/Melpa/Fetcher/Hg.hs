@@ -53,5 +53,5 @@ prefetch nixpkgs name hg = MaybeT $ do
 hgEnv :: Text -> Hg -> HashMap Text Text
 hgEnv name Fetcher {..} =
   HM.fromList
-  $ [ ("name", name), ("url", url) ]
+  $ [ ("fetcher", "hg"), ("name", name), ("url", url) ]
   ++ maybeToList ((,) "commit" <$> commit)
