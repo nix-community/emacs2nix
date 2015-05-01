@@ -1,12 +1,14 @@
 name:                melpa2nix
 version:             0.1.0.0
 synopsis:            Automatically generate Nix expressions for Emacs packages
--- description:         
+description:
+  melpa2nix automatically generates Nix expressions for Emacs packages from the
+  package recipes provided by MELPA.
 license:             GPL-3
 license-file:        LICENSE
 author:              Thomas Tuegel
 maintainer:          ttuegel@gmail.com
--- copyright:           
+copyright:           2015 Thomas Tuegel
 category:            Distribution
 build-type:          Simple
 extra-source-files:  ChangeLog.md
