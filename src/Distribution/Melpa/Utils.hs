@@ -24,6 +24,11 @@ runScript _script _env = do
                 , std_out = CreatePipe
                 }
   (Nothing, Just hOut, Nothing, pid) <- createProcess process
-  res <- fromMaybe HM.empty . decode <$> B.hGetContents hOut
+  contents <- B.hGetContents hOut
+  let mres = decode contents
   _ <- waitForProcess pid
-  return res
+  case mres of
+    Nothing -> do
+      B.putStrLn contents
+      error "no parse"
+    Just res -> return res

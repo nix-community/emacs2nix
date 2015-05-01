@@ -10,7 +10,8 @@ module Distribution.Melpa.Fetcher.Wiki
 import Control.Monad.Trans.Maybe (MaybeT(..))
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HM
-import Data.Maybe (fromMaybe, maybeToList)
+import qualified Data.Map.Strict as M
+import Data.Maybe (maybeToList)
 import Data.Monoid ((<>))
 import Data.Text (Text)
 import qualified Data.Text as T
@@ -31,7 +32,7 @@ hash _ nixpkgs _ name arch rcp = runMaybeT $ do
   _hash <- prefetch nixpkgs name _wiki
   return Package
     { Package.ver = Archive.ver arch
-    , Package.deps = fromMaybe HM.empty (Archive.deps arch)
+    , Package.deps = maybe [] M.keys (Archive.deps arch)
     , Package.recipe = rcp
     , Package.hash = _hash
     }

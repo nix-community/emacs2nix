@@ -5,6 +5,8 @@ module Distribution.Melpa where
 import Control.Exception (bracket)
 import Control.Monad (when)
 import Control.Monad.Trans.Maybe
+import Data.Map.Strict (Map)
+import qualified Data.Map.Strict as M
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HM
 import Data.Maybe (catMaybes, isNothing)
@@ -26,22 +28,23 @@ make :: Bool -> [Text] -> IO ()
 make stable args_ = callProcess "make" (map T.unpack args)
   where args = "SHELL=/bin/sh" : (if stable then ("STABLE=t" :) else id) args_
 
-updateMelpa :: FilePath -> FilePath -> Bool -> IO (HashMap Text Package)
+updateMelpa :: FilePath -> FilePath -> Bool -> IO (Map Text Package)
 updateMelpa melpa nixpkgs stable = do
   bracket getCurrentDirectory setCurrentDirectory $ \_ -> do
     setCurrentDirectory melpa
-    make stable [ "clean-packages", "clean-json" ]
-    make stable [ "packages" ]
+    make stable [ "clean-json" ]
     make stable [ "json" ]
   archive <- readArchive (melpa </> "html/archive.json")
   recipes <- readRecipes (melpa </> "html/recipes.json")
-  mpkgs <- for (HM.toList archive) $ \(name, arch) -> do
+  putStrLn (show (M.size archive) ++ " packages in")
+  mpkgs <- for (M.toList archive) $ \(name, arch) -> do
     pkg <- runMaybeT $ do
-      rcp <- MaybeT $ return $ HM.lookup name recipes
+      rcp <- MaybeT $ return $ M.lookup name recipes
       MaybeT $ hash melpa nixpkgs stable name arch rcp
+    case pkg of
+      Just _ -> return ()
+      Nothing -> T.putStrLn (name <> ": no package")
     return $ (,) name <$> pkg
-  let pkgs = HM.fromList (catMaybes mpkgs)
-      count n | stable = show n ++ " stable packages"
-              | otherwise = show n ++ " packages"
-  putStrLn (count $ HM.size pkgs)
+  let pkgs = M.fromList (catMaybes mpkgs)
+  putStrLn (show (M.size pkgs) ++ " packages out")
   return pkgs

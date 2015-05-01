@@ -8,6 +8,8 @@ import Data.Aeson
 import Data.Aeson.Types (parseEither)
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HM
+import Data.Map.Strict (Map)
+import qualified Data.Map.Strict as M
 import Data.Monoid
 import Data.Text (Text)
 import Network.Http.Client (get)
@@ -27,47 +29,18 @@ data Recipe =
 
 instance FromJSON Recipe where
   parseJSON = withObject "recipe" $ \obj -> do
-    fetch <- obj .: "fetcher"
-    let val = Object obj
     files <- traverse Files.fromMelpa (HM.lookup "files" obj)
-    fetcher <- case fetch of
-      "git" -> Git <$> parseJSON val
-      "github" -> GitHub <$> parseJSON val
-      "bzr" -> Bzr <$> parseJSON val
-      "hg" -> Hg <$> parseJSON val
-      "darcs" -> Darcs <$> parseJSON val
-      "fossil" -> Fossil <$> parseJSON val
-      "svn" -> SVN <$> parseJSON val
-      "cvs" -> CVS <$> parseJSON val
-      "wiki" -> Wiki <$> parseJSON val
-      _ -> fail ("unknown fetcher: " ++ fetch)
+    fetcher <- parseJSON (Object obj)
     return Recipe {..}
 
 instance ToJSON Recipe where
   toJSON Recipe {..} =
-      addFiles $ case fetcher of
-        Git git -> addFetcher "git" (toJSON git)
-        GitHub github -> addFetcher "github" (toJSON github)
-        Bzr bzr -> addFetcher "bzr" (toJSON bzr)
-        Hg hg -> addFetcher "hg" (toJSON hg)
-        Darcs darcs -> addFetcher "darcs" (toJSON darcs)
-        Fossil fossil -> addFetcher "fossil" (toJSON fossil)
-        SVN svn -> addFetcher "svn" (toJSON svn)
-        CVS cvs -> addFetcher "cvs" (toJSON cvs)
-        Wiki wiki -> addFetcher "wiki" (toJSON wiki)
+    addFiles (toJSON fetcher)
     where
-      addFetcher (Object obj) fetch = Object (HM.insert "fetcher" fetch obj)
-      addFetcher other _ = other
       addFiles (Object obj) = Object (HM.insert "files" (toJSON files) obj)
-      addFiles other = other
+      addFiles _ = error "addFiles: the impossible happened!"
 
-fetchRecipes :: IO (HashMap Text Recipe)
-fetchRecipes =
-  get "http://melpa.org/recipes.json" $ \_ inp -> do
-    result <- parseEither parseJSON <$> S.parseFromStream json' inp
-    either error return result
-
-readRecipes :: FilePath -> IO (HashMap Text Recipe)
+readRecipes :: FilePath -> IO (Map Text Recipe)
 readRecipes path =
   S.withFileAsInput path $ \inp -> do
     result <- parseEither parseJSON <$> S.parseFromStream json' inp

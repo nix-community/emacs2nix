@@ -6,14 +6,16 @@ case $fetcher in
         if [[ -n "$hash" ]]; then
             echo "{ \"$name\": \"$hash\" }"
         else
+            echo "$name: unable to hash" >&2
             echo "{ }"
         fi
         ;;
     github)
-        hash=$(QUIET=1 $nixpkgs/pkgs/build-support/fetchgit/nix-prefetch-git --url https://github.com/$repo.git --rev $commit 2>/dev/null | tail -n1)
+        hash=$(nix-prefetch-url "https://github.com/${repo}/archive/${commit}.tar.gz" 2>/dev/null)
         if [[ -n "$hash" ]]; then
             echo "{ \"$name\": \"$hash\" }"
         else
+            echo "$name: unable to hash" >&2
             echo "{ }"
         fi
         ;;
@@ -22,6 +24,7 @@ case $fetcher in
         if [[ -n "$hash" ]]; then
             echo "{ \"$name\": \"$hash\" }"
         else
+            echo "$name: unable to hash" >&2
             echo "{ }"
         fi
         ;;
@@ -30,6 +33,7 @@ case $fetcher in
         if [[ -n "$hash" ]]; then
             echo "{ \"$name\": \"$hash\" }"
         else
+            echo "$name: unable to hash" >&2
             echo "{ }"
         fi
         ;;
@@ -39,6 +43,7 @@ case $fetcher in
             if [[ -n "$hash" ]]; then
                 echo "{ \"$name\": \"$hash\" }"
             else
+                echo "$name: unable to hash" >&2
                 echo "{ }"
             fi
         else
@@ -46,11 +51,13 @@ case $fetcher in
             if [[ -n "$hash" ]]; then
                 echo "{ \"$name\": \"$hash\" }"
             else
+                echo "$name: unable to hash" >&2
                 echo "{ }"
             fi
         fi
         ;;
     *)
+        echo "$name: not implemented" >&2
         echo "{ }"
         ;;
 esac

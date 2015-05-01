@@ -9,7 +9,8 @@ module Distribution.Melpa.Fetcher.GitHub
 import Control.Monad.Trans.Maybe (MaybeT(..))
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HM
-import Data.Maybe (fromMaybe, maybeToList)
+import qualified Data.Map.Strict as M
+import Data.Maybe (maybeToList)
 import Data.Monoid ((<>))
 import Data.Text (Text)
 import qualified Data.Text as T
@@ -32,7 +33,7 @@ hash melpa nixpkgs stable name arch rcp = runMaybeT $ do
   _hash <- prefetch nixpkgs name _github
   return Package
     { Package.ver = Archive.ver arch
-    , Package.deps = fromMaybe HM.empty (Archive.deps arch)
+    , Package.deps = maybe [] M.keys (Archive.deps arch)
     , Package.recipe = rcp { fetcher = GitHub _github }
     , Package.hash = _hash
     }

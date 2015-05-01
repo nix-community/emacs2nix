@@ -9,7 +9,8 @@ module Distribution.Melpa.Fetcher.SVN
 import Control.Monad.Trans.Maybe
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HM
-import Data.Maybe (fromMaybe, maybeToList)
+import qualified Data.Map.Strict as M
+import Data.Maybe (maybeToList)
 import Data.Monoid ((<>))
 import Data.Text (Text)
 import qualified Data.Text as T
@@ -32,7 +33,7 @@ hash melpa nixpkgs stable name arch rcp = runMaybeT $ do
   _hash <- prefetch nixpkgs name _svn
   return Package
     { Package.ver = Archive.ver arch
-    , Package.deps = fromMaybe HM.empty (Archive.deps arch)
+    , Package.deps = maybe [] M.keys (Archive.deps arch)
     , Package.recipe = rcp { fetcher = SVN _svn }
     , Package.hash = _hash
     }

@@ -20,7 +20,7 @@ import Distribution.Melpa.Version
 data Package =
   Package
   { ver :: Version
-  , deps :: HashMap Text Version
+  , deps :: [Text]
   , recipe :: Recipe
   , hash :: Text
   }

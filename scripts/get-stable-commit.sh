@@ -11,9 +11,11 @@ case $fetcher in
                 commit=$(git log --first-parent -n1 --pretty=format:'%H' $tag)
                 echo "{ \"$name\": \"$commit\" }"
             else
+                echo "$name: could not get stable commit" >&2
                 echo "{ }"
             fi
         else
+            echo "$name: could not get stable commit" >&2
             echo "{ }"
         fi
         ;;
@@ -24,9 +26,11 @@ case $fetcher in
                 # a stable version exists
                 echo "{ \"$name\": \"$commit\" }"
             else
+                echo "$name: could not get stable commit" >&2
                 echo "{ }"
             fi
         else
+            echo "$name: could not get stable commit" >&2
             echo "{ }"
         fi
         ;;
