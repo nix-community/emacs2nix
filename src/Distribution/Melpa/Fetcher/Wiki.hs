@@ -10,9 +10,7 @@ module Distribution.Melpa.Fetcher.Wiki
 import Control.Error hiding (runScript)
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HM
-import Data.Monoid ((<>))
 import Data.Text (Text)
-import qualified Data.Text as T
 
 import Distribution.Melpa.Archive (Archive)
 import qualified Distribution.Melpa.Archive as Archive

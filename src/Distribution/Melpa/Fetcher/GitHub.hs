@@ -9,10 +9,7 @@ module Distribution.Melpa.Fetcher.GitHub
 import Control.Error
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HM
-import Data.Maybe (maybeToList)
-import Data.Monoid ((<>))
 import Data.Text (Text)
-import qualified Data.Text as T
 
 import Distribution.Melpa.Archive (Archive)
 import qualified Distribution.Melpa.Archive as Archive

@@ -1,16 +1,20 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 
 module Distribution.Melpa.Recipe where
 
+#if __GLASGOW_HASKELL__ < 710
 import Control.Applicative
+#endif
 import Data.Aeson
 import Data.Aeson.Types (parseEither)
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HM
+#if __GLASGOW_HASKELL__ < 710
 import Data.Monoid
+#endif
 import Data.Text (Text)
-import Network.Http.Client (get)
 import qualified System.IO.Streams as S
 import qualified System.IO.Streams.Attoparsec as S
 
