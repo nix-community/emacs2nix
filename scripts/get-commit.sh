@@ -36,6 +36,18 @@ case $fetcher in
             echo "{ }"
         fi
         ;;
+    bzr)
+        if [[ -a .bzr ]]; then
+            commit=$(bzr log | perl -ne 'print "$1\n" if /^revno:[ \t]*([0-9]+)$/' 2>/dev/null | head -n1)
+            if [[ -n "$commit" ]]; then
+                echo "{ \"$name\": \"$commit\" }"
+            else
+                echo "{ }"
+            fi
+        else
+            echo "{ }"
+        fi
+        ;;
     *)
         echo "{ }"
         ;;

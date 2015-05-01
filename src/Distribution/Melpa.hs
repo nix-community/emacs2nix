@@ -29,14 +29,15 @@ make stable args_ = callProcess "make" (map T.unpack args)
 
 updateMelpa :: FilePath -> FilePath -> Bool -> IO (HashMap Text Package)
 updateMelpa melpa nixpkgs stable = do
+  putStrLn "building archive.json and recipes.json..."
   bracket getCurrentDirectory setCurrentDirectory $ \_ -> do
     setCurrentDirectory melpa
     make stable [ "clean-json" ]
     make stable [ "json" ]
   archive <- readArchive (melpa </> "html/archive.json")
   recipes <- readRecipes (melpa </> "html/recipes.json")
-  let countIn = HM.size archive
-  putStrLn (show countIn ++ " packages in")
+  let countKnown = HM.size archive
+  putStrLn (show countKnown ++ " known packages")
   let discardMissing = HM.fromList . catMaybes
       getPackage (name, arch) = do
         result <- runEitherT $ do
@@ -46,6 +47,6 @@ updateMelpa melpa nixpkgs stable = do
           Right pkg -> return (Just (name, pkg))
           Left err -> T.putStrLn err >> return Nothing
   pkgs <- discardMissing <$> traverse getPackage (HM.toList archive)
-  let countOut = HM.size pkgs
-  putStrLn (show countOut ++ " packages out")
+  let countGen = HM.size pkgs
+  putStrLn (show countGen ++ " generated packages")
   return pkgs

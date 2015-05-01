@@ -50,6 +50,25 @@ case $fetcher in
             fi
         fi
         ;;
+    cvs)
+        if [[ -z "$branch" ]]; then
+            branch=$name
+        fi
+        hash=$(QUIET=1 $nixpkgs/pkgs/build-support/fetchcvs/nix-prefetch-cvs $url $branch 2>/dev/null)
+        if [[ -n "$hash" ]]; then
+            echo "{ \"$name\": \"$hash\" }"
+        else
+            echo "{ }"
+        fi
+        ;;
+    bzr)
+        hash=$(QUIET=1 $nixpkgs/pkgs/build-support/fetchbzr/nix-prefetch-bzr $url $commit 2>/dev/null)
+        if [[ -n "$hash" ]]; then
+            echo "{ \"$name\": \"$hash\" }"
+        else
+            echo "{ }"
+        fi
+        ;;
     *)
         echo "{ }"
         ;;
