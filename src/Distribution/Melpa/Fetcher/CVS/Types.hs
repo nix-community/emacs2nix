@@ -12,7 +12,7 @@ import GHC.Generics
 data CVS =
   Fetcher
   { url :: Text
-  , branch :: Text
+  , branch :: Maybe Text
   }
   deriving (Eq, Generic, Read, Show)
 
