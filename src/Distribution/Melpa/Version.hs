@@ -1,10 +1,13 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE DeriveGeneric #-}
 
 module Distribution.Melpa.Version where
 
 import Data.Aeson
 import Data.Aeson.Types (defaultOptions)
+#if __GLASGOW_HASKELL__ < 710
 import Data.Monoid
+#endif
 import GHC.Generics
 
 newtype Version = Version [Integer]

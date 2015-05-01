@@ -6,7 +6,6 @@ case $fetcher in
         if [[ -n "$hash" ]]; then
             echo "{ \"$name\": \"$hash\" }"
         else
-            echo "$name: unable to hash" >&2
             echo "{ }"
         fi
         ;;
@@ -15,7 +14,6 @@ case $fetcher in
         if [[ -n "$hash" ]]; then
             echo "{ \"$name\": \"$hash\" }"
         else
-            echo "$name: unable to hash" >&2
             echo "{ }"
         fi
         ;;
@@ -24,7 +22,6 @@ case $fetcher in
         if [[ -n "$hash" ]]; then
             echo "{ \"$name\": \"$hash\" }"
         else
-            echo "$name: unable to hash" >&2
             echo "{ }"
         fi
         ;;
@@ -33,7 +30,6 @@ case $fetcher in
         if [[ -n "$hash" ]]; then
             echo "{ \"$name\": \"$hash\" }"
         else
-            echo "$name: unable to hash" >&2
             echo "{ }"
         fi
         ;;
@@ -43,7 +39,6 @@ case $fetcher in
             if [[ -n "$hash" ]]; then
                 echo "{ \"$name\": \"$hash\" }"
             else
-                echo "$name: unable to hash" >&2
                 echo "{ }"
             fi
         else
@@ -51,13 +46,11 @@ case $fetcher in
             if [[ -n "$hash" ]]; then
                 echo "{ \"$name\": \"$hash\" }"
             else
-                echo "$name: unable to hash" >&2
                 echo "{ }"
             fi
         fi
         ;;
     *)
-        echo "$name: not implemented" >&2
         echo "{ }"
         ;;
 esac

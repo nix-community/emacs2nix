@@ -6,11 +6,9 @@ module Distribution.Melpa.Fetcher.Git
        , hash
        ) where
 
-import Control.Monad.Trans.Maybe (MaybeT(..))
+import Control.Error hiding (runScript)
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HM
-import qualified Data.Map.Strict as M
-import Data.Maybe (maybeToList)
 import Data.Monoid ((<>))
 import Data.Text (Text)
 import qualified Data.Text as T
@@ -25,31 +23,18 @@ import Distribution.Melpa.Recipe
 import Distribution.Melpa.Utils
 
 hash :: FilePath -> FilePath -> Bool -> Text -> Archive -> Recipe
-     -> IO (Maybe Package)
-hash melpa nixpkgs stable name arch rcp = runMaybeT $ do
+     -> EitherT Text IO Package
+hash melpa nixpkgs stable name arch rcp = do
   let Git _git@(Fetcher {..}) = fetcher rcp
-  _commit <- getCommit melpa stable name _git
+  _commit <- getCommit melpa stable name (gitEnv name _git)
   _git <- return _git { commit = Just _commit }
-  _hash <- prefetch nixpkgs name _git
+  _hash <- prefetch nixpkgs name (gitEnv name _git)
   return Package
     { Package.ver = Archive.ver arch
-    , Package.deps = maybe [] M.keys (Archive.deps arch)
+    , Package.deps = maybe [] HM.keys (Archive.deps arch)
     , Package.recipe = rcp { fetcher = Git _git }
     , Package.hash = _hash
     }
-
-getCommit :: FilePath -> Bool -> Text -> Git -> MaybeT IO Text
-getCommit melpa stable name git = MaybeT $ do
-  let env = HM.singleton "melpa" (T.pack melpa) <> gitEnv name git
-  HM.lookup name <$> runScript script env
-  where
-    script | stable = "get-stable-commit.sh"
-           | otherwise = "get-commit.sh"
-
-prefetch :: FilePath -> Text -> Git -> MaybeT IO Text
-prefetch nixpkgs name git = MaybeT $ do
-  let env = HM.singleton "nixpkgs" (T.pack nixpkgs) <> gitEnv name git
-  HM.lookup name <$> runScript "prefetch.sh" env
 
 gitEnv :: Text -> Git -> HashMap Text Text
 gitEnv name Fetcher {..} =

@@ -6,9 +6,7 @@ module Distribution.Melpa.Fetcher.Git.Types where
 
 import Data.Aeson
 import Data.Aeson.Types (defaultOptions)
-import Data.Maybe (maybeToList)
 import Data.Text (Text)
-import qualified Data.Text as T
 import GHC.Generics
 
 data Git =

@@ -1,11 +1,14 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module Distribution.Melpa.Files where
 
+#if __GLASGOW_HASKELL__ < 710
 import Control.Applicative
 import Data.Monoid
+#endif
 
 import Data.Aeson
 import Data.Aeson.Types (Parser, defaultOptions, typeMismatch)

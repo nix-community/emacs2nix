@@ -7,11 +7,9 @@ module Distribution.Melpa.Fetcher.Wiki
        , hash
        ) where
 
-import Control.Monad.Trans.Maybe (MaybeT(..))
+import Control.Error hiding (runScript)
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HM
-import qualified Data.Map.Strict as M
-import Data.Maybe (maybeToList)
 import Data.Monoid ((<>))
 import Data.Text (Text)
 import qualified Data.Text as T
@@ -26,21 +24,16 @@ import Distribution.Melpa.Recipe
 import Distribution.Melpa.Utils
 
 hash :: FilePath -> FilePath -> Bool -> Text -> Archive -> Recipe
-     -> IO (Maybe Package)
-hash _ nixpkgs _ name arch rcp = runMaybeT $ do
+     -> EitherT Text IO Package
+hash _ nixpkgs _ name arch rcp = do
   let Wiki _wiki@(Fetcher {..}) = fetcher rcp
-  _hash <- prefetch nixpkgs name _wiki
+  _hash <- prefetch nixpkgs name (wikiEnv name _wiki)
   return Package
     { Package.ver = Archive.ver arch
-    , Package.deps = maybe [] M.keys (Archive.deps arch)
+    , Package.deps = maybe [] HM.keys (Archive.deps arch)
     , Package.recipe = rcp
     , Package.hash = _hash
     }
-
-prefetch :: FilePath -> Text -> Wiki -> MaybeT IO Text
-prefetch nixpkgs name wiki = MaybeT $ do
-  let env = HM.singleton "nixpkgs" (T.pack nixpkgs) <> wikiEnv name wiki
-  HM.lookup name <$> runScript "prefetch.sh" env
 
 wikiEnv :: Text -> Wiki -> HashMap Text Text
 wikiEnv name Fetcher {..} =

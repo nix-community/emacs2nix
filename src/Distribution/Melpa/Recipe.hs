@@ -8,8 +8,6 @@ import Data.Aeson
 import Data.Aeson.Types (parseEither)
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HM
-import Data.Map.Strict (Map)
-import qualified Data.Map.Strict as M
 import Data.Monoid
 import Data.Text (Text)
 import Network.Http.Client (get)
@@ -40,7 +38,7 @@ instance ToJSON Recipe where
       addFiles (Object obj) = Object (HM.insert "files" (toJSON files) obj)
       addFiles _ = error "addFiles: the impossible happened!"
 
-readRecipes :: FilePath -> IO (Map Text Recipe)
+readRecipes :: FilePath -> IO (HashMap Text Recipe)
 readRecipes path =
   S.withFileAsInput path $ \inp -> do
     result <- parseEither parseJSON <$> S.parseFromStream json' inp

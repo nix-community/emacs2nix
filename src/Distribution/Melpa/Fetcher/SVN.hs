@@ -6,10 +6,9 @@ module Distribution.Melpa.Fetcher.SVN
        , hash
        ) where
 
-import Control.Monad.Trans.Maybe
+import Control.Error
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HM
-import qualified Data.Map.Strict as M
 import Data.Maybe (maybeToList)
 import Data.Monoid ((<>))
 import Data.Text (Text)
@@ -25,31 +24,18 @@ import Distribution.Melpa.Recipe
 import Distribution.Melpa.Utils
 
 hash :: FilePath -> FilePath -> Bool -> Text -> Archive -> Recipe
-     -> IO (Maybe Package)
-hash melpa nixpkgs stable name arch rcp = runMaybeT $ do
+     -> EitherT Text IO Package
+hash melpa nixpkgs stable name arch rcp = do
   let SVN _svn@(Fetcher {..}) = fetcher rcp
-  _commit <- getCommit melpa stable name _svn
+  _commit <- getCommit melpa stable name (svnEnv name _svn)
   _svn <- return _svn { commit = Just _commit }
-  _hash <- prefetch nixpkgs name _svn
+  _hash <- prefetch nixpkgs name (svnEnv name _svn)
   return Package
     { Package.ver = Archive.ver arch
-    , Package.deps = maybe [] M.keys (Archive.deps arch)
+    , Package.deps = maybe [] HM.keys (Archive.deps arch)
     , Package.recipe = rcp { fetcher = SVN _svn }
     , Package.hash = _hash
     }
-
-getCommit :: FilePath -> Bool -> Text -> SVN -> MaybeT IO Text
-getCommit melpa stable name svn = MaybeT $ do
-  let env = HM.singleton "melpa" (T.pack melpa) <> svnEnv name svn
-  HM.lookup name <$> runScript script env
-  where
-    script | stable = "get-stable-commit.sh"
-           | otherwise = "get-commit.sh"
-
-prefetch :: FilePath -> Text -> SVN -> MaybeT IO Text
-prefetch nixpkgs name svn = MaybeT $ do
-  let env = HM.singleton "nixpkgs" (T.pack nixpkgs) <> svnEnv name svn
-  HM.lookup name <$> runScript "prefetch.sh" env
 
 svnEnv :: Text -> SVN -> HashMap Text Text
 svnEnv name Fetcher {..} =

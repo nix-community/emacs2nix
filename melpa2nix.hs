@@ -3,8 +3,6 @@
 module Main where
 
 import Data.Aeson.Encode.Pretty (encodePretty)
-import Data.HashMap.Strict (HashMap)
-import qualified Data.HashMap.Strict as HM
 import Data.Text (Text)
 import qualified Data.Text.IO as T
 import System.Environment (getArgs)

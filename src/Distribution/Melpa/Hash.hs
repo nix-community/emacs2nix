@@ -4,6 +4,7 @@ module Distribution.Melpa.Hash where
 
 import Data.Text (Text)
 
+import Control.Error
 import Distribution.Melpa.Archive
 import Distribution.Melpa.Fetcher
 import qualified Distribution.Melpa.Fetcher.Bzr as Bzr
@@ -19,7 +20,7 @@ import Distribution.Melpa.Package
 import Distribution.Melpa.Recipe
 
 hash :: FilePath -> FilePath -> Bool -> Text -> Archive -> Recipe
-     -> IO (Maybe Package)
+     -> EitherT Text IO Package
 hash melpa nixpkgs stable name arc rcp =
   (case fetcher rcp of
     Git _ -> Git.hash
