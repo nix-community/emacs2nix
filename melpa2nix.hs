@@ -15,7 +15,7 @@ main :: IO ()
 main = do
   args <- getArgs
   case args of
-    [melpa, nixpkgs] -> {- main_go melpa nixpkgs True >> -} main_go melpa nixpkgs False
+    [melpa, nixpkgs] -> main_go melpa nixpkgs True
     _ -> T.putStrLn usage
   where
     main_go melpa nixpkgs stable = do
