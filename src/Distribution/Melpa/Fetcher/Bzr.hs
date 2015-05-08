@@ -8,7 +8,6 @@ module Distribution.Melpa.Fetcher.Bzr
 
 import Control.Applicative
 import Control.Error
-import Control.Exception (bracket)
 import qualified Control.Foldl as F
 import Control.Monad.IO.Class
 import qualified Data.HashMap.Strict as HM
@@ -23,6 +22,7 @@ import Distribution.Melpa.Fetcher.Bzr.Types
 import Distribution.Melpa.Package (Package(Package))
 import qualified Distribution.Melpa.Package as P
 import Distribution.Melpa.Recipe
+import Distribution.Melpa.Utils (indir)
 
 hash :: FilePath -> FilePath -> Bool -> Text -> Archive -> Recipe -> EitherT Text IO Package
 hash _ _ True name _ _ = left (name <> ": stable fetcher 'bzr' not implemented")
@@ -49,9 +49,6 @@ getCommit melpa stable name Fetcher {..} =
     case mcommit of
       Nothing -> left (name <> ": could not get bzr revno")
       Just c -> return c
-
-indir :: FilePath -> IO a -> IO a
-indir dir act = bracket pwd cd (\_ -> cd dir >> act)
 
 prefetch :: Text -> Bzr -> Text -> EitherT Text IO Text
 prefetch name bzr commit = do

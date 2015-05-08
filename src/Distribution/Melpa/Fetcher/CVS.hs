@@ -9,7 +9,6 @@ module Distribution.Melpa.Fetcher.CVS
 import Control.Error
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HM
-import Data.Monoid ((<>))
 import Prelude hiding (FilePath)
 import Turtle
 

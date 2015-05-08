@@ -4,33 +4,29 @@
 module Distribution.Melpa where
 
 import Control.Error hiding (err)
-import Control.Exception (bracket)
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HM
-import qualified Data.Text as T
 import qualified Data.Text.IO as T
 #if __GLASGOW_HASKELL__ < 710
 import Data.Traversable
 #endif
 import Prelude hiding (FilePath)
-import System.Directory (getCurrentDirectory, setCurrentDirectory)
-import System.Process (callProcess)
 import Turtle
 
 import Distribution.Melpa.Archive (readArchive)
 import Distribution.Melpa.Hash
 import Distribution.Melpa.Package (Package)
 import Distribution.Melpa.Recipe (readRecipes)
+import Distribution.Melpa.Utils (indir)
 
 make :: Bool -> [Text] -> IO ()
-make stable args_ = callProcess "make" (map T.unpack args)
+make stable args_ = void (proc "make" args empty)
   where args = "SHELL=/bin/sh" : (if stable then ("STABLE=t" :) else id) args_
 
 updateMelpa :: FilePath -> FilePath -> Bool -> IO (HashMap Text Package)
 updateMelpa melpa nixpkgs stable = do
   putStrLn "building archive.json and recipes.json..."
-  bracket getCurrentDirectory setCurrentDirectory $ \_ -> do
-    cd melpa
+  indir melpa $ do
     make stable [ "clean-json" ]
     make stable [ "json" ]
   archive <- readArchive (melpa </> "html/archive.json")

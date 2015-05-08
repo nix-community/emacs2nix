@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ViewPatterns #-}
 
-module Distribution.Melpa.Utils (getCommit, prefetch) where
+module Distribution.Melpa.Utils (getCommit, indir, prefetch) where
 
 import Control.Error hiding (runScript)
 import Control.Exception (bracket)
@@ -64,3 +64,6 @@ prefetch _nixpkgs name envIn = do
   let envIn' = HM.singleton "nixpkgs" _nixpkgs <> envIn
   response <- runScript "prefetch.sh" envIn'
   HM.lookup name response ?? (name <> ": no hash")
+
+indir :: FilePath -> IO a -> IO a
+indir dir act = bracket pwd cd (\_ -> cd dir >> act)
