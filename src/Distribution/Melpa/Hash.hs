@@ -2,9 +2,10 @@
 
 module Distribution.Melpa.Hash where
 
-import Data.Text (Text)
-
 import Control.Error
+import Prelude hiding (FilePath)
+import Turtle
+
 import Distribution.Melpa.Archive
 import Distribution.Melpa.Fetcher
 import qualified Distribution.Melpa.Fetcher.Bzr as Bzr

@@ -6,8 +6,8 @@ module Distribution.Melpa.Fetcher.Fossil
        ) where
 
 import Control.Error
-import Data.Text (Text)
-import Data.Monoid ((<>))
+import Prelude hiding (FilePath)
+import Turtle
 
 import Distribution.Melpa.Archive
 import Distribution.Melpa.Fetcher.Fossil.Types

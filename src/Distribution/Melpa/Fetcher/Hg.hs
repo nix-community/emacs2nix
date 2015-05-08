@@ -9,7 +9,8 @@ module Distribution.Melpa.Fetcher.Hg
 import Control.Error
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HM
-import Data.Text (Text)
+import Prelude hiding (FilePath)
+import Turtle
 
 import Distribution.Melpa.Archive (Archive)
 import qualified Distribution.Melpa.Archive as Archive

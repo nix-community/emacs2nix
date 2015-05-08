@@ -3,46 +3,55 @@
 
 module Distribution.Melpa.Utils (getCommit, prefetch) where
 
-import Control.Arrow ((***))
 import Control.Error hiding (runScript)
+import Control.Exception (bracket)
+import qualified Control.Foldl as F
 import Control.Monad.IO.Class
-import Data.Aeson (decode)
+import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Lazy as B
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HM
-import Data.Monoid ((<>))
-import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
-import System.Environment (getEnvironment)
-import System.Process
-    ( CreateProcess(..), StdStream(..), createProcess, proc, waitForProcess )
+import qualified Filesystem.Path.CurrentOS as Path
+import Prelude hiding (FilePath)
+import Turtle
 
 import Paths_melpa2nix (getDataFileName)
 
 runScript :: FilePath -> HashMap Text Text -> EitherT Text IO (HashMap Text Text)
-runScript script (unpackEnv -> envIn) = do
-  scriptPath <- liftIO $ getDataFileName script
-  envMerged <- (++ envIn) <$> liftIO getEnvironment
-  let process = (proc scriptPath [])
-                { env = Just envMerged
-                , std_out = CreatePipe
-                }
-  (Nothing, Just hOut, Nothing, pid) <- liftIO $ createProcess process
-  response <- liftIO $ B.hGetContents hOut
-  let result = decode response
-  _ <- liftIO $ waitForProcess pid
+runScript script args = do
+  response <- liftIO $ do
+    scriptPath <- T.pack <$> getDataFileName (Path.encodeString script)
+    withEnv args
+      (B.fromChunks . map T.encodeUtf8
+       <$> fold (inproc scriptPath [] empty) F.list)
+  let result = Aeson.decode response
   case result of
-    Nothing ->
-      left (T.pack script <> ": could not parse:\n" <> T.decodeUtf8 (B.toStrict response))
+    Nothing -> do
+      scriptForUser <- hoistEither (toText script)
+      left (scriptForUser <> ": could not parse:\n"
+            <> T.decodeUtf8 (B.toStrict response))
     Just hm -> return hm
 
-unpackEnv :: HashMap Text Text -> [(String, String)]
-unpackEnv = map (T.unpack *** T.unpack) . HM.toList
+withEnv :: HashMap Text Text -> IO a -> IO a
+withEnv env_ act = bracket setupEnv restoreEnv (\_ -> act)
+  where
+    replaceEnv var val = do
+      old <- need var
+      export var val
+      return old
+    unreplaceEnv var mval =
+      case mval of
+        Nothing -> unset var
+        Just val -> export var val
+    setupEnv = HM.traverseWithKey replaceEnv env_
+    restoreEnv = HM.traverseWithKey unreplaceEnv
 
 getCommit :: FilePath -> Bool -> Text -> HashMap Text Text -> EitherT Text IO Text
-getCommit melpa stable name envIn = do
-  let envIn' = HM.singleton "melpa" (T.pack melpa) <> envIn
+getCommit _melpa stable name envIn = do
+  _melpa <- hoistEither (toText _melpa)
+  let envIn' = HM.singleton "melpa" _melpa <> envIn
   response <- runScript script envIn'
   HM.lookup name response ?? (name <> ": no commit")
   where
@@ -50,7 +59,8 @@ getCommit melpa stable name envIn = do
            | otherwise = "get-commit.sh"
 
 prefetch :: FilePath -> Text -> HashMap Text Text -> EitherT Text IO Text
-prefetch nixpkgs name envIn = do
-  let envIn' = HM.singleton "nixpkgs" (T.pack nixpkgs) <> envIn
+prefetch _nixpkgs name envIn = do
+  _nixpkgs <- hoistEither (toText _nixpkgs)
+  let envIn' = HM.singleton "nixpkgs" _nixpkgs <> envIn
   response <- runScript "prefetch.sh" envIn'
   HM.lookup name response ?? (name <> ": no hash")

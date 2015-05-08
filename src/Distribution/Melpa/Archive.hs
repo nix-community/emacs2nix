@@ -10,10 +10,12 @@ import Control.Applicative
 import Data.Aeson
 import Data.Aeson.Types (defaultOptions, parseEither)
 import Data.HashMap.Strict (HashMap)
-import Data.Text (Text)
+import Filesystem.Path.CurrentOS (encodeString)
 import GHC.Generics
+import Prelude hiding (FilePath)
 import qualified System.IO.Streams as S
 import qualified System.IO.Streams.Attoparsec as S
+import Turtle
 
 import Distribution.Melpa.Version
 
@@ -32,6 +34,6 @@ instance ToJSON Archive where
 
 readArchive :: FilePath -> IO (HashMap Text Archive)
 readArchive path =
-  S.withFileAsInput path $ \inp -> do
+  S.withFileAsInput (encodeString path) $ \inp -> do
     result <- parseEither parseJSON <$> S.parseFromStream json' inp
     either error return result

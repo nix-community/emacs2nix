@@ -7,16 +7,15 @@ import Control.Error hiding (err)
 import Control.Exception (bracket)
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HM
-import Data.Monoid ((<>))
-import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
 #if __GLASGOW_HASKELL__ < 710
 import Data.Traversable
 #endif
+import Prelude hiding (FilePath)
 import System.Directory (getCurrentDirectory, setCurrentDirectory)
-import System.FilePath ((</>))
 import System.Process (callProcess)
+import Turtle
 
 import Distribution.Melpa.Archive (readArchive)
 import Distribution.Melpa.Hash
@@ -31,7 +30,7 @@ updateMelpa :: FilePath -> FilePath -> Bool -> IO (HashMap Text Package)
 updateMelpa melpa nixpkgs stable = do
   putStrLn "building archive.json and recipes.json..."
   bracket getCurrentDirectory setCurrentDirectory $ \_ -> do
-    setCurrentDirectory melpa
+    cd melpa
     make stable [ "clean-json" ]
     make stable [ "json" ]
   archive <- readArchive (melpa </> "html/archive.json")
@@ -45,7 +44,7 @@ updateMelpa melpa nixpkgs stable = do
           hash melpa nixpkgs stable name arch rcp
         case result of
           Right pkg -> return (Just (name, pkg))
-          Left err -> T.putStrLn err >> return Nothing
+          Left err_ -> T.putStrLn err_ >> return Nothing
   pkgs <- discardMissing <$> traverse getPackage (HM.toList archive)
   let countGen = HM.size pkgs
   putStrLn (show countGen ++ " generated packages")
