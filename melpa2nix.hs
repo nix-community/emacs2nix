@@ -22,7 +22,7 @@ import Distribution.Melpa.Recipe
 data Melpa2nix =
   Melpa2nix
   { packageBuild :: FilePath
-  , recipes :: FilePath
+  , recipesDir :: FilePath
   , recipesOut :: FilePath
   , packagesOut :: FilePath
   }
@@ -31,7 +31,7 @@ melpa2nixParser :: Parser Melpa2nix
 melpa2nixParser =
   Melpa2nix
   <$> strOption (long "package-build" <> metavar "FILE" <> help "path to package-build.el")
-  <*> strOption (long "recipes" <> metavar "DIR" <> help "path to MELPA recipes")
+  <*> strOption (long "recipes-dir" <> metavar "DIR" <> help "path to MELPA recipes")
   <*> strOption (long "recipes-out" <> metavar "FILE" <> help "dump MELPA recipes to FILE")
   <*> strOption (long "packages-out" <> metavar "FILE" <> help "dump packages to FILE")
 
@@ -44,7 +44,7 @@ main = execParser opts >>= melpa2nix
 
 melpa2nix :: Melpa2nix -> IO ()
 melpa2nix Melpa2nix {..} = do
-  dumpRecipes packageBuild recipes recipesOut
+  dumpRecipes packageBuild recipesDir recipesOut
   recipes <- readRecipes packageBuild recipesOut
   epackages <- M.traverseWithKey getPackage recipes
   for_ epackages $ \epkg ->

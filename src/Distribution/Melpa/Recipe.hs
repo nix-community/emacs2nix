@@ -8,6 +8,7 @@ module Distribution.Melpa.Recipe where
 #if __GLASGOW_HASKELL__ < 710
 import Control.Applicative
 #endif
+import Control.Exception (bracket)
 import Data.Aeson
 import Data.Aeson.Types (parseEither)
 import Data.HashMap.Strict (HashMap)
@@ -31,6 +32,8 @@ import Distribution.Melpa.Fetcher.GitHub
 import Distribution.Melpa.Fetcher.Hg
 import Distribution.Melpa.Fetcher.SVN
 import Distribution.Melpa.Fetcher.Wiki
+
+import Paths_melpa2nix (getDataFileName)
 
 data Recipe =
   forall f. (FromJSON f, ToJSON f) => Recipe
@@ -91,4 +94,15 @@ readRecipes _ path =
     either error return result
 
 dumpRecipes :: FilePath -> FilePath -> FilePath -> IO ()
-dumpRecipes = undefined
+dumpRecipes packageBuildEl recipesDir recipesOut = do
+  dumpRecipesEl <- getDataFileName "dump-recipes.el"
+  let args = [ "-l", packageBuildEl
+             , "-l", dumpRecipesEl
+             , "-f", "dump-recipes", recipesDir
+             ]
+  bracket
+    (S.runInteractiveProcess "emacs" args Nothing Nothing)
+    (\(_, _, _, pid) -> S.waitForProcess pid)
+    (\(inp, out, _, _) -> do
+           S.write Nothing inp
+           S.withFileAsOutput recipesOut $ S.connect out)

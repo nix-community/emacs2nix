@@ -13,8 +13,8 @@ category:            Distribution
 build-type:          Simple
 extra-source-files:  ChangeLog.md
 cabal-version:       >=1.10
-data-dir: scripts
-data-files: *.sh
+data-dir: elisp
+data-files: *.el
 
 library
   exposed-modules:
