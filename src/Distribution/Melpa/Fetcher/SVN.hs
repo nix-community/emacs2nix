@@ -9,8 +9,7 @@ module Distribution.Melpa.Fetcher.SVN
 import Control.Error
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HM
-import Prelude hiding (FilePath)
-import Turtle
+import Data.Text (Text)
 
 import Distribution.Melpa.Archive (Archive)
 import qualified Distribution.Melpa.Archive as Archive
@@ -25,9 +24,9 @@ hash :: FilePath -> FilePath -> Bool -> Text -> Archive -> Recipe
      -> EitherT Text IO Package
 hash melpa nixpkgs stable name arch rcp = do
   let SVN _svn@(Fetcher {..}) = fetcher rcp
-  _commit <- getCommit melpa stable name (svnEnv name _svn)
+  _commit <- getCommit melpa stable name Nothing (svnEnv name _svn)
   _svn <- return _svn { commit = Just _commit }
-  _hash <- prefetch nixpkgs name (svnEnv name _svn)
+  _hash <- prefetch nixpkgs name Nothing (svnEnv name _svn)
   return Package
     { Package.ver = Archive.ver arch
     , Package.deps = maybe [] HM.keys (Archive.deps arch)

@@ -14,11 +14,9 @@ import qualified Data.HashMap.Strict as HM
 #if __GLASGOW_HASKELL__ < 710
 import Data.Monoid
 #endif
-import Filesystem.Path.CurrentOS (encodeString)
-import Prelude hiding (FilePath)
+import Data.Text (Text)
 import qualified System.IO.Streams as S
 import qualified System.IO.Streams.Attoparsec as S
-import Turtle
 
 import Distribution.Melpa.Fetcher
 import Distribution.Melpa.Files (Files)
@@ -46,6 +44,6 @@ instance ToJSON Recipe where
 
 readRecipes :: FilePath -> IO (HashMap Text Recipe)
 readRecipes path =
-  S.withFileAsInput (encodeString path) $ \inp -> do
+  S.withFileAsInput path $ \inp -> do
     result <- parseEither parseJSON <$> S.parseFromStream json' inp
     either error return result

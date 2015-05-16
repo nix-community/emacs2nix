@@ -9,8 +9,7 @@ module Distribution.Melpa.Fetcher.GitHub
 import Control.Error
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HM
-import Prelude hiding (FilePath)
-import Turtle
+import Data.Text (Text)
 
 import Distribution.Melpa.Archive (Archive)
 import qualified Distribution.Melpa.Archive as Archive
@@ -25,9 +24,9 @@ hash :: FilePath -> FilePath -> Bool -> Text -> Archive -> Recipe
      -> EitherT Text IO Package
 hash melpa nixpkgs stable name arch rcp = do
   let GitHub _github@(Fetcher {..}) = fetcher rcp
-  _commit <- getCommit melpa stable name (githubEnv name _github)
+  _commit <- getCommit melpa stable name Nothing (githubEnv name _github)
   _github <- return _github { commit = Just _commit }
-  _hash <- prefetch nixpkgs name (githubEnv name _github)
+  _hash <- prefetch nixpkgs name Nothing (githubEnv name _github)
   return Package
     { Package.ver = Archive.ver arch
     , Package.deps = maybe [] HM.keys (Archive.deps arch)

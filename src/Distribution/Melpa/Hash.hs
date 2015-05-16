@@ -3,8 +3,7 @@
 module Distribution.Melpa.Hash where
 
 import Control.Error
-import Prelude hiding (FilePath)
-import Turtle
+import Data.Text (Text)
 
 import Distribution.Melpa.Archive
 import Distribution.Melpa.Fetcher

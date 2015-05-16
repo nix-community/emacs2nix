@@ -6,8 +6,8 @@ module Distribution.Melpa.Fetcher.Darcs
        ) where
 
 import Control.Error
-import Prelude hiding (FilePath)
-import Turtle
+import Data.Monoid ((<>))
+import Data.Text (Text)
 
 import Distribution.Melpa.Archive
 import Distribution.Melpa.Fetcher.Darcs.Types

@@ -9,8 +9,8 @@ module Distribution.Melpa.Fetcher.CVS
 import Control.Error
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HM
-import Prelude hiding (FilePath)
-import Turtle
+import Data.Monoid ((<>))
+import Data.Text (Text)
 
 import Distribution.Melpa.Archive (Archive)
 import qualified Distribution.Melpa.Archive as A
@@ -26,7 +26,7 @@ hash :: FilePath -> FilePath -> Bool -> Text -> Archive -> Recipe
 hash _ _ True name _ _ = left (name <> ": stable fetcher 'cvs' not implemented")
 hash _ nixpkgs False name arch rcp = do
   let CVS _cvs@(Fetcher {..}) = fetcher rcp
-  _hash <- prefetch nixpkgs name (cvsEnv name _cvs)
+  _hash <- prefetch nixpkgs name Nothing (cvsEnv name _cvs)
   return Package
     { P.ver = A.ver arch
     , P.deps = maybe [] HM.keys (A.deps arch)

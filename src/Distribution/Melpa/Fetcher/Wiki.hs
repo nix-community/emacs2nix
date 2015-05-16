@@ -10,8 +10,7 @@ module Distribution.Melpa.Fetcher.Wiki
 import Control.Error hiding (runScript)
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HM
-import Prelude hiding (FilePath)
-import Turtle
+import Data.Text (Text)
 
 import Distribution.Melpa.Archive (Archive)
 import qualified Distribution.Melpa.Archive as Archive
@@ -26,7 +25,7 @@ hash :: FilePath -> FilePath -> Bool -> Text -> Archive -> Recipe
      -> EitherT Text IO Package
 hash _ nixpkgs _ name arch rcp = do
   let Wiki _wiki@(Fetcher {..}) = fetcher rcp
-  _hash <- prefetch nixpkgs name (wikiEnv name _wiki)
+  _hash <- prefetch nixpkgs name Nothing (wikiEnv name _wiki)
   return Package
     { Package.ver = Archive.ver arch
     , Package.deps = maybe [] HM.keys (Archive.deps arch)

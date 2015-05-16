@@ -9,8 +9,7 @@ module Distribution.Melpa.Fetcher.Git
 import Control.Error hiding (runScript)
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HM
-import Prelude hiding (FilePath)
-import Turtle
+import Data.Text (Text)
 
 import Distribution.Melpa.Archive (Archive)
 import qualified Distribution.Melpa.Archive as Archive
@@ -25,9 +24,9 @@ hash :: FilePath -> FilePath -> Bool -> Text -> Archive -> Recipe
      -> EitherT Text IO Package
 hash melpa nixpkgs stable name arch rcp = do
   let Git _git@(Fetcher {..}) = fetcher rcp
-  _commit <- getCommit melpa stable name (gitEnv name _git)
+  _commit <- getCommit melpa stable name Nothing (gitEnv name _git)
   _git <- return _git { commit = Just _commit }
-  _hash <- prefetch nixpkgs name (gitEnv name _git)
+  _hash <- prefetch nixpkgs name Nothing (gitEnv name _git)
   return Package
     { Package.ver = Archive.ver arch
     , Package.deps = maybe [] HM.keys (Archive.deps arch)

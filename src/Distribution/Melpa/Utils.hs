@@ -1,69 +1,62 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ViewPatterns #-}
 
-module Distribution.Melpa.Utils (getCommit, indir, prefetch) where
+module Distribution.Melpa.Utils (getCommit, prefetch) where
 
-import Control.Error hiding (runScript)
-import Control.Exception (bracket)
-import qualified Control.Foldl as F
-import Control.Monad.IO.Class
+import Control.Arrow ((***))
+import Control.Error hiding (err, runScript)
+import Control.Exception (bracket, handle)
 import qualified Data.Aeson as Aeson
-import qualified Data.ByteString.Lazy as B
+import qualified Data.Aeson.Types as Aeson
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HM
+import Data.Monoid ((<>))
+import Data.Text (Text)
 import qualified Data.Text as T
-import qualified Data.Text.Encoding as T
-import qualified Filesystem.Path.CurrentOS as Path
-import Prelude hiding (FilePath)
-import Turtle
+import System.Environment (getEnvironment)
+import qualified System.IO.Streams as S
+import qualified System.IO.Streams.Attoparsec as S
 
 import Paths_melpa2nix (getDataFileName)
 
-runScript :: FilePath -> HashMap Text Text -> EitherT Text IO (HashMap Text Text)
-runScript script args = do
-  response <- liftIO $ do
-    scriptPath <- T.pack <$> getDataFileName (Path.encodeString script)
-    withEnv args
-      (B.fromChunks . map T.encodeUtf8
-       <$> fold (inproc scriptPath [] empty) F.list)
-  let result = Aeson.decode response
-  case result of
-    Nothing -> do
-      scriptForUser <- hoistEither (toText script)
-      left (scriptForUser <> ": could not parse:\n"
-            <> T.decodeUtf8 (B.toStrict response))
-    Just hm -> return hm
+runScript :: FilePath -> Maybe FilePath -> HashMap Text Text
+          -> EitherT Text IO (HashMap Text Text)
+runScript script workDir env =
+  EitherT $ handle
+    (\(S.ParseException _) -> return $ Left $ T.pack script <> ": unable to parse response")
+    (do
+         scriptPath <- getDataFileName script
+         env' <- Just <$> withEnv env
+         bracket
+           (S.runInteractiveProcess scriptPath [] workDir env')
+           (\(_, _, _, pid) -> S.waitForProcess pid)
+           (\(inp, out, err, _) -> do
+                  S.write Nothing inp
+                  S.supply err S.stderr
+                  val <- S.parseFromStream Aeson.json' out
+                  return $ case Aeson.parseEither Aeson.parseJSON val of
+                    Left msg -> Left $ T.pack script <> ": " <> T.pack msg
+                    Right hm -> Right hm))
 
-withEnv :: HashMap Text Text -> IO a -> IO a
-withEnv env_ act = bracket setupEnv restoreEnv (\_ -> act)
+withEnv :: HashMap Text Text -> IO [(String, String)]
+withEnv env' =
+  unpackTuples . HM.toList . (<> env') . HM.fromList . packTuples <$> getEnvironment
   where
-    replaceEnv var val = do
-      old <- need var
-      export var val
-      return old
-    unreplaceEnv var mval =
-      case mval of
-        Nothing -> unset var
-        Just val -> export var val
-    setupEnv = HM.traverseWithKey replaceEnv env_
-    restoreEnv = HM.traverseWithKey unreplaceEnv
+    unpackTuples = map (T.unpack *** T.unpack)
+    packTuples = map (T.pack *** T.pack)
 
-getCommit :: FilePath -> Bool -> Text -> HashMap Text Text -> EitherT Text IO Text
-getCommit _melpa stable name envIn = do
-  _melpa <- hoistEither (toText _melpa)
-  let envIn' = HM.singleton "melpa" _melpa <> envIn
-  response <- runScript script envIn'
+getCommit :: FilePath -> Bool -> Text -> Maybe FilePath -> HashMap Text Text
+          -> EitherT Text IO Text
+getCommit _melpa stable name workDir envIn = do
+  let envIn' = HM.singleton "melpa" (T.pack _melpa) <> envIn
+  response <- runScript script workDir envIn'
   HM.lookup name response ?? (name <> ": no commit")
   where
     script | stable = "get-stable-commit.sh"
            | otherwise = "get-commit.sh"
 
-prefetch :: FilePath -> Text -> HashMap Text Text -> EitherT Text IO Text
-prefetch _nixpkgs name envIn = do
-  _nixpkgs <- hoistEither (toText _nixpkgs)
-  let envIn' = HM.singleton "nixpkgs" _nixpkgs <> envIn
-  response <- runScript "prefetch.sh" envIn'
+prefetch :: FilePath -> Text -> Maybe FilePath -> HashMap Text Text -> EitherT Text IO Text
+prefetch _nixpkgs name workDir envIn = do
+  let envIn' = HM.singleton "nixpkgs" (T.pack _nixpkgs) <> envIn
+  response <- runScript "prefetch.sh" workDir envIn'
   HM.lookup name response ?? (name <> ": no hash")
-
-indir :: FilePath -> IO a -> IO a
-indir dir act = bracket pwd cd (\_ -> cd dir >> act)
