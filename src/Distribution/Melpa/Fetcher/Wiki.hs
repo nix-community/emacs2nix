@@ -1,6 +1,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE TypeFamilies #-}
 
 module Distribution.Melpa.Fetcher.Wiki ( Wiki, fetchWiki ) where
 
@@ -19,6 +20,8 @@ data Wiki =
   { url :: Maybe Text
   }
   deriving (Eq, Generic, Read, Show)
+
+type instance Rev Wiki = ()
 
 instance ToJSON Wiki where
   toJSON = wrapFetcher "wiki" . genericToJSON defaultOptions

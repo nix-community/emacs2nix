@@ -1,5 +1,6 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TypeFamilies #-}
 
 module Distribution.Melpa.Fetcher.Fossil ( Fossil, fetchFossil ) where
 
@@ -17,6 +18,8 @@ data Fossil =
   { url :: Text
   }
   deriving (Eq, Generic, Read, Show)
+
+type instance Rev Fossil = ()
 
 instance ToJSON Fossil where
   toJSON = wrapFetcher "fossil" . genericToJSON defaultOptions

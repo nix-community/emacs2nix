@@ -1,5 +1,6 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TypeFamilies #-}
 
 module Distribution.Melpa.Fetcher.Darcs ( Darcs, fetchDarcs ) where
 
@@ -17,6 +18,8 @@ data Darcs =
   { url :: Text
   }
   deriving (Eq, Generic, Read, Show)
+
+type instance Rev Darcs = ()
 
 instance ToJSON Darcs where
   toJSON = wrapFetcher "darcs" . genericToJSON defaultOptions

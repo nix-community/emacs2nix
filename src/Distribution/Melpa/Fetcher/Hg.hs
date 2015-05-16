@@ -1,6 +1,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE TypeFamilies #-}
 
 module Distribution.Melpa.Fetcher.Hg ( Hg, fetchHg ) where
 
@@ -20,6 +21,8 @@ data Hg =
   , commit :: Maybe Text
   }
   deriving (Eq, Generic, Read, Show)
+
+type instance Rev Hg = Text
 
 instance ToJSON Hg where
   toJSON = wrapFetcher "hg" . genericToJSON defaultOptions

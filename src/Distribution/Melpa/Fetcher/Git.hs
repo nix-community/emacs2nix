@@ -1,6 +1,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE TypeFamilies #-}
 
 module Distribution.Melpa.Fetcher.Git ( Git, fetchGit ) where
 
@@ -21,6 +22,8 @@ data Git =
   , branch :: Maybe Text
   }
   deriving (Eq, Generic, Read, Show)
+
+type instance Rev Git = Text
 
 instance ToJSON Git where
   toJSON = wrapFetcher "git" . genericToJSON defaultOptions

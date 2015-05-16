@@ -12,6 +12,7 @@ import Data.Aeson
 import Data.Aeson.Types (parseEither)
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HM
+import Data.Map.Strict (Map)
 #if __GLASGOW_HASKELL__ < 710
 import Data.Monoid
 #endif
@@ -83,8 +84,11 @@ instance FromJSON Recipe where
 instance ToJSON Recipe where
   toJSON Recipe {..} = toJSON recipe
 
-readRecipes :: FilePath -> IO (HashMap Text Recipe)
-readRecipes path =
+readRecipes :: FilePath -> FilePath -> IO (Map Text Recipe)
+readRecipes _ path =
   S.withFileAsInput path $ \inp -> do
     result <- parseEither parseJSON <$> S.parseFromStream json' inp
     either error return result
+
+dumpRecipes :: FilePath -> FilePath -> FilePath -> IO ()
+dumpRecipes = undefined
