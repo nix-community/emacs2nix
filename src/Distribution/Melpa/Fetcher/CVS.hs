@@ -1,7 +1,6 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE TypeFamilies #-}
 
 module Distribution.Melpa.Fetcher.CVS ( CVS, fetchCVS ) where
 
@@ -22,8 +21,6 @@ data CVS =
   , branch :: Maybe Text
   }
   deriving (Eq, Generic, Read, Show)
-
-type instance Rev CVS = Text
 
 instance ToJSON CVS where
   toJSON = wrapFetcher "cvs" . renameFields . genericToJSON defaultOptions

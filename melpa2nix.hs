@@ -46,7 +46,7 @@ melpa2nix :: Melpa2nix -> IO ()
 melpa2nix Melpa2nix {..} = do
   dumpRecipes packageBuild recipesDir recipesOut
   recipes <- readRecipes packageBuild recipesOut
-  epackages <- M.traverseWithKey getPackage recipes
+  epackages <- M.traverseWithKey (getPackage packageBuild recipesOut) recipes
   for_ epackages $ \epkg ->
     case epkg of
       Left err -> T.putStrLn err

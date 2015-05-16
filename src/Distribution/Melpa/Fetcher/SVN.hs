@@ -1,7 +1,6 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE TypeFamilies #-}
 
 module Distribution.Melpa.Fetcher.SVN ( SVN, fetchSVN ) where
 
@@ -21,8 +20,6 @@ data SVN =
   , commit :: Maybe Text
   }
   deriving (Eq, Generic, Read, Show)
-
-type instance Rev SVN = Text
 
 instance ToJSON SVN where
   toJSON = wrapFetcher "svn" . genericToJSON defaultOptions

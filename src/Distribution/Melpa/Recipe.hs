@@ -88,7 +88,8 @@ instance ToJSON Recipe where
 readRecipes :: FilePath -> FilePath -> IO (Map Text Recipe)
 readRecipes packageBuildEl recipesEl = do
   dumpRecipesEl <- getDataFileName "dump-recipes.el"
-  let args = [ "-l", packageBuildEl
+  let args = [ "--batch"
+             , "-l", packageBuildEl
              , "-l", dumpRecipesEl
              , "-f", "dump-recipes-json", recipesEl
              ]
@@ -103,7 +104,8 @@ readRecipes packageBuildEl recipesEl = do
 dumpRecipes :: FilePath -> FilePath -> FilePath -> IO ()
 dumpRecipes packageBuildEl recipesDir recipesOut = do
   dumpRecipesEl <- getDataFileName "dump-recipes.el"
-  let args = [ "-l", packageBuildEl
+  let args = [ "--batch"
+             , "-l", packageBuildEl
              , "-l", dumpRecipesEl
              , "-f", "dump-recipes", recipesDir
              ]

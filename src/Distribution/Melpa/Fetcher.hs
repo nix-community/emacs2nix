@@ -1,5 +1,4 @@
 {-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module Distribution.Melpa.Fetcher where
@@ -10,12 +9,12 @@ import qualified Data.HashMap.Strict as HM
 import Data.Text (Text)
 import GHC.Generics
 
-type family Rev f
+import Distribution.Melpa.Version
 
 data Fetcher f =
   Fetcher
-  { getRev :: f -> EitherT Text IO (Rev f)
-  , prefetch :: Text -> f -> Rev f -> EitherT Text IO (FilePath, Text)
+  { getRev :: f -> EitherT Text IO (Version, Text)
+  , prefetch :: Text -> f -> Text -> EitherT Text IO (FilePath, Text)
   }
   deriving Generic
 
