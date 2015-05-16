@@ -11,8 +11,6 @@ import Control.Applicative
 import Control.Exception (bracket)
 import Data.Aeson
 import Data.Aeson.Types (parseEither)
-import Data.HashMap.Strict (HashMap)
-import qualified Data.HashMap.Strict as HM
 import Data.Map.Strict (Map)
 #if __GLASGOW_HASKELL__ < 710
 import Data.Monoid
@@ -88,10 +86,19 @@ instance ToJSON Recipe where
   toJSON Recipe {..} = toJSON recipe
 
 readRecipes :: FilePath -> FilePath -> IO (Map Text Recipe)
-readRecipes _ path =
-  S.withFileAsInput path $ \inp -> do
-    result <- parseEither parseJSON <$> S.parseFromStream json' inp
-    either error return result
+readRecipes packageBuildEl recipesEl = do
+  dumpRecipesEl <- getDataFileName "dump-recipes.el"
+  let args = [ "-l", packageBuildEl
+             , "-l", dumpRecipesEl
+             , "-f", "dump-recipes-json", recipesEl
+             ]
+  bracket
+    (S.runInteractiveProcess "emacs" args Nothing Nothing)
+    (\(_, _, _, pid) -> S.waitForProcess pid)
+    (\(inp, out, _, _) -> do
+           S.write Nothing inp
+           result <- parseEither parseJSON <$> S.parseFromStream json' out
+           either error return result)
 
 dumpRecipes :: FilePath -> FilePath -> FilePath -> IO ()
 dumpRecipes packageBuildEl recipesDir recipesOut = do
