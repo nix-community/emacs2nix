@@ -2,25 +2,34 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 
-module Distribution.Melpa.Fetcher.Wiki
-       ( module Distribution.Melpa.Fetcher.Wiki.Types
-       , hash
-       ) where
+module Distribution.Melpa.Fetcher.Wiki ( Wiki, fetchWiki ) where
 
 import Control.Error hiding (runScript)
+import Data.Aeson
+import Data.Aeson.Types (defaultOptions)
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HM
 import Data.Text (Text)
+import GHC.Generics
 
-import Distribution.Melpa.Archive (Archive)
-import qualified Distribution.Melpa.Archive as Archive
 import Distribution.Melpa.Fetcher
-import Distribution.Melpa.Fetcher.Wiki.Types
-import Distribution.Melpa.Package (Package(Package))
-import qualified Distribution.Melpa.Package as Package
-import Distribution.Melpa.Recipe
-import Distribution.Melpa.Utils
 
+data Wiki =
+  Wiki
+  { url :: Maybe Text
+  }
+  deriving (Eq, Generic, Read, Show)
+
+instance ToJSON Wiki where
+  toJSON = wrapFetcher "wiki" . genericToJSON defaultOptions
+
+instance FromJSON Wiki where
+  parseJSON = genericParseJSON defaultOptions
+
+fetchWiki :: Fetcher Wiki
+fetchWiki = undefined
+
+{-
 hash :: FilePath -> FilePath -> Bool -> Text -> Archive -> Recipe
      -> EitherT Text IO Package
 hash _ nixpkgs _ name arch rcp = do
@@ -38,3 +47,4 @@ wikiEnv name Fetcher {..} =
   HM.fromList
   $ [ ("fetcher", "wiki"), ("name", name) ]
   ++ maybeToList ((,) "url" <$> url)
+-}

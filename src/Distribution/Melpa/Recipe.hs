@@ -1,4 +1,5 @@
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 
@@ -15,32 +16,72 @@ import qualified Data.HashMap.Strict as HM
 import Data.Monoid
 #endif
 import Data.Text (Text)
+import qualified Data.Text as T
 import qualified System.IO.Streams as S
 import qualified System.IO.Streams.Attoparsec as S
 
 import Distribution.Melpa.Fetcher
-import Distribution.Melpa.Files (Files)
-import qualified Distribution.Melpa.Files as Files
+import Distribution.Melpa.Fetcher.Bzr
+import Distribution.Melpa.Fetcher.CVS
+import Distribution.Melpa.Fetcher.Darcs
+import Distribution.Melpa.Fetcher.Fossil
+import Distribution.Melpa.Fetcher.Git
+import Distribution.Melpa.Fetcher.GitHub
+import Distribution.Melpa.Fetcher.Hg
+import Distribution.Melpa.Fetcher.SVN
+import Distribution.Melpa.Fetcher.Wiki
 
 data Recipe =
-  Recipe
-  { fetcher :: Fetcher
-  , files :: Maybe Files
+  forall f. (FromJSON f, ToJSON f) => Recipe
+  { fetcher :: Fetcher f
+  , recipe :: f
   }
-  deriving (Eq, Read, Show)
 
 instance FromJSON Recipe where
-  parseJSON = withObject "recipe" $ \obj -> do
-    files <- traverse Files.fromMelpa (HM.lookup "files" obj)
-    fetcher <- parseJSON (Object obj)
-    return Recipe {..}
+  parseJSON = withObject "fetcher" $ \obj -> do
+    fetch <- obj .: "fetcher"
+    let obj_ = Object obj
+    case fetch of
+      "git" -> do
+        recipe <- parseJSON obj_
+        let fetcher = fetchGit
+        return Recipe {..}
+      "github" -> do
+        recipe <- parseJSON obj_
+        let fetcher = fetchGitHub
+        return Recipe {..}
+      "bzr" -> do
+        recipe <- parseJSON obj_
+        let fetcher = fetchBzr
+        return Recipe {..}
+      "hg" -> do
+        recipe <- parseJSON obj_
+        let fetcher = fetchHg
+        return Recipe {..}
+      "darcs" -> do
+        recipe <- parseJSON obj_
+        let fetcher = fetchDarcs
+        return Recipe {..}
+      "fossil" -> do
+        recipe <- parseJSON obj_
+        let fetcher = fetchFossil
+        return Recipe {..}
+      "svn" -> do
+        recipe <- parseJSON obj_
+        let fetcher = fetchSVN
+        return Recipe {..}
+      "cvs" -> do
+        recipe <- parseJSON obj_
+        let fetcher = fetchCVS
+        return Recipe {..}
+      "wiki" -> do
+        recipe <- parseJSON obj_
+        let fetcher = fetchWiki
+        return Recipe {..}
+      unknown -> fail ("unknown fetcher '" ++ T.unpack unknown ++ "'")
 
 instance ToJSON Recipe where
-  toJSON Recipe {..} =
-    addFiles (toJSON fetcher)
-    where
-      addFiles (Object obj) = Object (HM.insert "files" (toJSON files) obj)
-      addFiles _ = error "addFiles: the impossible happened!"
+  toJSON Recipe {..} = toJSON recipe
 
 readRecipes :: FilePath -> IO (HashMap Text Recipe)
 readRecipes path =

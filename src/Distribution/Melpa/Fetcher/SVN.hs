@@ -1,25 +1,36 @@
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 
-module Distribution.Melpa.Fetcher.SVN
-       ( module Distribution.Melpa.Fetcher.SVN.Types
-       , hash
-       ) where
+module Distribution.Melpa.Fetcher.SVN ( SVN, fetchSVN ) where
 
 import Control.Error
+import Data.Aeson
+import Data.Aeson.Types (defaultOptions)
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HM
 import Data.Text (Text)
+import GHC.Generics
 
-import Distribution.Melpa.Archive (Archive)
-import qualified Distribution.Melpa.Archive as Archive
 import Distribution.Melpa.Fetcher
-import Distribution.Melpa.Fetcher.SVN.Types
-import Distribution.Melpa.Package (Package(Package))
-import qualified Distribution.Melpa.Package as Package
-import Distribution.Melpa.Recipe
-import Distribution.Melpa.Utils
 
+data SVN =
+  SVN
+  { url :: Text
+  , commit :: Maybe Text
+  }
+  deriving (Eq, Generic, Read, Show)
+
+instance ToJSON SVN where
+  toJSON = wrapFetcher "svn" . genericToJSON defaultOptions
+
+instance FromJSON SVN where
+  parseJSON = genericParseJSON defaultOptions
+
+fetchSVN :: Fetcher SVN
+fetchSVN = undefined
+
+{-
 hash :: FilePath -> FilePath -> Bool -> Text -> Archive -> Recipe
      -> EitherT Text IO Package
 hash melpa nixpkgs stable name arch rcp = do
@@ -39,3 +50,4 @@ svnEnv name Fetcher {..} =
   HM.fromList
   $ [ ("fetcher", "svn"), ("name", name), ("url", url) ]
   ++ maybeToList ((,) "commit" <$> commit)
+-}

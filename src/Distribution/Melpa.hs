@@ -17,7 +17,6 @@ import System.FilePath
 import qualified System.IO.Streams as S
 
 import Distribution.Melpa.Archive (readArchive)
-import Distribution.Melpa.Hash
 import Distribution.Melpa.Package (Package)
 import Distribution.Melpa.Recipe (readRecipes)
 
@@ -32,23 +31,4 @@ make melpa stable args_ = do
   where args = "SHELL=/bin/sh" : (if stable then ("STABLE=t" :) else id) (map T.unpack args_)
 
 updateMelpa :: FilePath -> FilePath -> Bool -> IO (HashMap Text Package)
-updateMelpa melpa nixpkgs stable = do
-  putStrLn "building archive.json and recipes.json..."
-  make melpa stable [ "clean-json" ]
-  make melpa stable [ "json" ]
-  archive <- readArchive (melpa </> "html/archive.json")
-  recipes <- readRecipes (melpa </> "html/recipes.json")
-  let countKnown = HM.size archive
-  putStrLn (show countKnown ++ " known packages")
-  let discardMissing = HM.fromList . catMaybes
-      getPackage (name, arch) = do
-        result <- runEitherT $ do
-          rcp <- (HM.lookup name recipes) ?? (name <> ": no recipe")
-          hash melpa nixpkgs stable name arch rcp
-        case result of
-          Right pkg -> return (Just (name, pkg))
-          Left err_ -> T.putStrLn err_ >> return Nothing
-  pkgs <- discardMissing <$> traverse getPackage (HM.toList archive)
-  let countGen = HM.size pkgs
-  putStrLn (show countGen ++ " generated packages")
-  return pkgs
+updateMelpa melpa nixpkgs stable = undefined

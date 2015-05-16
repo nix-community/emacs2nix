@@ -1,25 +1,36 @@
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 
-module Distribution.Melpa.Fetcher.Hg
-       ( module Distribution.Melpa.Fetcher.Hg.Types
-       , hash
-       ) where
+module Distribution.Melpa.Fetcher.Hg ( Hg, fetchHg ) where
 
 import Control.Error
+import Data.Aeson
+import Data.Aeson.Types (defaultOptions)
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HM
 import Data.Text (Text)
+import GHC.Generics
 
-import Distribution.Melpa.Archive (Archive)
-import qualified Distribution.Melpa.Archive as Archive
 import Distribution.Melpa.Fetcher
-import Distribution.Melpa.Fetcher.Hg.Types
-import Distribution.Melpa.Package (Package(Package))
-import qualified Distribution.Melpa.Package as Package
-import Distribution.Melpa.Recipe
-import Distribution.Melpa.Utils
 
+data Hg =
+  Hg
+  { url :: Text
+  , commit :: Maybe Text
+  }
+  deriving (Eq, Generic, Read, Show)
+
+instance ToJSON Hg where
+  toJSON = wrapFetcher "hg" . genericToJSON defaultOptions
+
+instance FromJSON Hg where
+  parseJSON = genericParseJSON defaultOptions
+
+fetchHg :: Fetcher Hg
+fetchHg = undefined
+
+{-
 hash :: FilePath -> FilePath -> Bool -> Text -> Archive -> Recipe
      -> EitherT Text IO Package
 hash melpa nixpkgs stable name arch rcp = do
@@ -39,3 +50,4 @@ hgEnv name Fetcher {..} =
   HM.fromList
   $ [ ("fetcher", "hg"), ("name", name), ("url", url) ]
   ++ maybeToList ((,) "commit" <$> commit)
+-}

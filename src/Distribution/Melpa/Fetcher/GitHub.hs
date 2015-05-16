@@ -1,25 +1,37 @@
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 
-module Distribution.Melpa.Fetcher.GitHub
-       ( module Distribution.Melpa.Fetcher.GitHub.Types
-       , hash
-       ) where
+module Distribution.Melpa.Fetcher.GitHub ( GitHub, fetchGitHub ) where
 
 import Control.Error
+import Data.Aeson
+import Data.Aeson.Types (defaultOptions)
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HM
 import Data.Text (Text)
+import GHC.Generics
 
-import Distribution.Melpa.Archive (Archive)
-import qualified Distribution.Melpa.Archive as Archive
 import Distribution.Melpa.Fetcher
-import Distribution.Melpa.Fetcher.GitHub.Types
-import Distribution.Melpa.Package (Package(Package))
-import qualified Distribution.Melpa.Package as Package
-import Distribution.Melpa.Recipe
-import Distribution.Melpa.Utils
 
+data GitHub =
+  GitHub
+  { repo :: Text
+  , commit :: Maybe Text
+  , branch :: Maybe Text
+  }
+  deriving (Eq, Generic, Read, Show)
+
+instance ToJSON GitHub where
+  toJSON = wrapFetcher "github" . genericToJSON defaultOptions
+
+instance FromJSON GitHub where
+  parseJSON = genericParseJSON defaultOptions
+
+fetchGitHub :: Fetcher GitHub
+fetchGitHub = undefined
+
+{-
 hash :: FilePath -> FilePath -> Bool -> Text -> Archive -> Recipe
      -> EitherT Text IO Package
 hash melpa nixpkgs stable name arch rcp = do
@@ -40,3 +52,4 @@ githubEnv name Fetcher {..} =
   $ [ ("fetcher", "github"), ("name", name), ("repo", repo) ]
   ++ maybeToList ((,) "commit" <$> commit)
   ++ maybeToList ((,) "branch" <$> branch)
+-}

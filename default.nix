@@ -1,6 +1,6 @@
 { mkDerivation, aeson, aeson-pretty, base, bytestring, directory
-, errors, filepath, io-streams, stdenv, text, transformers
-, unordered-containers
+, errors, filepath, io-streams, optparse-applicative, stdenv, text
+, transformers, unordered-containers
 }:
 mkDerivation {
   pname = "melpa2nix";
@@ -10,7 +10,8 @@ mkDerivation {
   isExecutable = true;
   buildDepends = [
     aeson aeson-pretty base bytestring directory errors filepath
-    io-streams text transformers unordered-containers
+    io-streams optparse-applicative text transformers
+    unordered-containers
   ];
   description = "Automatically generate Nix expressions for Emacs packages";
   license = stdenv.lib.licenses.gpl3;

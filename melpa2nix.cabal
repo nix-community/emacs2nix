@@ -22,25 +22,15 @@ library
     Distribution.Melpa.Archive
     Distribution.Melpa.Fetcher
     Distribution.Melpa.Fetcher.Bzr
-    Distribution.Melpa.Fetcher.Bzr.Types
     Distribution.Melpa.Fetcher.CVS
-    Distribution.Melpa.Fetcher.CVS.Types
     Distribution.Melpa.Fetcher.Darcs
-    Distribution.Melpa.Fetcher.Darcs.Types
     Distribution.Melpa.Fetcher.Fossil
-    Distribution.Melpa.Fetcher.Fossil.Types
     Distribution.Melpa.Fetcher.Git
-    Distribution.Melpa.Fetcher.Git.Types
     Distribution.Melpa.Fetcher.GitHub
-    Distribution.Melpa.Fetcher.GitHub.Types
     Distribution.Melpa.Fetcher.Hg
-    Distribution.Melpa.Fetcher.Hg.Types
     Distribution.Melpa.Fetcher.SVN
-    Distribution.Melpa.Fetcher.SVN.Types
     Distribution.Melpa.Fetcher.Wiki
-    Distribution.Melpa.Fetcher.Wiki.Types
     Distribution.Melpa.Files
-    Distribution.Melpa.Hash
     Distribution.Melpa.Package
     Distribution.Melpa.Recipe
     Distribution.Melpa.Utils
@@ -70,6 +60,7 @@ executable melpa2nix
     , filepath
     , io-streams
     , melpa2nix
+    , optparse-applicative >= 0.11
     , text
     , unordered-containers
   default-language: Haskell2010

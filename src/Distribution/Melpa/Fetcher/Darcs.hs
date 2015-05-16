@@ -1,19 +1,34 @@
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module Distribution.Melpa.Fetcher.Darcs
-       ( module Distribution.Melpa.Fetcher.Darcs.Types
-       , hash
-       ) where
+module Distribution.Melpa.Fetcher.Darcs ( Darcs, fetchDarcs ) where
 
 import Control.Error
+import Data.Aeson
+import Data.Aeson.Types (defaultOptions)
 import Data.Monoid ((<>))
 import Data.Text (Text)
+import GHC.Generics
 
-import Distribution.Melpa.Archive
-import Distribution.Melpa.Fetcher.Darcs.Types
-import Distribution.Melpa.Package (Package)
-import Distribution.Melpa.Recipe
+import Distribution.Melpa.Fetcher
 
+data Darcs =
+  Darcs
+  { url :: Text
+  }
+  deriving (Eq, Generic, Read, Show)
+
+instance ToJSON Darcs where
+  toJSON = wrapFetcher "darcs" . genericToJSON defaultOptions
+
+instance FromJSON Darcs where
+  parseJSON = genericParseJSON defaultOptions
+
+fetchDarcs :: Fetcher Darcs
+fetchDarcs = undefined
+
+{-
 hash :: FilePath -> FilePath -> Bool -> Text -> Archive -> Recipe
      -> EitherT Text IO Package
 hash _ _ _ name _ _ = left (name <> ": fetcher 'darcs' not implemented")
+-}

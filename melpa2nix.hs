@@ -5,11 +5,24 @@ module Main where
 import Data.Aeson.Encode.Pretty (encodePretty)
 import Data.Text (Text)
 import qualified Data.Text.IO as T
+import Options.Applicative
 import System.Environment (getArgs)
 import System.FilePath
 import qualified System.IO.Streams as S
 
 import Distribution.Melpa
+
+data Melpa2nix =
+  Melpa2nix
+  { packageBuild :: FilePath
+  , recipes :: FilePath
+  }
+
+melpa2nixParser :: Parser Melpa2nix
+melpa2nixParser =
+  Melpa2nix
+  <$> strOption (long "package-build" <> metavar "FILE" <> help "path to package-build.el")
+  <*> strOption (long "recipes" <> metavar "DIR" <> help "path to MELPA recipes")
 
 main :: IO ()
 main = do
