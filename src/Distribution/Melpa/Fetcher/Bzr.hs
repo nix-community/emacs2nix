@@ -37,7 +37,6 @@ instance FromJSON Bzr where
 fetchBzr :: Fetcher Bzr
 fetchBzr = Fetcher {..}
   where
-    getRev :: Text -> Bzr -> FilePath -> EitherT Text IO Text
     getRev name Bzr {..} tmp =
       let args = [ "log", "-l1", tmp ]
       in EitherT $ bracket
@@ -50,18 +49,5 @@ fetchBzr = Fetcher {..}
                          $ S.lines out >>= S.decodeUtf8 >>= S.toList
                return $ headErr (name <> ": could not find revision") revnos)
 
-    prefetch :: Text -> f -> Text -> EitherT Text IO (FilePath, Text)
     prefetch name Bzr {..} rev =
-      let args = []
-      in EitherT $ bracket
-        (S.runInteractiveProcess "bzr" args Nothing Nothing)
-        (\(_, _, _, pid) -> S.waitForProcess pid)
-        (\(inp, out, _, _) -> do
-               S.write Nothing inp
-               let getHash = T.stripPrefix "hash is "
-                   getPath = T.stripPrefix "path is "
-               hashes <- liftM (mapMaybe getHash) $ S.lines out >>= S.decodeUtf8 >>= S.toList
-               paths <- liftM (mapMaybe getPath) $ S.lines out >>= S.decodeUtf8 >>= S.toList
-               hash <- return $ headErr (name <> ": could not find hash") hashes
-               path <- return $ headErr (name <> ": could not find path") paths
-               return (path, hash))
+      prefetchWith name "nix-prefetch-bzr" [ T.unpack url, T.unpack rev ]
