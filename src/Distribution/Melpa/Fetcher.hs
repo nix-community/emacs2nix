@@ -13,7 +13,7 @@ import Distribution.Melpa.Version
 
 data Fetcher f =
   Fetcher
-  { getRev :: f -> EitherT Text IO (Version, Text)
+  { getRev :: Text -> f -> FilePath -> EitherT Text IO Text
   , prefetch :: Text -> f -> Text -> EitherT Text IO (FilePath, Text)
   }
   deriving Generic

@@ -8,14 +8,10 @@ import Data.Aeson.Encode.Pretty (encodePretty)
 import Data.Either (isRight)
 import Data.Foldable (for_)
 import qualified Data.Map.Strict as M
-import Data.Text (Text)
 import qualified Data.Text.IO as T
 import Options.Applicative
-import System.Environment (getArgs)
-import System.FilePath
 import qualified System.IO.Streams as S
 
-import Distribution.Melpa
 import Distribution.Melpa.Package
 import Distribution.Melpa.Recipe
 
