@@ -51,7 +51,20 @@ fetchBzr = Fetcher {..}
                return $ headErr (name <> ": could not find revision") revnos)
 
     prefetch :: Text -> f -> Text -> EitherT Text IO (FilePath, Text)
-    prefetch = undefined
+    prefetch name Bzr {..} rev =
+      let args = []
+      in EitherT $ bracket
+        (S.runInteractiveProcess "bzr" args Nothing Nothing)
+        (\(_, _, _, pid) -> S.waitForProcess pid)
+        (\(inp, out, _, _) -> do
+               S.write Nothing inp
+               let getHash = T.stripPrefix "hash is "
+                   getPath = T.stripPrefix "path is "
+               hashes <- liftM (mapMaybe getHash) $ S.lines out >>= S.decodeUtf8 >>= S.toList
+               paths <- liftM (mapMaybe getPath) $ S.lines out >>= S.decodeUtf8 >>= S.toList
+               hash <- return $ headErr (name <> ": could not find hash") hashes
+               path <- return $ headErr (name <> ": could not find path") paths
+               return (path, hash))
 
 {-
 hash :: FilePath -> FilePath -> Bool -> Text -> Archive -> Recipe -> EitherT Text IO Package
