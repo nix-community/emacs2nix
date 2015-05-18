@@ -4,7 +4,7 @@
 module Distribution.Melpa.Fetcher where
 
 import Control.Error
-import Control.Exception (bracket)
+import Control.Exception (SomeException(..), bracket, handle)
 import Control.Monad (liftM)
 import Data.Aeson
 import qualified Data.HashMap.Strict as HM
@@ -42,3 +42,9 @@ prefetchWith name prefetcher args =
              hash <- hoistEither $ headErr (name <> ": could not find hash") hashes
              path <- hoistEither $ headErr (name <> ": could not find path") paths
              return (T.unpack path, hash))
+
+handleAll :: EitherT Text IO a -> EitherT Text IO a
+handleAll act =
+  EitherT $ handle
+    (\(SomeException e) -> return $ Left (T.pack $ show e))
+    (runEitherT act)

@@ -38,8 +38,7 @@ fetchBzr :: Fetcher Bzr
 fetchBzr = Fetcher {..}
   where
     getRev name Bzr {..} tmp =
-      let args = [ "log", "-l1", tmp ]
-      in EitherT $ bracket
+      handleAll $ EitherT $ bracket
         (S.runInteractiveProcess "bzr" args Nothing Nothing)
         (\(_, _, _, pid) -> S.waitForProcess pid)
         (\(inp, out, _, _) -> do
@@ -47,7 +46,9 @@ fetchBzr = Fetcher {..}
                let getRevno = (T.strip <$>) . T.stripPrefix "revno:"
                revnos <- liftM (mapMaybe getRevno)
                          $ S.lines out >>= S.decodeUtf8 >>= S.toList
-               return $ headErr (name <> ": could not find revision") revnos)
+               return $ headErr "could not find revision" revnos)
+      where args = [ "log", "-l1", tmp ]
 
     prefetch name Bzr {..} rev =
-      prefetchWith name "nix-prefetch-bzr" [ T.unpack url, T.unpack rev ]
+      handleAll
+      $ prefetchWith name "nix-prefetch-bzr" [ T.unpack url, T.unpack rev ]

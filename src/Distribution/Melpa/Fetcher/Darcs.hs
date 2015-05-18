@@ -35,16 +35,16 @@ fetchDarcs :: Fetcher Darcs
 fetchDarcs = Fetcher {..}
   where
     getRev _ Darcs {..} tmp =
-      let args = [ "changes", "--context" ]
-      in liftIO $ bracket
+      handleAll $ liftIO $ bracket
         (S.runInteractiveProcess "darcs" args (Just tmp) Nothing)
         (\(_, _, _, pid) -> S.waitForProcess pid)
         (\(inp, out, _, _) -> do
                S.write Nothing inp
                S.decodeUtf8 out >>= S.fold (<>) T.empty)
+      where args = [ "changes", "--context" ]
 
     prefetch name Darcs {..} context =
-      EitherT $ withSystemTempFile "melpa2nix-darcs-context"
+      handleAll $ EitherT $ withSystemTempFile "melpa2nix-darcs-context"
         $ \contextFile handle -> do
                -- darcs uses a long textual context instead of revision
                -- numbers or hashes, so we need to put it in a file

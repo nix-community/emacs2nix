@@ -38,7 +38,7 @@ fetchSVN :: Fetcher SVN
 fetchSVN = Fetcher {..}
   where
     getRev name SVN {..} tmp =
-      EitherT $ bracket
+      handleAll $ EitherT $ bracket
         (S.runInteractiveProcess "svn" ["info"] (Just tmp) Nothing)
         (\(_, _, _, pid) -> S.waitForProcess pid)
         (\(inp, out, _, _) -> do
@@ -47,7 +47,7 @@ fetchSVN = Fetcher {..}
                return $ headErr (name <> ": could not find revision") revs)
 
     prefetch name SVN {..} rev =
-      prefetchWith name "nix-prefetch-svn" args
+      handleAll $ prefetchWith name "nix-prefetch-svn" args
       where
         args = [ T.unpack url, T.unpack rev ]
 

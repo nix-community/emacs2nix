@@ -28,5 +28,5 @@ instance FromJSON Fossil where
 fetchFossil :: Fetcher Fossil
 fetchFossil = Fetcher {..}
   where
-    getRev name _ _ = left (name <> ": no fetcher for 'fossil'")
-    prefetch name _ _ = left (name <> ": no fetcher for 'fossil'")
+    getRev _ _ _ = left "no fetcher for 'fossil'"
+    prefetch _ _ _ = left "no fetcher for 'fossil'"

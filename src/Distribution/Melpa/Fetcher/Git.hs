@@ -33,10 +33,10 @@ instance FromJSON Git where
 fetchGit :: Fetcher Git
 fetchGit = Fetcher {..}
   where
-    getRev name Git {..} tmp = getRev_Git name branch tmp
+    getRev name Git {..} tmp = handleAll $ getRev_Git name branch tmp
     prefetch name Git {..} rev =
-      let args = [ "--url", T.unpack url, "--rev", T.unpack rev ]
-      in prefetchWith name "nix-prefetch-git" args
+      handleAll $ prefetchWith name "nix-prefetch-git" args
+      where args = [ "--url", T.unpack url, "--rev", T.unpack rev ]
 
 getRev_Git :: Text -> Maybe Text -> FilePath -> EitherT Text IO Text
 getRev_Git name branch tmp =

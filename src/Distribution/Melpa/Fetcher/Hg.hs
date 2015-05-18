@@ -39,7 +39,7 @@ fetchHg :: Fetcher Hg
 fetchHg = Fetcher {..}
   where
     getRev name Hg {..} tmp =
-      EitherT $ bracket
+      handleAll $ EitherT $ bracket
         (S.runInteractiveProcess "hg" ["tags"] (Just tmp) Nothing)
         (\(_, _, _, pid) -> S.waitForProcess pid)
         (\(inp, out, _, _) -> do
@@ -48,7 +48,7 @@ fetchHg = Fetcher {..}
                return $ headErr (name <> ": could not find revision") revs)
 
     prefetch name Hg {..} rev =
-      prefetchWith name "nix-prefetch-hg" args
+      handleAll $ prefetchWith name "nix-prefetch-hg" args
       where
         args = [ T.unpack url, T.unpack rev ]
 

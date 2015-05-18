@@ -31,9 +31,9 @@ instance FromJSON GitHub where
 fetchGitHub :: Fetcher GitHub
 fetchGitHub = Fetcher {..}
   where
-    getRev name GitHub {..} tmp = getRev_Git name branch tmp
+    getRev name GitHub {..} tmp = handleAll $ getRev_Git name branch tmp
     prefetch name GitHub {..} rev =
-      prefetchWith name "nix-prefetch-zip" args
+      handleAll $ prefetchWith name "nix-prefetch-zip" args
       where
         args = [ "--url", T.unpack url, "--name", T.unpack filename ]
         url = "https://github.com/" <> repo <> "/archive/" <> rev <> ".tar.gz"
