@@ -42,4 +42,5 @@ fetchCVS = Fetcher {..}
   where
     getRev _ _ _ = return ""
     prefetch name CVS {..} _ =
-      prefetchWith name "nix-prefetch-cvs" [ T.unpack url, T.unpack (fromMaybe name branch) ]
+      let args = [ T.unpack url, T.unpack (fromMaybe name branch) ]
+      in prefetchWith name "nix-prefetch-cvs" args
