@@ -1,0 +1,3 @@
+* TODO Check packages.json for hashes and avoid prefetching unchanged packages
+* TODO Keep repositories to avoid re-downloading just to get versions
+* TODO Take an optional list of packages to update on the command line
