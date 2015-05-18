@@ -4,13 +4,20 @@
 
 module Distribution.Melpa.Fetcher.SVN ( SVN, fetchSVN ) where
 
+import Control.Applicative
 import Control.Error
+import Control.Exception (bracket)
 import Data.Aeson
 import Data.Aeson.Types (defaultOptions)
-import Data.HashMap.Strict (HashMap)
-import qualified Data.HashMap.Strict as HM
+import Data.Attoparsec.ByteString.Char8
+import Data.Monoid ((<>))
 import Data.Text (Text)
+import qualified Data.Text as T
+import qualified Data.Text.Encoding as T
 import GHC.Generics
+import Prelude hiding (takeWhile)
+import qualified System.IO.Streams as S
+import qualified System.IO.Streams.Attoparsec as S
 
 import Distribution.Melpa.Fetcher
 
@@ -28,26 +35,29 @@ instance FromJSON SVN where
   parseJSON = genericParseJSON defaultOptions
 
 fetchSVN :: Fetcher SVN
-fetchSVN = undefined
+fetchSVN = Fetcher {..}
+  where
+    getRev name SVN {..} tmp =
+      EitherT $ bracket
+        (S.runInteractiveProcess "svn" ["info"] (Just tmp) Nothing)
+        (\(_, _, _, pid) -> S.waitForProcess pid)
+        (\(inp, out, _, _) -> do
+               S.write Nothing inp
+               revs <- S.parseFromStream (many parseSVNRev) out
+               return $ headErr (name <> ": could not find revision") revs)
 
-{-
-hash :: FilePath -> FilePath -> Bool -> Text -> Archive -> Recipe
-     -> EitherT Text IO Package
-hash melpa nixpkgs stable name arch rcp = do
-  let SVN _svn@(Fetcher {..}) = fetcher rcp
-  _commit <- getCommit melpa stable name Nothing (svnEnv name _svn)
-  _svn <- return _svn { commit = Just _commit }
-  _hash <- prefetch nixpkgs name Nothing (svnEnv name _svn)
-  return Package
-    { Package.ver = Archive.ver arch
-    , Package.deps = maybe [] HM.keys (Archive.deps arch)
-    , Package.recipe = rcp { fetcher = SVN _svn }
-    , Package.hash = _hash
-    }
+    prefetch name SVN {..} rev =
+      prefetchWith name "nix-prefetch-svn" args
+      where
+        args = [ T.unpack url, T.unpack rev ]
 
-svnEnv :: Text -> SVN -> HashMap Text Text
-svnEnv name Fetcher {..} =
-  HM.fromList
-  $ [ ("fetcher", "svn"), ("name", name), ("url", url) ]
-  ++ maybeToList ((,) "commit" <$> commit)
--}
+parseSVNRev :: Parser Text
+parseSVNRev = go <|> (skipLine *> go)
+  where
+    skipLine = skipWhile (/= '\n') *> char '\n'
+    go = do
+      _ <- string "Revision:"
+      skipSpace
+      rev <- takeWhile isDigit
+      _ <- char '\n'
+      return (T.decodeUtf8 rev)
