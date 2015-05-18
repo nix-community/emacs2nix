@@ -4,13 +4,21 @@
 
 module Distribution.Melpa.Fetcher.Hg ( Hg, fetchHg ) where
 
+import Control.Applicative
 import Control.Error
+import Control.Exception (bracket)
 import Data.Aeson
 import Data.Aeson.Types (defaultOptions)
-import Data.HashMap.Strict (HashMap)
-import qualified Data.HashMap.Strict as HM
+import Data.Attoparsec.ByteString.Char8
+import Data.Char (isHexDigit)
+import Data.Monoid ((<>))
 import Data.Text (Text)
+import qualified Data.Text as T
+import qualified Data.Text.Encoding as T
 import GHC.Generics
+import Prelude hiding (takeWhile)
+import qualified System.IO.Streams as S
+import qualified System.IO.Streams.Attoparsec as S
 
 import Distribution.Melpa.Fetcher
 
@@ -28,26 +36,31 @@ instance FromJSON Hg where
   parseJSON = genericParseJSON defaultOptions
 
 fetchHg :: Fetcher Hg
-fetchHg = undefined
+fetchHg = Fetcher {..}
+  where
+    getRev name Hg {..} tmp =
+      EitherT $ bracket
+        (S.runInteractiveProcess "hg" ["tags"] (Just tmp) Nothing)
+        (\(_, _, _, pid) -> S.waitForProcess pid)
+        (\(inp, out, _, _) -> do
+               S.write Nothing inp
+               revs <- S.parseFromStream (many parseHgRev) out
+               return $ headErr (name <> ": could not find revision") revs)
 
-{-
-hash :: FilePath -> FilePath -> Bool -> Text -> Archive -> Recipe
-     -> EitherT Text IO Package
-hash melpa nixpkgs stable name arch rcp = do
-  let Hg _hg@(Fetcher {..}) = fetcher rcp
-  _commit <- getCommit melpa stable name Nothing (hgEnv name _hg)
-  _hg <- return _hg { commit = Just _commit }
-  _hash <- prefetch nixpkgs name Nothing (hgEnv name _hg)
-  return Package
-    { Package.ver = Archive.ver arch
-    , Package.deps = maybe [] HM.keys (Archive.deps arch)
-    , Package.recipe = rcp { fetcher = Hg _hg }
-    , Package.hash = _hash
-    }
+    prefetch name Hg {..} rev =
+      prefetchWith name "nix-prefetch-hg" args
+      where
+        args = [ T.unpack url, T.unpack rev ]
 
-hgEnv :: Text -> Hg -> HashMap Text Text
-hgEnv name Fetcher {..} =
-  HM.fromList
-  $ [ ("fetcher", "hg"), ("name", name), ("url", url) ]
-  ++ maybeToList ((,) "commit" <$> commit)
--}
+parseHgRev :: Parser Text
+parseHgRev = go <|> (skipLine *> go)
+  where
+    skipLine = skipWhile (/= '\n') *> char '\n'
+    go = do
+      _ <- string "tip"
+      skipSpace
+      skipWhile isDigit
+      _ <- char ':'
+      rev <- takeWhile isHexDigit
+      _ <- char '\n'
+      return (T.decodeUtf8 rev)
