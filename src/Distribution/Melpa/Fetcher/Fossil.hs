@@ -1,5 +1,6 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards #-}
 
 module Distribution.Melpa.Fetcher.Fossil ( Fossil, fetchFossil ) where
 
@@ -25,10 +26,7 @@ instance FromJSON Fossil where
   parseJSON = genericParseJSON defaultOptions
 
 fetchFossil :: Fetcher Fossil
-fetchFossil = undefined
-
-{-
-hash :: FilePath -> FilePath -> Bool -> Text -> Archive -> Recipe
-     -> EitherT Text IO Package
-hash _ _ _ name _ _ = left (name <> ": fetcher 'fossil' not implemented")
--}
+fetchFossil = Fetcher {..}
+  where
+    getRev name _ _ = left (name <> ": no fetcher for 'fossil'")
+    prefetch name _ _ = left (name <> ": no fetcher for 'fossil'")
