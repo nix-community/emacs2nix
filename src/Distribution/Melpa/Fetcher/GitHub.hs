@@ -37,4 +37,4 @@ fetchGitHub = Fetcher {..}
       where
         args = [ "--url", T.unpack url, "--name", T.unpack filename ]
         url = "https://github.com/" <> repo <> "/archive/" <> rev <> ".tar.gz"
-        filename = repo <> "-" <> rev <> "-src"
+        filename = name <> "-" <> rev <> "-src"
