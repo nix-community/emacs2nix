@@ -5,7 +5,7 @@
 module Main where
 
 import Data.Aeson.Encode.Pretty (encodePretty)
-import Data.Either (isRight)
+import Data.Either (partitionEithers)
 import Data.Foldable (for_)
 import qualified Data.Map.Strict as M
 import qualified Data.Text.IO as T
@@ -40,12 +40,10 @@ melpa2nix :: FilePath -> FilePath -> FilePath -> FilePath -> IO ()
 melpa2nix packageBuild recipesDir recipesOut packagesOut = do
   dumpRecipes packageBuild recipesDir recipesOut
   recipes <- readRecipes packageBuild recipesOut
-  epackages <- M.traverseWithKey (getPackage packageBuild recipesOut) recipes
-  for_ epackages $ either T.putStrLn (\_ -> return ())
-  let packages = M.map fromRight (M.filter isRight epackages)
+  let getPackage_ = getPackage packageBuild recipesOut
+  (errors, packages) <- partitionEithers . map sequenceA . M.toList
+                        <$> M.traverseWithKey getPackage_ recipes
+  for_ errors $ \(name, err) -> T.putStrLn (name <> ": " <> err)
   S.withFileAsOutput packagesOut $ \out -> do
-    enc <- S.fromLazyByteString (encodePretty packages)
+    enc <- S.fromLazyByteString (encodePretty $ M.fromList packages)
     S.connect enc out
-  where
-    fromRight (Right x) = x
-    fromRight _ = error "fromRight: the impossible happened!"
