@@ -22,7 +22,6 @@ import System.IO.Temp (withSystemTempDirectory)
 import Distribution.Melpa.Fetcher
 import Distribution.Melpa.Recipe (Recipe(Recipe))
 import qualified Distribution.Melpa.Recipe as Recipe
-import Distribution.Melpa.Version
 
 import Paths_melpa2nix (getDataFileName)
 
@@ -85,7 +84,7 @@ getDeps packageBuildEl recipesEl packageName sourceDir = EitherT $ do
     (\(inp, out, _, _) -> do
            S.write Nothing inp
            result <- parseEither parseJSON <$> S.parseFromStream json' out
-           either error (return . Right . M.keys) (result :: Either String (Map Text Version)))
+           either error (return . Right . M.keys) (result :: Either String (Map Text [Integer])))
 
 getVersion :: FilePath -> FilePath -> Text -> FilePath -> EitherT Text IO Text
 getVersion packageBuildEl recipesEl packageName sourceDir = do

@@ -18,8 +18,6 @@ data-files: *.el
 
 library
   exposed-modules:
-    Distribution.Melpa
-    Distribution.Melpa.Archive
     Distribution.Melpa.Fetcher
     Distribution.Melpa.Fetcher.Bzr
     Distribution.Melpa.Fetcher.CVS
@@ -33,8 +31,6 @@ library
     Distribution.Melpa.Files
     Distribution.Melpa.Package
     Distribution.Melpa.Recipe
-    Distribution.Melpa.Utils
-    Distribution.Melpa.Version
   other-modules:
     Paths_melpa2nix
   hs-source-dirs: src
