@@ -61,7 +61,8 @@ getPackage packageBuildEl recipesEl workDir packageName rcp =
       let tmp = workDir </> T.unpack packageName
       ver <- getVersion packageBuildEl recipesEl packageName tmp
       rev <- getRev fetcher packageName recipe tmp
-      hash <- prefetch fetcher packageName recipe rev
+      -- hash <- prefetch fetcher packageName recipe rev
+      let hash = ""
       return Package {..}
 
 getVersion :: FilePath -> FilePath -> Text -> FilePath -> EitherT Text IO Text
