@@ -13,7 +13,6 @@ import Control.Exception (bracket)
 import Control.Monad (liftM)
 import Data.Aeson
 import Data.Aeson.Types (defaultOptions)
-import Data.Monoid ((<>))
 import Data.Text (Text)
 import qualified Data.Text as T
 import GHC.Generics
@@ -37,7 +36,7 @@ instance FromJSON Bzr where
 fetchBzr :: Fetcher Bzr
 fetchBzr = Fetcher {..}
   where
-    getRev name Bzr {..} tmp =
+    getRev _ Bzr {..} tmp =
       handleAll $ EitherT $ bracket
         (S.runInteractiveProcess "bzr" args Nothing Nothing)
         (\(_, _, _, pid) -> S.waitForProcess pid)

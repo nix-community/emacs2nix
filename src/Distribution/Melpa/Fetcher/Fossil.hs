@@ -7,7 +7,6 @@ module Distribution.Melpa.Fetcher.Fossil ( Fossil, fetchFossil ) where
 import Control.Error
 import Data.Aeson
 import Data.Aeson.Types (defaultOptions)
-import Data.Monoid ((<>))
 import Data.Text (Text)
 import GHC.Generics
 

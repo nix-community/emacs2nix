@@ -28,7 +28,7 @@ wrapFetcher fetch val =
     _ -> error "wrapFetcher: not a fetcher object!"
 
 prefetchWith :: Text -> FilePath -> [String] -> EitherT Text IO (FilePath, Text)
-prefetchWith name prefetcher args =
+prefetchWith _ prefetcher args =
   EitherT $ bracket
     (S.runInteractiveProcess prefetcher args Nothing Nothing)
     (\(_, _, _, pid) -> S.waitForProcess pid)
@@ -39,9 +39,11 @@ prefetchWith name prefetcher args =
            hashes <- liftM (mapMaybe getHash) $ S.lines out >>= S.decodeUtf8 >>= S.toList
            paths <- liftM (mapMaybe getPath) $ S.lines out >>= S.decodeUtf8 >>= S.toList
            runEitherT $ do
-             hash <- hoistEither $ headErr (name <> ": could not find hash") hashes
-             path <- hoistEither $ headErr (name <> ": could not find path") paths
+             hash <- hoistEither $ headErr ("could not find hash" <> cmd) hashes
+             path <- hoistEither $ headErr ("could not find path" <> cmd) paths
              return (T.unpack path, hash))
+  where
+    cmd = T.pack $ S.showCommandForUser prefetcher args
 
 handleAll :: EitherT Text IO a -> EitherT Text IO a
 handleAll act =
