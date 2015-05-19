@@ -35,7 +35,7 @@ fetchGit = Fetcher {..}
   where
     getRev name Git {..} tmp = handleAll $ getRev_Git name branch tmp
     prefetch name Git {..} rev =
-      handleAll $ prefetchWith name "nix-prefetch-git" args
+      prefetchWith name "nix-prefetch-git" args
       where args = [ "--url", T.unpack url, "--rev", T.unpack rev ]
 
 getRev_Git :: Text -> Maybe Text -> FilePath -> EitherT Text IO Text

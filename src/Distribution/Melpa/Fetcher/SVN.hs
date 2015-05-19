@@ -47,7 +47,7 @@ fetchSVN = Fetcher {..}
                return $ headErr (name <> ": could not find revision") revs)
 
     prefetch name SVN {..} rev =
-      handleAll $ prefetchWith name "nix-prefetch-svn" args
+      prefetchWith name "nix-prefetch-svn" args
       where
         args = [ T.unpack url, T.unpack rev ]
 

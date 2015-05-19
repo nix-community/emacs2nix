@@ -48,7 +48,7 @@ fetchHg = Fetcher {..}
                return $ headErr (name <> ": could not find revision") revs)
 
     prefetch name Hg {..} rev =
-      handleAll $ prefetchWith name "nix-prefetch-hg" args
+      prefetchWith name "nix-prefetch-hg" args
       where
         args = [ T.unpack url, T.unpack rev ]
 

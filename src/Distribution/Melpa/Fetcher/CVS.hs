@@ -42,5 +42,5 @@ fetchCVS = Fetcher {..}
   where
     getRev _ _ _ = return ""
     prefetch name CVS {..} _ =
-      handleAll $ prefetchWith name "nix-prefetch-cvs" args
+      prefetchWith name "nix-prefetch-cvs" args
       where args = [ T.unpack url, T.unpack (fromMaybe name branch) ]

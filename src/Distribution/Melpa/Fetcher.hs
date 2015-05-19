@@ -17,7 +17,7 @@ import qualified System.IO.Streams as S
 data Fetcher f =
   Fetcher
   { getRev :: Text -> f -> FilePath -> EitherT Text IO Text
-  , prefetch :: Text -> f -> Text -> EitherT Text IO (FilePath, Text)
+  , prefetch :: Text -> f -> Text -> EitherT Text IO Text
   }
   deriving Generic
 
@@ -27,23 +27,20 @@ wrapFetcher fetch val =
     (Object obj) -> Object (HM.insert "fetcher" (toJSON fetch) obj)
     _ -> error "wrapFetcher: not a fetcher object!"
 
-prefetchWith :: Text -> FilePath -> [String] -> EitherT Text IO (FilePath, Text)
+prefetchWith :: Text -> FilePath -> [String] -> EitherT Text IO Text
 prefetchWith _ prefetcher args =
-  EitherT $ bracket
+  handleAll $ EitherT $ bracket
     (S.runInteractiveProcess prefetcher args Nothing Nothing)
     (\(_, _, _, pid) -> S.waitForProcess pid)
     (\(inp, out, _, _) -> do
            S.write Nothing inp
-           let getHash = T.stripPrefix "hash is "
-               getPath = T.stripPrefix "path is "
-           hashes <- liftM (mapMaybe getHash) $ S.lines out >>= S.decodeUtf8 >>= S.toList
-           paths <- liftM (mapMaybe getPath) $ S.lines out >>= S.decodeUtf8 >>= S.toList
-           runEitherT $ do
-             hash <- hoistEither $ headErr ("could not find hash with " <> cmd) hashes
-             path <- hoistEither $ headErr ("could not find path with " <> cmd) paths
-             return (T.unpack path, hash))
+           hash <- S.fold (<>) T.empty =<< S.decodeUtf8 out
+           return $ if T.length hash /= 52
+             then Left ("not a base32-encoded sha256: " <> hash <> "\n" <> anyerr)
+             else Right hash)
   where
     cmd = T.pack $ S.showCommandForUser prefetcher args
+    anyerr = "tried prefetch command: " <> cmd
 
 handleAll :: EitherT Text IO a -> EitherT Text IO a
 handleAll act =

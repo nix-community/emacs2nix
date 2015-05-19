@@ -31,7 +31,7 @@ fetchWiki = Fetcher {..}
   where
     getRev _ _ _ = return ""
     prefetch name Wiki {..} _ =
-      handleAll $ prefetchWith name "nix-prefetch-url" [ T.unpack fullurl ]
+      prefetchWith name "nix-prefetch-url" [ T.unpack fullurl ]
       where
         fullurl = fromMaybe defaultUrl url
         defaultUrl = "http://www.emacswiki.org/emacs/download/" <> name <> ".el"
