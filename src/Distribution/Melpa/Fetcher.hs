@@ -39,8 +39,8 @@ prefetchWith _ prefetcher args =
            hashes <- liftM (mapMaybe getHash) $ S.lines out >>= S.decodeUtf8 >>= S.toList
            paths <- liftM (mapMaybe getPath) $ S.lines out >>= S.decodeUtf8 >>= S.toList
            runEitherT $ do
-             hash <- hoistEither $ headErr ("could not find hash" <> cmd) hashes
-             path <- hoistEither $ headErr ("could not find path" <> cmd) paths
+             hash <- hoistEither $ headErr ("could not find hash with " <> cmd) hashes
+             path <- hoistEither $ headErr ("could not find path with " <> cmd) paths
              return (T.unpack path, hash))
   where
     cmd = T.pack $ S.showCommandForUser prefetcher args
