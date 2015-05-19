@@ -13,7 +13,7 @@ import Data.Monoid ((<>))
 import Data.Text (Text)
 import qualified Data.Text as T
 import qualified System.IO.Streams as S
-import System.IO.Temp (withSystemTempDirectory)
+import System.FilePath
 
 import Distribution.Melpa.Fetcher
 import Distribution.Melpa.Recipe (Recipe(Recipe))
@@ -49,18 +49,20 @@ instance ToJSON Package where
     , "hash" .= hash
     ]
 
-getPackage :: FilePath -> FilePath -> Text -> Recipe -> IO (Either Text Package)
-getPackage packageBuildEl recipesEl packageName rcp =
+getPackage :: FilePath  -- ^ path to package-build.el
+           -> FilePath  -- ^ path to recipes.el
+           -> FilePath  -- ^ temporary workspace
+           -> Text  -- ^ package name
+           -> Recipe  -- ^ package recipe
+           -> IO (Either Text Package)
+getPackage packageBuildEl recipesEl workDir packageName rcp =
   case rcp of
     Recipe { Recipe.fetcher = fetcher, Recipe.recipe = recipe } -> runEitherT $ do
-      (ver, rev) <- EitherT $ withTemp $ \tmp -> runEitherT $ do
-        ver <- getVersion packageBuildEl recipesEl packageName tmp
-        rev <- getRev fetcher packageName recipe tmp
-        return (ver, rev)
+      let tmp = workDir </> T.unpack packageName
+      ver <- getVersion packageBuildEl recipesEl packageName tmp
+      rev <- getRev fetcher packageName recipe tmp
       hash <- prefetch fetcher packageName recipe rev
       return Package {..}
-  where
-    withTemp = withSystemTempDirectory ("melpa2nix-" <> T.unpack packageName)
 
 getVersion :: FilePath -> FilePath -> Text -> FilePath -> EitherT Text IO Text
 getVersion packageBuildEl recipesEl packageName sourceDir = do

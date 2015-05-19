@@ -11,6 +11,7 @@ import Data.Foldable (for_)
 import qualified Data.Map.Strict as M
 import qualified Data.Text.IO as T
 import Options.Applicative
+import System.Directory (createDirectoryIfMissing)
 import qualified System.IO.Streams as S
 
 import Distribution.Melpa.Package
@@ -31,17 +32,26 @@ melpa2nixParser =
   <*> strOption (long "recipes-dir" <> metavar "DIR"
                  <> help "path to MELPA recipes")
 
+  <*> strOption (long "work-dir" <> metavar "DIR"
+                 <> help "path to temporary workspace")
+
   <*> strOption (long "recipes-out" <> metavar "FILE"
                  <> help "dump MELPA recipes to FILE")
 
   <*> strOption (long "packages-out" <> metavar "FILE"
                  <> help "dump packages to FILE")
 
-melpa2nix :: FilePath -> FilePath -> FilePath -> FilePath -> IO ()
-melpa2nix packageBuild recipesDir recipesOut packagesOut = do
+melpa2nix :: FilePath  -- ^ path to package-build.el
+          -> FilePath  -- ^ directory containing MELPA recipes
+          -> FilePath  -- ^ temporary workspace
+          -> FilePath  -- ^ dump recipes here
+          -> FilePath  -- ^ dump packages here
+          -> IO ()
+melpa2nix packageBuild recipesDir workDir recipesOut packagesOut = do
   dumpRecipes packageBuild recipesDir recipesOut
   recipes <- readRecipes packageBuild recipesOut
-  let getPackage_ = getPackage packageBuild recipesOut
+  createDirectoryIfMissing True workDir
+  let getPackage_ = getPackage packageBuild recipesOut workDir
   (errors, packages) <- partitionEithers . map liftEither . M.toList
                         <$> M.traverseWithKey getPackage_ recipes
   for_ errors $ \(name, err) -> T.putStrLn (name <> ": " <> err)
