@@ -46,7 +46,7 @@ getRev_Git name branch tmp =
     (\(inp, out, _, _) -> do
            S.write Nothing inp
            revs <- S.lines out >>= S.decodeUtf8 >>= S.toList
-           return $ headErr (name <> ": could not find revision") revs)
+           return $ headErr "could not find revision" revs)
   where
     gitArgs = [ "log", "--first-parent", "-n1", "--pretty=format:%H" ]
               ++ maybeToList (T.unpack <$> branch)

@@ -44,7 +44,7 @@ fetchSVN = Fetcher {..}
         (\(inp, out, _, _) -> do
                S.write Nothing inp
                revs <- S.parseFromStream (many parseSVNRev) out
-               return $ headErr (name <> ": could not find revision") revs)
+               return $ headErr "could not find revision" revs)
 
     prefetch name SVN {..} rev =
       prefetchWith name "nix-prefetch-svn" args

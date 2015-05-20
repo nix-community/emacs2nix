@@ -45,7 +45,7 @@ fetchHg = Fetcher {..}
         (\(inp, out, _, _) -> do
                S.write Nothing inp
                revs <- S.parseFromStream (many parseHgRev) out
-               return $ headErr (name <> ": could not find revision") revs)
+               return $ headErr "could not find revision" revs)
 
     prefetch name Hg {..} rev =
       prefetchWith name "nix-prefetch-hg" args

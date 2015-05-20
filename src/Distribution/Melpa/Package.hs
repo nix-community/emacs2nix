@@ -93,12 +93,9 @@ getVersion packageBuildEl recipesEl packageName sourceDir = do
              , "-l", checkoutEl
              , "-f", "checkout", recipesEl, T.unpack packageName, sourceDir
              ]
-  EitherT $ bracket
+  handleAll $ EitherT $ bracket
     (S.runInteractiveProcess "emacs" args Nothing Nothing)
     (\(_, _, _, pid) -> S.waitForProcess pid)
     (\(inp, out, _, _) -> do
            S.write Nothing inp
-           mver <- S.fold (<>) T.empty =<< S.decodeUtf8 out
-           return $ case mver of
-             Nothing -> Left "could not determine version"
-             Just ver -> Right ver)
+           Right <$> (S.fold (<>) T.empty =<< S.decodeUtf8 out))
