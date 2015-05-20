@@ -5,7 +5,6 @@ module Distribution.Melpa.Fetcher where
 
 import Control.Error
 import Control.Exception (SomeException(..), bracket, handle)
-import Control.Monad (liftM)
 import Data.Aeson
 import qualified Data.HashMap.Strict as HM
 import Data.Monoid ((<>))

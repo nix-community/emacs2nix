@@ -1,6 +1,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE ViewPatterns #-}
 
 module Distribution.Melpa.Fetcher.Hg ( Hg, fetchHg ) where
 
@@ -11,6 +12,7 @@ import Data.Aeson
 import Data.Aeson.Types (defaultOptions)
 import Data.Attoparsec.ByteString.Char8
 import Data.Char (isHexDigit)
+import Data.Monoid ((<>))
 import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
@@ -43,23 +45,17 @@ fetchHg = Fetcher {..}
         (\(_, _, _, pid) -> S.waitForProcess pid)
         (\(inp, out, _, _) -> do
                S.write Nothing inp
-               revs <- S.parseFromStream (many parseHgRev) out
-               return $ headErr "could not find revision" $ catMaybes revs)
+               lines_ <- S.lines out >>= S.decodeUtf8 >>= S.toList
+               let revs = catMaybes (hgRev <$> lines_)
+               return $ headErr ("could not find revision in:\n" <> T.unlines lines_) revs)
 
     prefetch name Hg {..} rev =
-      prefetchWith name "nix-prefetch-hg" args
-      where
-        args = [ T.unpack url, T.unpack rev ]
+      prefetchWith name "nix-prefetch-hg" args [ T.unpack url, T.unpack rev ]
 
-parseHgRev :: Parser (Maybe Text)
-parseHgRev = go <|> skipLine
-  where
-    skipLine = skipWhile (/= '\n') *> ((char '\n' *> pure ()) <|> endOfInput) *> pure Nothing
-    go = do
-      _ <- string "tip"
-      skipSpace
-      skipWhile isDigit
-      _ <- char ':'
-      rev <- takeWhile isHexDigit
-      _ <- char '\n'
-      return (Just $ T.decodeUtf8 rev)
+hgRev :: Text -> Maybe Text
+hgRev txt = do
+    afterTip <- T.strip <$> T.stripPrefix "tip" txt
+    let (_, T.strip . T.takeWhile isHexDigit -> rev) = T.breakOn ":" afterTip
+    if T.null rev
+      then Nothing
+      else return rev
