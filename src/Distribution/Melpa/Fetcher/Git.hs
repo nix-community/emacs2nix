@@ -48,5 +48,10 @@ getRev_Git name branch tmp =
            revs <- S.lines out >>= S.decodeUtf8 >>= S.toList
            return $ headErr "could not find revision" revs)
   where
+    fullBranch = do
+        branch_ <- branch
+        -- package-build does not fetch all branches by default, so they must be referred
+        -- to under the origin/ prefix
+        return (T.unpack ("origin/" <> branch_))
     gitArgs = [ "log", "--first-parent", "-n1", "--pretty=format:%H" ]
-              ++ maybeToList (T.unpack <$> branch)
+              ++ maybeToList fullBranch
