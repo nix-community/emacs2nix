@@ -10,7 +10,6 @@ import Control.Exception (bracket)
 import Data.Aeson
 import Data.Aeson.Types (defaultOptions)
 import Data.Attoparsec.ByteString.Char8
-import Data.Monoid ((<>))
 import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
@@ -44,20 +43,19 @@ fetchSVN = Fetcher {..}
         (\(inp, out, _, _) -> do
                S.write Nothing inp
                revs <- S.parseFromStream (many parseSVNRev) out
-               return $ headErr "could not find revision" revs)
+               return $ headErr "could not find revision" $ catMaybes revs)
 
     prefetch name SVN {..} rev =
-      prefetchWith name "nix-prefetch-svn" args
-      where
-        args = [ T.unpack url, T.unpack rev ]
+      prefetchWith name "nix-prefetch-svn" [ T.unpack url, T.unpack rev ]
 
-parseSVNRev :: Parser Text
-parseSVNRev = go <|> (skipLine *> go)
+-- | Read a line from @svn info@ and return the revision if the line begins with \"Revision:\".
+parseSVNRev :: Parser (Maybe Text)
+parseSVNRev = go <|> skipLine
   where
-    skipLine = skipWhile (/= '\n') *> char '\n'
+    skipLine = skipWhile (/= '\n') *> char '\n' *> pure Nothing
     go = do
       _ <- string "Revision:"
       skipSpace
       rev <- takeWhile isDigit
       _ <- char '\n'
-      return (T.decodeUtf8 rev)
+      return (Just $ T.decodeUtf8 rev)

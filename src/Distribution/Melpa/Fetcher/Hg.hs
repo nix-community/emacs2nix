@@ -45,17 +45,17 @@ fetchHg = Fetcher {..}
         (\(inp, out, _, _) -> do
                S.write Nothing inp
                revs <- S.parseFromStream (many parseHgRev) out
-               return $ headErr "could not find revision" revs)
+               return $ headErr "could not find revision" $ catMaybes revs)
 
     prefetch name Hg {..} rev =
       prefetchWith name "nix-prefetch-hg" args
       where
         args = [ T.unpack url, T.unpack rev ]
 
-parseHgRev :: Parser Text
-parseHgRev = go <|> (skipLine *> go)
+parseHgRev :: Parser (Maybe Text)
+parseHgRev = go <|> skipLine
   where
-    skipLine = skipWhile (/= '\n') *> char '\n'
+    skipLine = skipWhile (/= '\n') *> char '\n' *> pure Nothing
     go = do
       _ <- string "tip"
       skipSpace
@@ -63,4 +63,4 @@ parseHgRev = go <|> (skipLine *> go)
       _ <- char ':'
       rev <- takeWhile isHexDigit
       _ <- char '\n'
-      return (T.decodeUtf8 rev)
+      return (Just $ T.decodeUtf8 rev)
