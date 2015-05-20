@@ -56,6 +56,7 @@ executable melpa2nix
   build-depends:
       base
     , aeson-pretty >= 0.7.2
+    , async >= 2.0
     , containers
     , directory
     , filepath
@@ -65,4 +66,4 @@ executable melpa2nix
     , text
     , unordered-containers
   default-language: Haskell2010
-  ghc-options: -Wall
+  ghc-options: -Wall -threaded

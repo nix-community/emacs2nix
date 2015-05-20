@@ -4,8 +4,11 @@
 
 module Main where
 
-import Control.Exception (SomeException(..), handle)
-import Control.Monad (join)
+import Control.Concurrent (getNumCapabilities, setNumCapabilities)
+import Control.Concurrent.Async (Concurrently(..))
+import Control.Concurrent.QSem
+import Control.Exception (SomeException(..), finally, handle)
+import Control.Monad (join, when)
 import Data.Aeson.Encode.Pretty (encodePretty)
 import Data.Either (partitionEithers)
 import Data.Foldable (for_)
@@ -27,7 +30,9 @@ melpa2nixParser :: Parser (IO ())
 melpa2nixParser =
   melpa2nix
 
-  <$> strOption (long "package-build" <> metavar "FILE"
+  <$> (threads <|> pure 0)
+
+  <*> strOption (long "package-build" <> metavar "FILE"
                  <> help "path to package-build.el")
 
   <*> strOption (long "recipes-dir" <> metavar "DIR"
@@ -41,21 +46,34 @@ melpa2nixParser =
 
   <*> strOption (long "packages-out" <> metavar "FILE"
                  <> help "dump packages to FILE")
+  where
+    threads = option auto (long "threads" <> metavar "N"
+                           <> help "use N threads; default is number of CPUs")
 
-melpa2nix :: FilePath  -- ^ path to package-build.el
+melpa2nix :: Int  -- ^ number of threads to use
+          -> FilePath  -- ^ path to package-build.el
           -> FilePath  -- ^ directory containing MELPA recipes
           -> FilePath  -- ^ temporary workspace
           -> FilePath  -- ^ dump recipes here
           -> FilePath  -- ^ dump packages here
           -> IO ()
-melpa2nix packageBuild recipesDir workDir recipesOut packagesOut = do
+melpa2nix nthreads packageBuild recipesDir workDir recipesOut packagesOut = do
+  when (nthreads > 0) $ setNumCapabilities nthreads
+  qsem <- getNumCapabilities >>= newQSem
+
   dumpRecipes packageBuild recipesDir recipesOut
   recipes <- readRecipes packageBuild recipesOut
   oldPackages <- handle noPackages $ readPackages packagesOut
+
   createDirectoryIfMissing True workDir
-  let getPackage_ = getPackage packageBuild recipesOut workDir oldPackages
+
+  let getPackage_ name rcp = Concurrently $ do
+          waitQSem qsem
+          flip finally (signalQSem qsem)
+              $ getPackage packageBuild recipesOut workDir oldPackages name rcp
   (errors, packages) <- partitionEithers . map liftEither . M.toList
-                        <$> M.traverseWithKey getPackage_ recipes
+                        <$> runConcurrently (M.traverseWithKey getPackage_ recipes)
+
   for_ errors $ \(name, err) -> T.putStrLn (name <> ": " <> err)
   S.withFileAsOutput packagesOut $ \out -> do
     enc <- S.fromLazyByteString (encodePretty $ M.fromList packages)
