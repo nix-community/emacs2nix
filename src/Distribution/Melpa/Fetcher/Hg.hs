@@ -50,12 +50,12 @@ fetchHg = Fetcher {..}
                return $ headErr ("could not find revision in:\n" <> T.unlines lines_) revs)
 
     prefetch name Hg {..} rev =
-      prefetchWith name "nix-prefetch-hg" args [ T.unpack url, T.unpack rev ]
+      prefetchWith name "nix-prefetch-hg" [ T.unpack url, T.unpack rev ]
 
 hgRev :: Text -> Maybe Text
 hgRev txt = do
     afterTip <- T.strip <$> T.stripPrefix "tip" txt
-    let (_, T.strip . T.takeWhile isHexDigit -> rev) = T.breakOn ":" afterTip
+    let (_, T.strip . T.takeWhile isHexDigit . T.drop 1-> rev) = T.breakOn ":" afterTip
     if T.null rev
       then Nothing
       else return rev
