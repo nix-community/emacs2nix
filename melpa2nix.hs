@@ -4,6 +4,7 @@
 
 module Main where
 
+import Control.Exception (SomeException(..), handle)
 import Control.Monad (join)
 import Data.Aeson.Encode.Pretty (encodePretty)
 import Data.Either (partitionEithers)
@@ -50,8 +51,9 @@ melpa2nix :: FilePath  -- ^ path to package-build.el
 melpa2nix packageBuild recipesDir workDir recipesOut packagesOut = do
   dumpRecipes packageBuild recipesDir recipesOut
   recipes <- readRecipes packageBuild recipesOut
+  oldPackages <- handle noPackages $ readPackages packagesOut
   createDirectoryIfMissing True workDir
-  let getPackage_ = getPackage packageBuild recipesOut workDir
+  let getPackage_ = getPackage packageBuild recipesOut workDir oldPackages
   (errors, packages) <- partitionEithers . map liftEither . M.toList
                         <$> M.traverseWithKey getPackage_ recipes
   for_ errors $ \(name, err) -> T.putStrLn (name <> ": " <> err)
@@ -60,3 +62,4 @@ melpa2nix packageBuild recipesDir workDir recipesOut packagesOut = do
     S.connect enc out
   where
     liftEither (name, stat) = either (Left . (,) name) (Right . (,) name) stat
+    noPackages (SomeException _) = return (M.empty)

@@ -9,10 +9,14 @@ import Control.Error
 import Control.Exception (bracket)
 import Control.Monad.IO.Class
 import Data.Aeson
+import Data.Aeson.Types (parseMaybe)
+import Data.Map.Strict (Map)
+import qualified Data.Map.Strict as M
 import Data.Monoid ((<>))
 import Data.Text (Text)
 import qualified Data.Text as T
 import qualified System.IO.Streams as S
+import qualified System.IO.Streams.Attoparsec as S
 import System.FilePath
 
 import Distribution.Melpa.Fetcher
@@ -49,21 +53,37 @@ instance ToJSON Package where
     , "hash" .= hash
     ]
 
+readPackages :: FilePath -> IO (Map Text Package)
+readPackages packagesJson =
+    S.withFileAsInput packagesJson $ \inp -> do
+        result <- parseMaybe parseJSON <$> S.parseFromStream json' inp
+        return $ fromMaybe M.empty result
+
 getPackage :: FilePath  -- ^ path to package-build.el
            -> FilePath  -- ^ path to recipes.el
            -> FilePath  -- ^ temporary workspace
+           -> Map Text Package  -- ^ existing packages
            -> Text  -- ^ package name
            -> Recipe  -- ^ package recipe
            -> IO (Either Text Package)
-getPackage packageBuildEl recipesEl workDir packageName rcp =
+getPackage packageBuildEl recipesEl workDir packages packageName rcp =
   case rcp of
-    Recipe { Recipe.fetcher = fetcher, Recipe.recipe = recipe } -> runEitherT $ do
+    Recipe { Recipe.fetcher = fetcher_, Recipe.recipe = recipe_ } -> runEitherT $ do
       let tmp = workDir </> T.unpack packageName
-      ver <- getVersion packageBuildEl recipesEl packageName tmp
-      rev <- getRev fetcher packageName recipe tmp
-      -- hash <- prefetch fetcher packageName recipe rev
-      let hash = ""
-      return Package {..}
+      ver_ <- getVersion packageBuildEl recipesEl packageName tmp
+      rev_ <- getRev fetcher_ packageName recipe_ tmp
+      case M.lookup packageName packages of
+        Just pkg | rev pkg == rev_ -> return pkg
+        _ -> do
+            -- hash <- prefetch fetcher packageName recipe rev
+            return
+                Package
+                { ver = ver_
+                , rev = rev_
+                , recipe = recipe_
+                , fetcher = fetcher_
+                , hash = ""
+                }
 
 getVersion :: FilePath -> FilePath -> Text -> FilePath -> EitherT Text IO Text
 getVersion packageBuildEl recipesEl packageName sourceDir = do
