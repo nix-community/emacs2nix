@@ -1,3 +1,3 @@
 with (import <nixpkgs> {}).pkgs;
 with haskellngPackages;
-(callPackage ./. {}).env
+(ttuegel.haskell.enableProfiling (callPackage ./. {})).env
