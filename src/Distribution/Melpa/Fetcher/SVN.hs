@@ -36,7 +36,7 @@ instance FromJSON SVN where
 fetchSVN :: Fetcher SVN
 fetchSVN = Fetcher {..}
   where
-    getRev name SVN {..} tmp =
+    getRev _ SVN {..} tmp =
       handleAll $ EitherT $ bracket
         (S.runInteractiveProcess "svn" ["info"] (Just tmp) Nothing)
         (\(_, _, _, pid) -> S.waitForProcess pid)
@@ -52,7 +52,7 @@ fetchSVN = Fetcher {..}
 parseSVNRev :: Parser (Maybe Text)
 parseSVNRev = go <|> skipLine
   where
-    skipLine = skipWhile (/= '\n') *> char '\n' *> pure Nothing
+    skipLine = skipWhile (/= '\n') *> ((char '\n' *> pure ()) <|> endOfInput) *> pure Nothing
     go = do
       _ <- string "Revision:"
       skipSpace

@@ -11,7 +11,6 @@ import Data.Aeson
 import Data.Aeson.Types (defaultOptions)
 import Data.Attoparsec.ByteString.Char8
 import Data.Char (isHexDigit)
-import Data.Monoid ((<>))
 import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
@@ -38,7 +37,7 @@ instance FromJSON Hg where
 fetchHg :: Fetcher Hg
 fetchHg = Fetcher {..}
   where
-    getRev name Hg {..} tmp =
+    getRev _ Hg {..} tmp =
       handleAll $ EitherT $ bracket
         (S.runInteractiveProcess "hg" ["tags"] (Just tmp) Nothing)
         (\(_, _, _, pid) -> S.waitForProcess pid)
@@ -55,7 +54,7 @@ fetchHg = Fetcher {..}
 parseHgRev :: Parser (Maybe Text)
 parseHgRev = go <|> skipLine
   where
-    skipLine = skipWhile (/= '\n') *> char '\n' *> pure Nothing
+    skipLine = skipWhile (/= '\n') *> ((char '\n' *> pure ()) <|> endOfInput) *> pure Nothing
     go = do
       _ <- string "tip"
       skipSpace
