@@ -1,4 +1,7 @@
-* TODO Check packages.json for hashes and avoid prefetching unchanged packages
-* TODO Keep repositories to avoid re-downloading just to get versions
+* DONE Check packages.json for hashes and avoid prefetching unchanged packages
+  CLOSED: [2015-05-20 Wed 18:57]
+* DONE Keep repositories to avoid re-downloading just to get versions
+  CLOSED: [2015-05-20 Wed 18:57]
 * TODO Take an optional list of packages to update on the command line
-* TODO Use multiple threads
+* DONE Use multiple threads
+  CLOSED: [2015-05-20 Wed 18:57]
