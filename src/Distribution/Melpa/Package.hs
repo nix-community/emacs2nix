@@ -98,7 +98,7 @@ getVersion packageBuildEl recipesEl packageName sourceDir = do
     (\(_, _, _, pid) -> S.waitForProcess pid)
     (\(inp, out, _, _) -> do
            S.write Nothing inp
-           mver <- S.lines out >>= S.decodeUtf8 >>= S.read
+           mver <- S.fold (<>) T.empty =<< S.decodeUtf8 out
            return $ case mver of
-             Nothing -> Left (packageName <> ": could not determine version")
+             Nothing -> Left "could not determine version"
              Just ver -> Right ver)
