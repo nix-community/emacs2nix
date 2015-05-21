@@ -34,6 +34,8 @@ instance FromJSON Darcs where
 fetchDarcs :: Fetcher Darcs
 fetchDarcs = Fetcher {..}
   where
+    getRev _ _ _ = left "fetcher 'darcs' unsupported"
+    {-
     getRev _ Darcs {..} tmp =
       handleAll $ liftIO $ bracket
         (S.runInteractiveProcess "darcs" args (Just tmp) Nothing)
@@ -42,7 +44,10 @@ fetchDarcs = Fetcher {..}
                S.write Nothing inp
                S.decodeUtf8 out >>= S.fold (<>) T.empty)
       where args = [ "changes", "--context" ]
+    -}
 
+    prefetch _ _ _ = left "fetcher 'darcs' unsupported"
+    {-
     prefetch name Darcs {..} context =
       handleAll $ EitherT $ withSystemTempFile "melpa2nix-darcs-context"
         $ \contextFile handle -> do
@@ -51,3 +56,4 @@ fetchDarcs = Fetcher {..}
                T.hPutStr handle context
                let args = [ T.unpack url, contextFile ]
                runEitherT $ prefetchWith name "nix-prefetch-darcs" args
+    -}
