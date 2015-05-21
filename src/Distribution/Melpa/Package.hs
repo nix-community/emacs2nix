@@ -75,7 +75,7 @@ getPackage packageBuildEl recipesEl workDir packages packageName rcp =
       case M.lookup packageName packages of
         Just pkg | rev pkg == rev_ -> return pkg
         _ -> do
-            hash_ <- prefetch fetcher_ packageName recipe_ rev_
+            (_, hash_) <- prefetch fetcher_ packageName recipe_ rev_
             return
                 Package
                 { ver = ver_
