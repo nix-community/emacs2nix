@@ -117,7 +117,9 @@ getDeps packageBuildEl recipesEl packageName sourceDirOrEl = do
       (\(inp, out, _, _) -> do
              S.write Nothing inp
              result <- parseEither parseJSON <$> S.parseFromStream json' out
-             return (either (Left . T.pack) Right result))
+             let anyerr txt = "error parsing dependencies in "
+                              <> T.pack sourceDir <> ":\n" <> txt
+             return (either (Left . anyerr . T.pack) Right result))
 
 getVersion :: FilePath -> FilePath -> Text -> FilePath -> EitherT Text IO Text
 getVersion packageBuildEl recipesEl packageName sourceDir = do
