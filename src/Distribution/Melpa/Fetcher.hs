@@ -7,10 +7,12 @@ import Control.Error
 import Control.Exception (SomeException(..), bracket, handle)
 import Data.Aeson
 import qualified Data.HashMap.Strict as HM
+import Data.Char (isHexDigit)
 import Data.Monoid ((<>))
 import Data.Text (Text)
 import qualified Data.Text as T
 import GHC.Generics
+import System.Environment (getEnvironment)
 import qualified System.IO.Streams as S
 
 data Fetcher f =
@@ -27,19 +29,24 @@ wrapFetcher fetch val =
     _ -> error "wrapFetcher: not a fetcher object!"
 
 prefetchWith :: Text -> FilePath -> [String] -> EitherT Text IO Text
-prefetchWith _ prefetcher args =
-  handleAll $ EitherT $ bracket
-    (S.runInteractiveProcess prefetcher args Nothing Nothing)
+prefetchWith _ prefetcher args = handleAll $ EitherT $ do
+  oldEnv <- HM.fromList <$> getEnvironment
+  let env = HM.toList (HM.insert "QUIET" "1" oldEnv)
+  bracket
+    (S.runInteractiveProcess prefetcher args Nothing (Just env))
     (\(_, _, _, pid) -> S.waitForProcess pid)
     (\(inp, out, _, _) -> do
            S.write Nothing inp
-           hash <- S.fold (<>) T.empty =<< S.decodeUtf8 out
-           return $ if T.length hash /= 52
-             then Left ("not a base32-encoded sha256: " <> hash <> "\n" <> anyerr)
-             else Right hash)
+           lines_ <- S.lines out >>= S.decodeUtf8 >>= S.toList
+           let hashes = catMaybes (map getHash lines_)
+           return $ headErr ("could not find hash in:\n" <> T.unlines lines_) hashes)
   where
-    cmd = T.pack $ S.showCommandForUser prefetcher args
-    anyerr = "tried prefetch command: " <> cmd
+    getHash :: Text -> Maybe Text
+    getHash txt = do
+        let (hash_, rest_) = T.break (== ' ') txt
+        if T.null rest_ && not (T.null hash_)
+          then Just hash_
+          else Nothing
 
 handleAll :: EitherT Text IO a -> EitherT Text IO a
 handleAll act =

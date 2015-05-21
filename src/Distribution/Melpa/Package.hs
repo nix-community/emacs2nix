@@ -75,14 +75,14 @@ getPackage packageBuildEl recipesEl workDir packages packageName rcp =
       case M.lookup packageName packages of
         Just pkg | rev pkg == rev_ -> return pkg
         _ -> do
-            -- hash <- prefetch fetcher packageName recipe rev
+            hash_ <- prefetch fetcher_ packageName recipe_ rev_
             return
                 Package
                 { ver = ver_
                 , rev = rev_
                 , recipe = recipe_
                 , fetcher = fetcher_
-                , hash = ""
+                , hash = hash_
                 }
 
 getVersion :: FilePath -> FilePath -> Text -> FilePath -> EitherT Text IO Text

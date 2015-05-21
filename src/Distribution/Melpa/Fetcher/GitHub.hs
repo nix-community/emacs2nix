@@ -33,8 +33,7 @@ fetchGitHub = Fetcher {..}
   where
     getRev name GitHub {..} tmp = handleAll $ getRev_Git name branch tmp
     prefetch name GitHub {..} rev =
-      prefetchWith name "nix-prefetch-zip" args
+      prefetchWith name "nix-prefetch-git" args
       where
-        args = [ "--url", T.unpack url, "--name", T.unpack filename ]
-        url = "https://github.com/" <> repo <> "/archive/" <> rev <> ".tar.gz"
-        filename = name <> "-" <> rev <> "-src"
+        args = [ "--url", T.unpack url, "--rev", T.unpack rev ]
+        url = "https://github.com/" <> repo <> ".git"
