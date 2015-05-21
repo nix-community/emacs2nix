@@ -33,13 +33,13 @@ instance FromJSON Git where
 fetchGit :: Fetcher Git
 fetchGit = Fetcher {..}
   where
-    getRev name Git {..} tmp = handleAll $ getRev_Git name branch tmp
+    getRev _ Git {..} tmp = handleAll $ getRev_Git branch tmp
     prefetch name Git {..} rev =
       prefetchWith name "nix-prefetch-git" args
       where args = [ "--url", T.unpack url, "--rev", T.unpack rev ]
 
-getRev_Git :: Text -> Maybe Text -> FilePath -> EitherT Text IO Text
-getRev_Git name branch tmp =
+getRev_Git :: Maybe Text -> FilePath -> EitherT Text IO Text
+getRev_Git branch tmp =
   EitherT $ bracket
     (S.runInteractiveProcess "git" gitArgs (Just tmp) Nothing)
     (\(_, _, _, pid) -> S.waitForProcess pid)

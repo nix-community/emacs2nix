@@ -31,7 +31,7 @@ instance FromJSON GitHub where
 fetchGitHub :: Fetcher GitHub
 fetchGitHub = Fetcher {..}
   where
-    getRev name GitHub {..} tmp = handleAll $ getRev_Git name branch tmp
+    getRev _ GitHub {..} tmp = handleAll $ getRev_Git branch tmp
     prefetch name GitHub {..} rev =
       prefetchWith name "nix-prefetch-git" args
       where
