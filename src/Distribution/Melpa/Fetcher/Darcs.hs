@@ -5,17 +5,10 @@
 module Distribution.Melpa.Fetcher.Darcs ( Darcs, fetchDarcs ) where
 
 import Control.Error
-import Control.Exception (bracket)
-import Control.Monad.IO.Class
 import Data.Aeson
 import Data.Aeson.Types (defaultOptions)
-import Data.Monoid ((<>))
 import Data.Text (Text)
-import qualified Data.Text as T
-import qualified Data.Text.IO as T
 import GHC.Generics
-import qualified System.IO.Streams as S
-import System.IO.Temp (withSystemTempFile)
 
 import Distribution.Melpa.Fetcher
 
