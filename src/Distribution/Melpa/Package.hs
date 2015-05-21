@@ -95,7 +95,7 @@ getPackage packageBuildEl recipesEl workDir packages packageName rcp =
 getDeps :: FilePath -> FilePath -> Text -> FilePath
         -> EitherT Text IO (Map Text [Integer])
 getDeps packageBuildEl recipesEl packageName sourceDirOrEl = do
-  getDepsEl <- liftIO $ getDataFileName "checkout.el"
+  getDepsEl <- liftIO $ getDataFileName "get-deps.el"
   isEl <- liftIO $ doesFileExist sourceDirOrEl
   let withSourceDir act
         | isEl = do
@@ -114,12 +114,17 @@ getDeps packageBuildEl recipesEl packageName sourceDirOrEl = do
     bracket
       (S.runInteractiveProcess "emacs" args Nothing Nothing)
       (\(_, _, _, pid) -> S.waitForProcess pid)
-      (\(inp, out, _, _) -> do
+      (\(inp, out, err, _) -> do
              S.write Nothing inp
+             S.supply err S.stderr
              result <- parseEither parseJSON <$> S.parseFromStream json' out
              let anyerr txt = "error parsing dependencies in "
                               <> T.pack sourceDir <> ":\n" <> txt
-             return (either (Left . anyerr . T.pack) Right result))
+             case (result :: Either String [Maybe (Map Text [Integer])]) of
+               Left errmsg -> return $ Left $ anyerr $ T.pack errmsg
+               Right [Nothing] -> return $ Right M.empty
+               Right [Just deps_] -> return $ Right deps_
+               Right _ -> return $ Left "the impossible happened")
 
 getVersion :: FilePath -> FilePath -> Text -> FilePath -> EitherT Text IO Text
 getVersion packageBuildEl recipesEl packageName sourceDir = do
