@@ -10,16 +10,13 @@ import Control.Error
 import Control.Exception (bracket)
 import Data.Aeson
 import Data.Aeson.Types (defaultOptions)
-import Data.Attoparsec.ByteString.Char8
 import Data.Char (isHexDigit)
 import Data.Monoid ((<>))
 import Data.Text (Text)
 import qualified Data.Text as T
-import qualified Data.Text.Encoding as T
 import GHC.Generics
 import Prelude hiding (takeWhile)
 import qualified System.IO.Streams as S
-import qualified System.IO.Streams.Attoparsec as S
 
 import Distribution.Melpa.Fetcher
 
