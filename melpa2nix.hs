@@ -41,9 +41,6 @@ melpa2nixParser =
   <*> strOption (long "work-dir" <> metavar "DIR"
                  <> help "path to temporary workspace")
 
-  <*> strOption (long "recipes-out" <> metavar "FILE"
-                 <> help "dump MELPA recipes to FILE")
-
   <*> strOption (long "packages-out" <> metavar "FILE"
                  <> help "dump packages to FILE")
   where
@@ -54,23 +51,21 @@ melpa2nix :: Int  -- ^ number of threads to use
           -> FilePath  -- ^ path to package-build.el
           -> FilePath  -- ^ directory containing MELPA recipes
           -> FilePath  -- ^ temporary workspace
-          -> FilePath  -- ^ dump recipes here
           -> FilePath  -- ^ dump packages here
           -> IO ()
-melpa2nix nthreads packageBuild recipesDir workDir recipesOut packagesOut = do
+melpa2nix nthreads packageBuild recipesDir workDir packagesOut = do
   when (nthreads > 0) $ setNumCapabilities nthreads
   qsem <- getNumCapabilities >>= newQSem
 
-  dumpRecipes packageBuild recipesDir recipesOut
-  recipes <- readRecipes packageBuild recipesOut
+  recipes <- readRecipes packageBuild recipesDir
   oldPackages <- handle noPackages $ readPackages packagesOut
 
   createDirectoryIfMissing True workDir
 
   let getPackage_ name rcp = Concurrently $ do
-          waitQSem qsem
-          flip finally (signalQSem qsem)
-              $ getPackage packageBuild recipesOut workDir oldPackages name rcp
+        waitQSem qsem
+        flip finally (signalQSem qsem)
+          $ getPackage packageBuild recipesDir workDir oldPackages name rcp
   (errors, packages) <- partitionEithers . map liftEither . M.toList
                         <$> runConcurrently (M.traverseWithKey getPackage_ recipes)
 

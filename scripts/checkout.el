@@ -7,9 +7,9 @@
   (if (not noninteractive)
       (error "`checkout' is to be used only with -batch"))
   (pcase command-line-args-left
-    (`(,recipes-el ,package-name ,work-dir)
+    (`(,recipes-dir ,package-name ,work-dir)
      (progn
        (setq package-build-verbose nil)
-       (let* ((recipes (pb/read-from-file recipes-el))
-              (recipe (cdr (assoc (intern package-name) recipes))))
+       (setq package-build-recipes-dir recipes-dir)
+       (let* ((recipe (cdr (assoc (intern package-name) (package-build-recipe-alist)))))
          (princ (package-build-checkout package-name recipe (file-name-as-directory work-dir))))))))

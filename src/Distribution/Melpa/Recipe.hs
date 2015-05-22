@@ -86,12 +86,12 @@ instance ToJSON Recipe where
   toJSON Recipe {..} = toJSON recipe
 
 readRecipes :: FilePath -> FilePath -> IO (Map Text Recipe)
-readRecipes packageBuildEl recipesEl = do
+readRecipes packageBuildEl recipesDir = do
   dumpRecipesEl <- getDataFileName "dump-recipes.el"
   let args = [ "--batch"
              , "-l", packageBuildEl
              , "-l", dumpRecipesEl
-             , "-f", "dump-recipes-json", recipesEl
+             , "-f", "dump-recipes-json", recipesDir
              ]
   bracket
     (S.runInteractiveProcess "emacs" args Nothing Nothing)
@@ -100,18 +100,3 @@ readRecipes packageBuildEl recipesEl = do
            S.write Nothing inp
            result <- parseEither parseJSON <$> S.parseFromStream json' out
            either error return result)
-
-dumpRecipes :: FilePath -> FilePath -> FilePath -> IO ()
-dumpRecipes packageBuildEl recipesDir recipesOut = do
-  dumpRecipesEl <- getDataFileName "dump-recipes.el"
-  let args = [ "--batch"
-             , "-l", packageBuildEl
-             , "-l", dumpRecipesEl
-             , "-f", "dump-recipes", recipesDir
-             ]
-  bracket
-    (S.runInteractiveProcess "emacs" args Nothing Nothing)
-    (\(_, _, _, pid) -> S.waitForProcess pid)
-    (\(inp, out, _, _) -> do
-           S.write Nothing inp
-           S.withFileAsOutput recipesOut $ S.connect out)

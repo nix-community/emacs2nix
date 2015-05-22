@@ -65,23 +65,23 @@ readPackages packagesJson =
         return $ fromMaybe M.empty result
 
 getPackage :: FilePath  -- ^ path to package-build.el
-           -> FilePath  -- ^ path to recipes.el
+           -> FilePath  -- ^ path to recipes directory
            -> FilePath  -- ^ temporary workspace
            -> Map Text Package  -- ^ existing packages
            -> Text  -- ^ package name
            -> Recipe  -- ^ package recipe
            -> IO (Either Text Package)
-getPackage packageBuildEl recipesEl workDir packages packageName rcp =
+getPackage packageBuildEl recipesDir workDir packages packageName rcp =
   case rcp of
     Recipe { Recipe.fetcher = fetcher_, Recipe.recipe = recipe_ } -> runEitherT $ do
       let tmp = workDir </> T.unpack packageName
-      ver_ <- getVersion packageBuildEl recipesEl packageName tmp
+      ver_ <- getVersion packageBuildEl recipesDir packageName tmp
       rev_ <- getRev fetcher_ packageName recipe_ tmp
       case M.lookup packageName packages of
         Just pkg | rev pkg == rev_ -> return pkg
         _ -> do
             (path_, hash_) <- prefetch fetcher_ packageName recipe_ rev_
-            deps_ <- getDeps packageBuildEl recipesEl packageName path_
+            deps_ <- getDeps packageBuildEl recipesDir packageName path_
             return
                 Package
                 { ver = ver_
@@ -94,7 +94,7 @@ getPackage packageBuildEl recipesEl workDir packages packageName rcp =
 
 getDeps :: FilePath -> FilePath -> Text -> FilePath
         -> EitherT Text IO (Map Text [Integer])
-getDeps packageBuildEl recipesEl packageName sourceDirOrEl = do
+getDeps packageBuildEl recipesDir packageName sourceDirOrEl = do
   getDepsEl <- liftIO $ getDataFileName "get-deps.el"
   isEl <- liftIO $ doesFileExist sourceDirOrEl
   let withSourceDir act
@@ -109,7 +109,7 @@ getDeps packageBuildEl recipesEl packageName sourceDirOrEl = do
     let args = [ "--batch"
                , "-l", packageBuildEl
                , "-l", getDepsEl
-               , "-f", "get-deps", recipesEl, T.unpack packageName, sourceDir
+               , "-f", "get-deps", recipesDir, T.unpack packageName, sourceDir
                ]
     bracket
       (S.runInteractiveProcess "emacs" args Nothing Nothing)
@@ -124,12 +124,12 @@ getDeps packageBuildEl recipesEl packageName sourceDirOrEl = do
                Right deps_ -> return $ Right deps_)
 
 getVersion :: FilePath -> FilePath -> Text -> FilePath -> EitherT Text IO Text
-getVersion packageBuildEl recipesEl packageName sourceDir = do
+getVersion packageBuildEl recipesDir packageName sourceDir = do
   checkoutEl <- liftIO $ getDataFileName "checkout.el"
   let args = [ "--batch"
              , "-l", packageBuildEl
              , "-l", checkoutEl
-             , "-f", "checkout", recipesEl, T.unpack packageName, sourceDir
+             , "-f", "checkout", recipesDir, T.unpack packageName, sourceDir
              ]
   handleAll $ EitherT $ bracket
     (S.runInteractiveProcess "emacs" args Nothing Nothing)
