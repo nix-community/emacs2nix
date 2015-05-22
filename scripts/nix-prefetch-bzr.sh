@@ -1,8 +1,9 @@
 #! /bin/sh -e
 
 url=$1
-rev=$2
-expHash=$3
+repoName=$2
+rev=$3
+expHash=$4
 
 hashType=$NIX_HASH_ALGO
 if test -z "$hashType"; then
@@ -13,19 +14,13 @@ if test -z "$hashFormat"; then
 fi
 
 if test -z "$url"; then
-    echo "syntax: nix-prefetch-bzr URL [REVISION [EXPECTED-HASH]]" >&2
+    echo "syntax: nix-prefetch-bzr URL REPO-NAME [REVISION [EXPECTED-HASH]]" >&2
     exit 1
 fi
 
 revarg="-r $rev"
 test -n "$rev" || revarg=""
 
-repoName=$(echo $url | sed '
-  s,.*/\([^/]\+\)/trunk/*$,\1,;t
-  s,.*/\([^/]\+\)/branches/\([^/]\+\)/*$,\1-\2,;t
-  s,.*/\([^/]\+\)/tags/\([^/]\+\)/*$,\1-\2,;t
-  s,.*/\([^/]\+\)/*$,\1,;t
-')
 dstFile=$repoName-r$rev
 test -n "$rev" || dstFile=$repoName
 

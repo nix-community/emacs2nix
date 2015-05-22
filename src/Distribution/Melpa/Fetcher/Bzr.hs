@@ -49,4 +49,4 @@ fetchBzr = Fetcher {..}
       where args = [ "log", "-l1", tmp ]
 
     prefetch name Bzr {..} rev =
-      prefetchWith name "nix-prefetch-bzr" [ T.unpack url, T.unpack rev ]
+      prefetchWith name "nix-prefetch-bzr" [ T.unpack url, T.unpack name, T.unpack rev ]
