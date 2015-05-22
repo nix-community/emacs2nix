@@ -10,8 +10,6 @@ import Control.Exception (bracket)
 import Control.Monad.IO.Class
 import Data.Aeson
 import Data.Aeson.Types (parseEither, parseMaybe)
-import qualified Data.ByteString as BS
-import qualified Data.ByteString.Lazy as BSL
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as M
 import Data.Monoid ((<>))
@@ -118,10 +116,10 @@ getDeps packageBuildEl recipesEl packageName sourceDirOrEl = do
       (\(_, _, _, pid) -> S.waitForProcess pid)
       (\(inp, out, _, _) -> do
              S.write Nothing inp
-             outstr <- BSL.fromStrict <$> S.fold (<>) BS.empty out
+             result <- parseEither parseJSON <$> S.parseFromStream json' out
              let anyerr txt = "error parsing dependencies in "
                               <> T.pack sourceDir <> ":\n" <> txt
-             case (eitherDecode' outstr :: Either String (Map Text [Integer])) of
+             case result of
                Left errmsg -> return $ Left $ anyerr $ T.pack errmsg
                Right deps_ -> return $ Right deps_)
 
