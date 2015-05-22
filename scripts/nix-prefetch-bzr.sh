@@ -1,9 +1,8 @@
 #! /bin/sh -e
 
 url=$1
-repoName=$2
-rev=$3
-expHash=$4
+rev=$2
+expHash=$3
 
 hashType=$NIX_HASH_ALGO
 if test -z "$hashType"; then
@@ -14,15 +13,14 @@ if test -z "$hashFormat"; then
 fi
 
 if test -z "$url"; then
-    echo "syntax: nix-prefetch-bzr URL REPO-NAME [REVISION [EXPECTED-HASH]]" >&2
+    echo "syntax: nix-prefetch-bzr URL [REVISION [EXPECTED-HASH]]" >&2
     exit 1
 fi
 
 revarg="-r $rev"
 test -n "$rev" || revarg=""
 
-dstFile=$repoName-r$rev
-test -n "$rev" || dstFile=$repoName
+dstFile="bzr-export"
 
 # If the hash was given, a file with that hash may already be in the
 # store.
