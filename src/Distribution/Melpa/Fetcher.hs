@@ -3,7 +3,7 @@
 
 module Distribution.Melpa.Fetcher where
 
-import Control.Error
+import Control.Error hiding (err)
 import Control.Exception (SomeException(..), bracket, handle)
 import Data.Aeson
 import qualified Data.HashMap.Strict as HM
@@ -39,15 +39,18 @@ prefetchWith _ prefetcher args = handleAll $ EitherT $ do
   bracket
     (S.runInteractiveProcess realPrefetcher args Nothing (Just env))
     (\(_, _, _, pid) -> S.waitForProcess pid)
-    (\(inp, out, _, pid) -> do
+    (\(inp, out, err, pid) -> do
            S.write Nothing inp
            _lines <- S.lines out >>= S.decodeUtf8 >>= S.toList
+           errors <- T.unlines <$> (S.lines err >>= S.decodeUtf8 >>= S.toList)
            let anyerr = "; output was:\n" <> T.unlines _lines
            exitCode <- S.waitForProcess pid
            case exitCode of
              ExitFailure errno ->
                return
-               $ Left ("prefetcher failed with exit code " <> T.pack (show errno))
+               $ Left ("prefetcher failed with exit code "
+                       <> T.pack (show errno)
+                       <> ":\n" <> errors <> "\n")
              ExitSuccess -> return $ do
                hash_ <- headErr ("could not find hash" <> anyerr) _lines
                _lines <- return (tail _lines)
