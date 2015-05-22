@@ -10,6 +10,8 @@ import Control.Exception (bracket)
 import Control.Monad.IO.Class
 import Data.Aeson
 import Data.Aeson.Types (parseEither, parseMaybe)
+import qualified Data.ByteString as BS
+import qualified Data.ByteString.Lazy as BSL
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as M
 import Data.Monoid ((<>))
@@ -114,17 +116,14 @@ getDeps packageBuildEl recipesEl packageName sourceDirOrEl = do
     bracket
       (S.runInteractiveProcess "emacs" args Nothing Nothing)
       (\(_, _, _, pid) -> S.waitForProcess pid)
-      (\(inp, out, err, _) -> do
+      (\(inp, out, _, _) -> do
              S.write Nothing inp
-             S.supply err S.stderr
-             result <- parseEither parseJSON <$> S.parseFromStream json' out
+             outstr <- BSL.fromStrict <$> S.fold (<>) BS.empty out
              let anyerr txt = "error parsing dependencies in "
                               <> T.pack sourceDir <> ":\n" <> txt
-             case (result :: Either String [Maybe (Map Text [Integer])]) of
+             case (eitherDecode' outstr :: Either String (Map Text [Integer])) of
                Left errmsg -> return $ Left $ anyerr $ T.pack errmsg
-               Right [Nothing] -> return $ Right M.empty
-               Right [Just deps_] -> return $ Right deps_
-               Right _ -> return $ Left "the impossible happened")
+               Right deps_ -> return $ Right deps_)
 
 getVersion :: FilePath -> FilePath -> Text -> FilePath -> EitherT Text IO Text
 getVersion packageBuildEl recipesEl packageName sourceDir = do

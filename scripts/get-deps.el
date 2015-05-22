@@ -12,8 +12,7 @@
     (`(,recipes-el ,package-name ,source-dir)
      (let* ((recipes (pb/read-from-file recipes-el))
             (recipe (cdr (assoc (intern package-name) recipes)))
-            (file-specs (or (plist-get recipe :files)
-                            package-build-default-files-spec))
+            (file-specs (pb/config-file-list recipe))
             (files (package-build-expand-file-specs source-dir file-specs))
             (pkg-file (concat package-name "-pkg.el"))
             (pkg-file-source (or (pb/find-source-file pkg-file files)
@@ -27,5 +26,10 @@
                             (pb/get-pkg-file-info
                              (expand-file-name (concat pkg-file ".in")
                                                (file-name-directory pkg-source)))
-                            (pb/get-package-info pkg-source)))))
-       (princ (json-encode (elt pkg-info 1)))))))
+                            (pb/get-package-info pkg-source))))
+            (deps (apply 'append
+                             (mapcar (lambda (dep)
+                                       (list (pb/sym-to-keyword (car dep))
+                                             (cadr dep)))
+                                     (elt pkg-info 1)))))
+       (if deps (princ (json-encode deps)) (princ "{}"))))))

@@ -13,7 +13,10 @@ import qualified Data.Text as T
 import GHC.Generics
 import System.Environment (getEnvironment)
 import System.Exit (ExitCode(..))
+import System.FilePath ((<.>))
 import qualified System.IO.Streams as S
+
+import Paths_melpa2nix (getDataFileName)
 
 data Fetcher f =
   Fetcher
@@ -30,10 +33,11 @@ wrapFetcher fetch val =
 
 prefetchWith :: Text -> FilePath -> [String] -> EitherT Text IO (FilePath, Text)
 prefetchWith _ prefetcher args = handleAll $ EitherT $ do
+  realPrefetcher <- getDataFileName (prefetcher <.> "sh")
   oldEnv <- HM.fromList <$> getEnvironment
   let env = HM.toList (HM.insert "PRINT_PATH" "1" oldEnv)
   bracket
-    (S.runInteractiveProcess prefetcher args Nothing (Just env))
+    (S.runInteractiveProcess realPrefetcher args Nothing (Just env))
     (\(_, _, _, pid) -> S.waitForProcess pid)
     (\(inp, out, _, pid) -> do
            S.write Nothing inp

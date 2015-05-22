@@ -1,0 +1,329 @@
+#! /bin/sh -e
+
+url=
+rev=
+expHash=
+hashType=$NIX_HASH_ALGO
+deepClone=$NIX_PREFETCH_GIT_DEEP_CLONE
+leaveDotGit=$NIX_PREFETCH_GIT_LEAVE_DOT_GIT
+fetchSubmodules=
+builder=
+branchName=$NIX_PREFETCH_GIT_BRANCH_NAME
+
+if test -n "$deepClone"; then
+    deepClone=true
+else
+    deepClone=false
+fi
+
+if test "$leaveDotGit" != 1; then
+    leaveDotGit=
+else
+    leaveDotGit=true
+fi
+
+
+argi=0
+argfun=""
+for arg; do
+    if test -z "$argfun"; then
+        case $arg in
+            --out) argfun=set_out;;
+            --url) argfun=set_url;;
+            --rev) argfun=set_rev;;
+            --hash) argfun=set_hashType;;
+            --branch-name) argfun=set_branchName;;
+            --deepClone) deepClone=true;;
+            --no-deepClone) deepClone=false;;
+            --leave-dotGit) leaveDotGit=true;;
+            --fetch-submodules) fetchSubmodules=true;;
+            --builder) builder=true;;
+            *)
+                argi=$(($argi + 1))
+                case $argi in
+                    1) url=$arg;;
+                    2) rev=$arg;;
+                    3) expHash=$arg;;
+                    *) exit 1;;
+                esac
+                ;;
+        esac
+    else
+        case $argfun in
+            set_*)
+                var=$(echo $argfun | sed 's,^set_,,')
+                eval $var=$arg
+                ;;
+        esac
+        argfun=""
+    fi
+done
+
+usage(){
+    echo  >&2 "syntax: nix-prefetch-git [options] [URL [REVISION [EXPECTED-HASH]]]
+
+Options:
+      --out path      Path where the output would be stored.
+      --url url       Any url understand by 'git clone'.
+      --rev ref       Any sha1 or references (such as refs/heads/master)
+      --hash h        Expected hash.
+      --deepClone     Clone submodules recursively.
+      --no-deepClone  Do not clone submodules.
+      --leave-dotGit  Keep the .git directories.
+      --fetch-submodules Fetch submodules.
+      --builder       Clone as fetchgit does, but url, rev, and out option are mandatory.
+"
+    exit 1
+}
+
+if test -z "$url"; then
+    usage
+fi
+
+
+init_remote(){
+    local url=$1
+    git init
+    git remote add origin $url
+    ( [ -n "$http_proxy" ] && git config http.proxy $http_proxy ) || true
+}
+
+# Return the reference of an hash if it exists on the remote repository.
+ref_from_hash(){
+    local hash=$1
+    git ls-remote origin | sed -n "\,$hash\t, { s,\(.*\)\t\(.*\),\2,; p; q}"
+}
+
+# Return the hash of a reference if it exists on the remote repository.
+hash_from_ref(){
+    local ref=$1
+    git ls-remote origin | sed -n "\,\t$ref, { s,\(.*\)\t\(.*\),\1,; p; q}"
+}
+
+# Fetch everything and checkout the right sha1
+checkout_hash(){
+    local hash="$1"
+    local ref="$2"
+
+    if test -z "$hash"; then
+        hash=$(hash_from_ref $ref)
+    fi
+
+    git fetch ${builder:+--progress} origin || return 1
+    git checkout -b $branchName $hash || return 1
+}
+
+# Fetch only a branch/tag and checkout it.
+checkout_ref(){
+    local hash="$1"
+    local ref="$2"
+
+    if "$deepClone"; then
+        # The caller explicitly asked for a deep clone.  Deep clones
+        # allow "git describe" and similar tools to work.  See
+        # http://thread.gmane.org/gmane.linux.distributions.nixos/3569
+        # for a discussion.
+        return 1
+    fi
+
+    if test -z "$ref"; then
+        ref=$(ref_from_hash $hash)
+    fi
+
+    if test -n "$ref"; then
+        # --depth option is ignored on http repository.
+        git fetch ${builder:+--progress} --depth 1 origin +"$ref" || return 1
+        git checkout -b $branchName FETCH_HEAD || return 1
+    else
+        return 1
+    fi
+}
+
+# Update submodules
+init_submodules(){
+    # Add urls into .git/config file
+    git submodule init
+
+    # list submodule directories and their hashes
+    git submodule status |
+    while read l; do
+        # checkout each submodule
+        local hash=$(echo $l | awk '{print substr($1,2)}')
+        local dir=$(echo $l | awk '{print $2}')
+        local name=$(
+            git config -f .gitmodules --get-regexp submodule\..*\.path |
+            sed -n "s,^\(.*\)\.path $dir\$,\\1,p")
+        local url=$(git config --get ${name}.url)
+
+        clone "$dir" "$url" "$hash" ""
+    done
+}
+
+clone(){
+    local top=$(pwd)
+    local dir="$1"
+    local url="$2"
+    local hash="$3"
+    local ref="$4"
+
+    cd $dir
+
+    # Initialize the repository.
+    init_remote "$url"
+
+    # Download data from the repository.
+    checkout_ref "$hash" "$ref" ||
+    checkout_hash "$hash" "$ref" || (
+        echo 1>&2 "Unable to checkout $hash$ref from $url."
+        exit 1
+    )
+
+    # Checkout linked sources.
+    if test -n "$fetchSubmodules"; then
+        init_submodules
+    fi
+
+    if [ -z "$builder" -a -f .topdeps ]; then
+        if tg help 2>&1 > /dev/null
+        then
+            echo "populating TopGit branches..." >&2
+            tg remote --populate origin >/dev/null 2>&1
+        else
+            echo "WARNING: would populate TopGit branches but TopGit is not available" >&2
+            echo "WARNING: install TopGit to fix the problem" >&2
+        fi
+    fi
+
+    cd $top
+}
+
+# Remove all remote branches, remove tags not reachable from HEAD, do a full
+# repack and then garbage collect unreferenced objects.
+make_deterministic_repo(){
+    local repo="$1"
+
+    # run in sub-shell to not touch current working directory
+    (
+    cd "$repo"
+    # Remove files that contain timestamps or otherwise have non-deterministic
+    # properties.
+    rm -rf .git/logs/ .git/hooks/ .git/index .git/FETCH_HEAD .git/ORIG_HEAD \
+        .git/refs/remotes/origin/HEAD .git/config
+
+    # Remove all remote branches.
+    git branch -r | while read branch; do
+        git branch -rD "$branch" >&2
+    done
+
+    # Remove tags not reachable from HEAD. If we're exactly on a tag, don't
+    # delete it.
+    maybe_tag=$(git tag --points-at HEAD)
+    git tag --contains HEAD | while read tag; do
+        if [ "$tag" != "$maybe_tag" ]; then
+            git tag -d "$tag" >&2
+        fi
+    done
+
+    # Do a full repack. Must run single-threaded, or else we lose determinism.
+    git config pack.threads 1
+    git repack -A -d -f
+    rm -f .git/config
+
+    # Garbage collect unreferenced objects.
+    git gc --prune=all
+    )
+}
+
+
+clone_user_rev() {
+    local dir="$1"
+    local url="$2"
+    local rev="${3:-HEAD}"
+
+    # Perform the checkout.
+    case "$rev" in
+        HEAD|refs/*)
+            clone "$dir" "$url" "" "$rev" 1>&2;;
+        *)
+            if test -z "$(echo $rev | tr -d 0123456789abcdef)"; then
+                clone "$dir" "$url" "$rev" "" 1>&2
+            else
+                echo 1>&2 "Bad commit hash or bad reference."
+                exit 1
+            fi;;
+    esac
+
+    local full_revision=$(cd $dir && (git rev-parse $rev 2> /dev/null || git rev-parse refs/heads/$branchName) | tail -n1)
+    echo "git revision is $full_revision" >&2
+    echo "git human-readable version is $(cd $dir && (git describe $full_revision 2> /dev/null || git describe --tags $full_revision 2> /dev/null || echo -- none --))" >&2
+    echo "Commit date is $(cd $dir && git show --no-patch --pretty=%ci $full_revision)" >&2
+
+    # Allow doing additional processing before .git removal
+    eval "$NIX_PREFETCH_GIT_CHECKOUT_HOOK"
+    if test -z "$leaveDotGit"; then
+        echo "removing \`.git'..." >&2
+        find $dir -name .git\* | xargs rm -rf
+    else
+        find $dir -name .git | while read gitdir; do
+            make_deterministic_repo "$(readlink -f "$gitdir/..")"
+        done
+    fi
+}
+
+if test -z "$branchName"; then
+    branchName=fetchgit
+fi
+
+if test -n "$builder"; then
+    test -n "$out" -a -n "$url" -a -n "$rev" || usage
+    mkdir $out
+    clone_user_rev "$out" "$url" "$rev"
+else
+    if test -z "$hashType"; then
+        hashType=sha256
+    fi
+
+    # If the hash was given, a file with that hash may already be in the
+    # store.
+    if test -n "$expHash"; then
+        finalPath=$(nix-store --print-fixed-path --recursive "$hashType" "$expHash" git-export)
+        if ! nix-store --check-validity "$finalPath" 2> /dev/null; then
+            finalPath=
+        fi
+        hash=$expHash
+    fi
+
+    # If we don't know the hash or a path with that hash doesn't exist,
+    # download the file and add it to the store.
+    if test -z "$finalPath"; then
+
+        tmpPath="$(mktemp -d "${TMPDIR:-/tmp}/git-checkout-tmp-XXXXXXXX")"
+        trap "rm -rf \"$tmpPath\"" EXIT
+
+        tmpFile="$tmpPath/git-export"
+        mkdir "$tmpFile"
+
+        # Perform the checkout.
+        clone_user_rev "$tmpFile" "$url" "$rev"
+
+        # Compute the hash.
+        hash=$(nix-hash --type $hashType $hashFormat $tmpFile)
+        if ! test -n "$QUIET"; then echo "hash is $hash" >&2; fi
+
+        # Add the downloaded file to the Nix store.
+        finalPath=$(nix-store --add-fixed --recursive "$hashType" $tmpFile)
+
+        if test -n "$expHash" -a "$expHash" != "$hash"; then
+            echo "hash mismatch for URL \`$url'"
+            exit 1
+        fi
+    fi
+
+    if ! test -n "$QUIET"; then echo "path is $finalPath" >&2; fi
+
+    echo $hash
+
+    if test -n "$PRINT_PATH"; then
+        echo $finalPath
+    fi
+fi
