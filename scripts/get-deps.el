@@ -9,12 +9,10 @@
   (if (not noninteractive)
       (error "`get-deps' is to be used only with -batch"))
   (pcase command-line-args-left
-    (`(,recipes-dir ,package-name ,source-dir)
+    (`(,recipe-file ,package-name ,source-dir)
      (progn
        (setq package-build-verbose nil)
-       (setq package-build-recipes-dir recipes-dir)
-       (let* ((recipe (cdr (assoc (intern package-name)
-                                  (package-build-recipe-alist))))
+       (let* ((recipe (cdr (pb/read-from-file recipe-file)))
               (file-specs (pb/config-file-list recipe))
               (files (package-build-expand-file-specs source-dir file-specs))
               (pkg-file (concat package-name "-pkg.el"))
