@@ -13,13 +13,14 @@ import Data.Aeson.Encode.Pretty (encodePretty)
 import Data.Either (partitionEithers)
 import Data.Foldable (for_)
 import qualified Data.Map.Strict as M
+import qualified Data.Text as T
 import qualified Data.Text.IO as T
 import Options.Applicative
 import System.Directory (createDirectoryIfMissing)
 import qualified System.IO.Streams as S
 
+import Distribution.Melpa
 import Distribution.Melpa.Package
-import Distribution.Melpa.Recipe
 
 main :: IO ()
 main = join $ execParser
@@ -32,11 +33,11 @@ melpa2nixParser =
 
   <$> (threads <|> pure 0)
 
-  <*> strOption (long "package-build" <> metavar "FILE"
-                 <> help "path to package-build.el")
+  <*> strOption (long "melpa-dir" <> metavar "DIR"
+                 <> help "path to MELPA repository")
 
-  <*> strOption (long "recipes-dir" <> metavar "DIR"
-                 <> help "path to MELPA recipes")
+  <*> strOption (long "melpa-out" <> metavar "FILE"
+                 <> help "dump MELPA data to FILE")
 
   <*> strOption (long "work-dir" <> metavar "DIR"
                  <> help "path to temporary workspace")
@@ -48,16 +49,23 @@ melpa2nixParser =
                            <> help "use N threads; default is number of CPUs")
 
 melpa2nix :: Int  -- ^ number of threads to use
-          -> FilePath  -- ^ path to package-build.el
-          -> FilePath  -- ^ directory containing MELPA recipes
+          -> FilePath  -- ^ path to MELPA repository
+          -> FilePath  -- ^ dump MELPA recipes here
           -> FilePath  -- ^ temporary workspace
           -> FilePath  -- ^ dump packages here
           -> IO ()
-melpa2nix nthreads packageBuild recipesDir workDir packagesOut = do
+melpa2nix nthreads melpaDir melpaOut workDir packagesOut = do
   when (nthreads > 0) $ setNumCapabilities nthreads
   qsem <- getNumCapabilities >>= newQSem
 
-  recipes <- readRecipes packageBuild recipesDir
+  (melpa, recipes) <- readMelpa melpaDir >>= \case
+    Left errmsg -> fail (T.unpack errmsg)
+    Right result -> return result
+
+  S.withFileAsOutput melpaOut $ \out -> do
+    enc <- S.fromLazyByteString (encodePretty melpa)
+    S.connect enc out
+
   oldPackages <- handle noPackages $ readPackages packagesOut
 
   createDirectoryIfMissing True workDir
@@ -65,7 +73,7 @@ melpa2nix nthreads packageBuild recipesDir workDir packagesOut = do
   let getPackage_ name rcp = Concurrently $ do
         waitQSem qsem
         flip finally (signalQSem qsem)
-          $ getPackage packageBuild recipesDir workDir oldPackages name rcp
+          $ getPackage melpaDir workDir oldPackages name rcp
   (errors, packages) <- partitionEithers . map liftEither . M.toList
                         <$> runConcurrently (M.traverseWithKey getPackage_ recipes)
 

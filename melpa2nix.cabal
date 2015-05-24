@@ -18,6 +18,7 @@ data-files: *.el, *.sh
 
 library
   exposed-modules:
+    Distribution.Melpa
     Distribution.Melpa.Fetcher
     Distribution.Melpa.Fetcher.Bzr
     Distribution.Melpa.Fetcher.CVS

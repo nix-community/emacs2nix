@@ -64,33 +64,34 @@ readPackages packagesJson =
         result <- parseMaybe parseJSON <$> S.parseFromStream json' inp
         return $ fromMaybe M.empty result
 
-getPackage :: FilePath  -- ^ path to package-build.el
-           -> FilePath  -- ^ path to recipes directory
+getPackage :: FilePath  -- ^ path to MELPA repository
            -> FilePath  -- ^ temporary workspace
            -> Map Text Package  -- ^ existing packages
            -> Text  -- ^ package name
            -> Recipe  -- ^ package recipe
            -> IO (Either Text Package)
-getPackage packageBuildEl recipesDir workDir packages packageName rcp =
-  case rcp of
-    Recipe { Recipe.fetcher = fetcher_, Recipe.recipe = recipe_ } -> runEitherT $ do
-      let tmp = workDir </> T.unpack packageName
-      ver_ <- getVersion packageBuildEl recipesDir packageName tmp
-      rev_ <- getRev fetcher_ packageName recipe_ tmp
-      case M.lookup packageName packages of
-        Just pkg | rev pkg == rev_ -> return pkg
-        _ -> do
-            (path_, hash_) <- prefetch fetcher_ packageName recipe_ rev_
-            deps_ <- getDeps packageBuildEl recipesDir packageName path_
-            return
-                Package
-                { ver = ver_
-                , rev = rev_
-                , recipe = recipe_
-                , fetcher = fetcher_
-                , hash = hash_
-                , deps = M.keys deps_
-                }
+getPackage melpaDir workDir packages packageName rcp =
+  let packageBuildEl = melpaDir </> "package-build.el"
+      recipesDir = melpaDir </> "recipes"
+  in case rcp of
+       Recipe { Recipe.fetcher = fetcher_, Recipe.recipe = recipe_ } -> runEitherT $ do
+         let tmp = workDir </> T.unpack packageName
+         ver_ <- getVersion packageBuildEl recipesDir packageName tmp
+         rev_ <- getRev fetcher_ packageName recipe_ tmp
+         case M.lookup packageName packages of
+           Just pkg | rev pkg == rev_ -> return pkg
+           _ -> do
+             (path_, hash_) <- prefetch fetcher_ packageName recipe_ rev_
+             deps_ <- getDeps packageBuildEl recipesDir packageName path_
+             return
+               Package
+               { ver = ver_
+               , rev = rev_
+               , recipe = recipe_
+               , fetcher = fetcher_
+               , hash = hash_
+               , deps = M.keys deps_
+               }
 
 getDeps :: FilePath -> FilePath -> Text -> FilePath
         -> EitherT Text IO (Map Text [Integer])

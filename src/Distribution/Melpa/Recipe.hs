@@ -17,6 +17,7 @@ import Data.Monoid
 #endif
 import Data.Text (Text)
 import qualified Data.Text as T
+import System.FilePath
 import qualified System.IO.Streams as S
 import qualified System.IO.Streams.Attoparsec as S
 
@@ -85,8 +86,10 @@ instance FromJSON Recipe where
 instance ToJSON Recipe where
   toJSON Recipe {..} = toJSON recipe
 
-readRecipes :: FilePath -> FilePath -> IO (Map Text Recipe)
-readRecipes packageBuildEl recipesDir = do
+readRecipes :: FilePath -> IO (Map Text Recipe)
+readRecipes melpaDir = do
+  let packageBuildEl = melpaDir </> "package-build.el"
+      recipesDir = melpaDir </> "recipes"
   dumpRecipesEl <- getDataFileName "dump-recipes.el"
   let args = [ "--batch"
              , "-l", packageBuildEl
