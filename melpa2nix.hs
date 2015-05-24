@@ -4,23 +4,14 @@
 
 module Main where
 
-import Control.Concurrent (getNumCapabilities, setNumCapabilities)
-import Control.Concurrent.Async (Concurrently(..))
-import Control.Concurrent.QSem
-import Control.Exception (SomeException(..), finally, handle)
+import Control.Concurrent (setNumCapabilities)
 import Control.Monad (join, when)
 import Data.Aeson.Encode.Pretty (encodePretty)
-import Data.Either (partitionEithers)
-import Data.Foldable (for_)
-import qualified Data.Map.Strict as M
 import qualified Data.Text as T
-import qualified Data.Text.IO as T
 import Options.Applicative
-import System.Directory (createDirectoryIfMissing)
 import qualified System.IO.Streams as S
 
 import Distribution.Melpa
-import Distribution.Melpa.Package
 
 main :: IO ()
 main = join $ execParser
@@ -36,51 +27,29 @@ melpa2nixParser =
   <*> strOption (long "melpa-dir" <> metavar "DIR"
                  <> help "path to MELPA repository")
 
-  <*> strOption (long "melpa-out" <> metavar "FILE"
-                 <> help "dump MELPA data to FILE")
-
   <*> strOption (long "work-dir" <> metavar "DIR"
                  <> help "path to temporary workspace")
 
-  <*> strOption (long "packages-out" <> metavar "FILE"
-                 <> help "dump packages to FILE")
+  <*> strOption (long "melpa-out" <> metavar "FILE"
+                 <> help "dump MELPA data to FILE")
   where
     threads = option auto (long "threads" <> metavar "N"
                            <> help "use N threads; default is number of CPUs")
 
 melpa2nix :: Int  -- ^ number of threads to use
           -> FilePath  -- ^ path to MELPA repository
-          -> FilePath  -- ^ dump MELPA recipes here
           -> FilePath  -- ^ temporary workspace
-          -> FilePath  -- ^ dump packages here
+          -> FilePath  -- ^ dump MELPA recipes here
           -> IO ()
-melpa2nix nthreads melpaDir melpaOut workDir packagesOut = do
+melpa2nix nthreads melpaDir workDir melpaOut = do
   when (nthreads > 0) $ setNumCapabilities nthreads
-  qsem <- getNumCapabilities >>= newQSem
 
-  (melpa, recipes) <- readMelpa melpaDir >>= \case
+  oldMelpa <- readMelpa melpaOut
+
+  melpa <- getMelpa melpaDir workDir oldMelpa >>= \case
     Left errmsg -> fail (T.unpack errmsg)
     Right result -> return result
 
   S.withFileAsOutput melpaOut $ \out -> do
     enc <- S.fromLazyByteString (encodePretty melpa)
     S.connect enc out
-
-  oldPackages <- handle noPackages $ readPackages packagesOut
-
-  createDirectoryIfMissing True workDir
-
-  let getPackage_ name rcp = Concurrently $ do
-        waitQSem qsem
-        flip finally (signalQSem qsem)
-          $ getPackage melpaDir workDir oldPackages name rcp
-  (errors, packages) <- partitionEithers . map liftEither . M.toList
-                        <$> runConcurrently (M.traverseWithKey getPackage_ recipes)
-
-  for_ errors $ \(name, err) -> T.putStrLn (name <> ": " <> err)
-  S.withFileAsOutput packagesOut $ \out -> do
-    enc <- S.fromLazyByteString (encodePretty $ M.fromList packages)
-    S.connect enc out
-  where
-    liftEither (name, stat) = either (Left . (,) name) (Right . (,) name) stat
-    noPackages (SomeException _) = return (M.empty)

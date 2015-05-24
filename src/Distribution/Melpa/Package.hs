@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -9,12 +10,13 @@ import Control.Error
 import Control.Exception (bracket)
 import Control.Monad.IO.Class
 import Data.Aeson
-import Data.Aeson.Types (parseEither, parseMaybe)
+import Data.Aeson.Types (defaultOptions, parseEither, parseMaybe)
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as M
 import Data.Monoid ((<>))
 import Data.Text (Text)
 import qualified Data.Text as T
+import GHC.Generics
 import System.Directory (doesFileExist, copyFile)
 import System.FilePath
 import qualified System.IO.Streams as S
@@ -27,36 +29,19 @@ import qualified Distribution.Melpa.Recipe as Recipe
 
 import Paths_melpa2nix (getDataFileName)
 
-data Package =
-  forall f. (FromJSON f, ToJSON f) => Package
-  { ver :: Text
-  , fetcher :: Fetcher f
-  , recipe :: f
-  , rev :: Text
-  , hash :: Text
-  , deps :: [Text]
-  }
-
-instance FromJSON Package where
-  parseJSON = withObject "package" $ \obj -> do
-    ver <- obj .: "ver"
-    rcp <- obj .: "recipe"
-    rev <- obj .: "rev"
-    hash <- obj .: "hash"
-    deps <- obj .: "deps"
-    case rcp of
-      Recipe { Recipe.recipe = recipe, Recipe.fetcher = fetcher } ->
-        return Package {..}
+data Package = Package
+               { ver :: Text
+               , rev :: Text
+               , sha256 :: Text
+               , deps :: [Text]
+               }
+             deriving Generic
 
 instance ToJSON Package where
-  toJSON Package {..} =
-    object
-    [ "ver" .= ver
-    , "recipe" .= Recipe { Recipe.fetcher = fetcher, Recipe.recipe = recipe }
-    , "rev" .= rev
-    , "hash" .= hash
-    , "deps" .= deps
-    ]
+  toJSON = genericToJSON defaultOptions
+
+instance FromJSON Package where
+  parseJSON = genericParseJSON defaultOptions
 
 readPackages :: FilePath -> IO (Map Text Package)
 readPackages packagesJson =
@@ -87,9 +72,7 @@ getPackage melpaDir workDir packages packageName rcp =
                Package
                { ver = ver_
                , rev = rev_
-               , recipe = recipe_
-               , fetcher = fetcher_
-               , hash = hash_
+               , sha256 = hash_
                , deps = M.keys deps_
                }
 

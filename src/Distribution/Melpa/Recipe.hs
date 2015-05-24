@@ -11,6 +11,7 @@ import Control.Applicative
 import Control.Exception (bracket)
 import Data.Aeson
 import Data.Aeson.Types (parseEither)
+import qualified Data.HashMap.Strict as HM
 import Data.Map.Strict (Map)
 #if __GLASGOW_HASKELL__ < 710
 import Data.Monoid
@@ -38,12 +39,14 @@ data Recipe =
   forall f. (FromJSON f, ToJSON f) => Recipe
   { fetcher :: Fetcher f
   , recipe :: f
+  , sha256 :: Maybe Text
   }
 
 instance FromJSON Recipe where
   parseJSON = withObject "fetcher" $ \obj -> do
     fetch <- obj .: "fetcher"
     let obj_ = Object obj
+    sha256 <- obj .:? "sha256"
     case fetch of
       "git" -> do
         recipe <- parseJSON obj_
@@ -84,7 +87,10 @@ instance FromJSON Recipe where
       unknown -> fail ("unknown fetcher '" ++ T.unpack unknown ++ "'")
 
 instance ToJSON Recipe where
-  toJSON Recipe {..} = toJSON recipe
+  toJSON Recipe {..} = addHash (toJSON recipe)
+    where
+      addHash (Object obj) = Object (maybe id (HM.insert "sha256") (String <$> sha256) obj)
+      addHash _ = error "the impossible happened"
 
 readRecipes :: FilePath -> IO (Map Text Recipe)
 readRecipes melpaDir = do
