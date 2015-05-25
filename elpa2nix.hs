@@ -16,7 +16,7 @@ import Control.Exception (SomeException(..), bracket_, handle)
 import Crypto.Hash
   (Digest, HashAlgorithm(..), SHA256, digestToHexByteString, hashUpdate)
 import Data.Aeson (FromJSON(..), ToJSON(..), json')
-import Data.Aeson.Encode (encodeToByteStringBuilder)
+import Data.Aeson.Encode.Pretty (encodePretty)
 import Data.Aeson.Types (defaultOptions, genericParseJSON, genericToJSON, parseMaybe)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as B8
@@ -173,11 +173,9 @@ hashPackage pkgs sem name pkg =
 
 writePackages :: FilePath -> Map Text Package -> IO ()
 writePackages path pkgs =
-  S.withFileAsOutput path $ \_out -> do
-    _out <- S.builderStream _out
-    S.write (Just builder) _out
-    S.write Nothing _out
-  where builder = encodeToByteStringBuilder (toJSON pkgs)
+  S.withFileAsOutput path $ \out -> do
+    enc <- S.fromLazyByteString (encodePretty pkgs)
+    S.connect enc out
 
 withQSem :: QSem -> IO a -> IO a
 withQSem qsem go = bracket_ (waitQSem qsem) (signalQSem qsem) go

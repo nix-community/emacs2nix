@@ -19,6 +19,7 @@ executable elpa2nix
   build-depends:
       base >= 4.7 && < 5
     , aeson == 0.8.*
+    , aeson-pretty >= 0.7.2 && < 1
     , async == 2.0.*
     , bytestring == 0.10.*
     , containers == 0.5.*
