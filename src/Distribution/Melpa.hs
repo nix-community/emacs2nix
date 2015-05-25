@@ -32,6 +32,7 @@ import qualified Distribution.Melpa.Recipe as Recipe
 
 data Melpa = Melpa
              { rev :: Text
+             , sha256 :: Text
              , recipes :: Map Text Recipe
              , packages :: Map Text Package
              }
@@ -53,6 +54,8 @@ readMelpa packagesJson =
 getMelpa :: FilePath -> FilePath -> Maybe Melpa -> IO (Either Text Melpa)
 getMelpa melpaDir workDir oldMelpa = runEitherT $ do
   rev <- getRev_Melpa melpaDir
+  sha256 <- getFileHash melpaDir "package-build.el"
+
   recipes <- M.traverseWithKey (getRecipeHash melpaDir) =<< liftIO (readRecipes melpaDir)
 
   qsem <- liftIO (getNumCapabilities >>= newQSem)
@@ -85,13 +88,17 @@ getRev_Melpa melpaDir = EitherT $ do
          return (headErr "could not get revision" revs))
 
 getRecipeHash :: FilePath -> Text -> Recipe -> EitherT Text IO Recipe
-getRecipeHash melpaDir name recipe = EitherT $ do
-  let args = [ "--base32", "--type", "sha256", melpaDir </> "recipes" </> T.unpack name ]
+getRecipeHash melpaDir name recipe = do
+  sha256_ <- getFileHash melpaDir ("recipes" </> T.unpack name)
+  return recipe { Recipe.sha256 = Just sha256_ }
+
+getFileHash :: FilePath -> FilePath -> EitherT Text IO Text
+getFileHash melpaDir path = EitherT $ do
+  let args = [ "--base32", "--type", "sha256", "--flat", melpaDir </> path ]
   bracket
     (S.runInteractiveProcess "nix-hash" args Nothing Nothing)
     (\(_, _, _, pid) -> S.waitForProcess pid)
     (\(inp, out, _, _) -> do
          S.write Nothing inp
          sha256s <- S.toList =<< S.decodeUtf8 =<< S.lines out
-         return $ do sha256_ <- headErr "could not calculate hash" sha256s
-                     return recipe { Recipe.sha256 = Just sha256_ })
+         return $ headErr "could not calculate hash" sha256s)
