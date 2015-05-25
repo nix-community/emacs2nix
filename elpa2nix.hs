@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
@@ -5,7 +6,9 @@
 
 module Main where
 
+#if __GLASGOW_HASKELL__ < 710
 import Control.Applicative
+#endif
 import Control.Concurrent (forkIO, getNumCapabilities)
 import Control.Concurrent.Async (Concurrently(..))
 import Control.Concurrent.QSem
@@ -51,7 +54,7 @@ data Package =
   , deps :: Maybe (Map Text [Integer])
   , desc :: Text
   , dist :: Text -- TODO: replace with an enumeration
-  , hash :: Maybe Text
+  , sha256 :: Maybe Text
   , archive :: Maybe String
   , broken :: Maybe Bool
   }
@@ -148,7 +151,7 @@ hashPackage :: Map Text Package -> QSem -> Text -> Package -> Concurrently Packa
 hashPackage pkgs sem name pkg =
   Concurrently $ handle brokenPkg $
   case M.lookup name pkgs of
-    Just pkg' | isJust (hash pkg') -> return pkg' { desc = "" }
+    Just pkg' | isJust (sha256 pkg') -> return pkg' { desc = "" }
     _ -> do
       let uri = fromMaybe (error "missing archive URI") (archive pkg)
           filename = T.unpack name ++ version_
@@ -160,8 +163,8 @@ hashPackage pkgs sem name pkg =
                   "single" -> "el"
                   "tar" -> "tar"
                   other -> error $ "unrecognized distribution type " ++ T.unpack other
-      hash_ <- withQSem sem $ Http.get (B8.pack $ uri </> filename <.> ext) $ \_ -> sha256
-      return pkg { hash = Just hash_, desc = "" }
+      hash_ <- withQSem sem $ Http.get (B8.pack $ uri </> filename <.> ext) $ \_ -> hashStream
+      return pkg { sha256 = Just hash_, desc = "" }
   where
     nameS = T.unpack name
     brokenPkg (SomeException e) = do
@@ -179,8 +182,8 @@ writePackages path pkgs =
 withQSem :: QSem -> IO a -> IO a
 withQSem qsem go = bracket_ (waitQSem qsem) (signalQSem qsem) go
 
-sha256 :: InputStream ByteString -> IO Text
-sha256 stream = do
+hashStream :: InputStream ByteString -> IO Text
+hashStream stream = do
   ctx <- S.fold hashUpdate hashInit stream
   let dig :: Digest SHA256
       dig = hashFinalize ctx
