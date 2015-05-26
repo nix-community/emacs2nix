@@ -4,19 +4,20 @@ module Distribution.Nix.Package where
 
 import Data.Aeson (FromJSON(..), ToJSON(..))
 import Data.Aeson.Types
-  ( Options(..), SumEncoding(..), defaultOptions, defaultTaggedObject
+  ( Options(..), SumEncoding(..), defaultOptions
   , genericParseJSON, genericToJSON )
 import qualified Data.Char as Char
 import Data.Text (Text)
 import GHC.Generics
 
 data Fetch = FetchURL { url :: Text, sha256 :: Text }
+           | NoFetch
            deriving Generic
 
 fetchOptions :: Options
 fetchOptions = defaultOptions
                { constructorTagModifier = map Char.toLower
-               , sumEncoding = defaultTaggedObject { tagFieldName = "fetcher" }
+               , sumEncoding = ObjectWithSingleField
                }
 
 instance FromJSON Fetch where
