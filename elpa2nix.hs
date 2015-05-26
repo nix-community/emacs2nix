@@ -100,9 +100,10 @@ hashPackage server name pkg = Concurrently $ handle brokenPkg $ do
               "tar" -> "tar"
               other -> error (nameS ++ ": unrecognized distribution type " ++ T.unpack other)
       url = server </> basename <.> ext
-  fetcher <- Nix.prefetch Nix.URL { Nix.url = T.pack url
-                                  , Nix.sha256 = Nothing
-                                  }
+  fetcher <- Nix.prefetch name
+             Nix.URL { Nix.url = T.pack url
+                     , Nix.sha256 = Nothing
+                     }
   return $ Just Nix.Package
     { Nix.version = ver
     , Nix.fetch = fetcher

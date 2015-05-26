@@ -9,15 +9,16 @@ import Data.Aeson.Types
   ( Options(..), SumEncoding(..), defaultOptions
   , genericParseJSON, genericToJSON )
 import qualified Data.Char as Char
+import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import qualified Data.Text as T
 import GHC.Generics
 import qualified System.IO.Streams as S
 
 data Fetch = URL { url :: Text, sha256 :: Maybe Text }
-           | Git { url :: Text, rev :: Text, branchName :: Text, sha256 :: Maybe Text }
+           | Git { url :: Text, rev :: Text, branchName :: Maybe Text, sha256 :: Maybe Text }
            | Bzr { url :: Text, rev :: Text, sha256 :: Maybe Text }
-           | CVS { url :: Text, cvsModule :: Text, sha256 :: Maybe Text }
+           | CVS { url :: Text, cvsModule :: Maybe Text, sha256 :: Maybe Text }
            | Hg { url :: Text, rev :: Text, sha256 :: Maybe Text }
            | SVN { url :: Text, rev :: Text, sha256 :: Maybe Text }
            | NoFetch
@@ -42,13 +43,62 @@ instance FromJSON Fetch where
 instance ToJSON Fetch where
   toJSON = genericToJSON fetchOptions
 
-prefetch :: Fetch -> IO Fetch
-prefetch fetch@(URL {..}) = do
+prefetch :: Text -> Fetch -> IO Fetch
+
+prefetch _ NoFetch = return NoFetch
+
+prefetch _ fetch@(URL {..}) = do
   let args = [T.unpack url]
-  (inp, out, err, pid) <- S.runInteractiveProcess "nix-prefetch-url" args Nothing Nothing
-  S.write Nothing inp
+  (_, out, err, pid) <- S.runInteractiveProcess "nix-prefetch-url" args Nothing Nothing
   hashes <- S.lines out >>= S.decodeUtf8 >>= S.toList
   _ <- S.waitForProcess pid
   case hashes of
-    [] -> S.supply err S.stderr >> error ("unable to prefetch " ++ T.unpack url)
     (hash:_) -> return fetch { sha256 = Just hash }
+    _ -> S.supply err S.stderr >> error ("unable to prefetch " ++ T.unpack url)
+
+prefetch _ fetch@(Git {..}) = do
+  let args = ["--url", T.unpack url, "--rev", T.unpack rev]
+             ++ fromMaybe [] (do name <- branchName
+                                 return ["--branch-name", T.unpack name])
+  (_, out, err, pid) <- S.runInteractiveProcess "nix-prefetch-git" args Nothing Nothing
+  hashes <- S.lines out >>= S.decodeUtf8 >>= S.toList
+  _ <- S.waitForProcess pid
+  case hashes of
+    (_:hash:_) -> return fetch { sha256 = Just hash }
+    _ -> S.supply err S.stderr >> error ("unable to prefetch " ++ T.unpack url)
+
+prefetch _ fetch@(Bzr {..}) = do
+  let args = [T.unpack url, T.unpack rev]
+  (_, out, err, pid) <- S.runInteractiveProcess "nix-prefetch-bzr" args Nothing Nothing
+  hashes <- S.lines out >>= S.decodeUtf8 >>= S.toList
+  _ <- S.waitForProcess pid
+  case hashes of
+    (hash:_) -> return fetch { sha256 = Just hash }
+    _ -> S.supply err S.stderr >> error ("unable to prefetch " ++ T.unpack url)
+
+prefetch _ fetch@(Hg {..}) = do
+  let args = [T.unpack url, T.unpack rev]
+  (_, out, err, pid) <- S.runInteractiveProcess "nix-prefetch-hg" args Nothing Nothing
+  hashes <- S.lines out >>= S.decodeUtf8 >>= S.toList
+  _ <- S.waitForProcess pid
+  case hashes of
+    (hash:_) -> return fetch { sha256 = Just hash }
+    _ -> S.supply err S.stderr >> error ("unable to prefetch " ++ T.unpack url)
+
+prefetch name fetch@(CVS {..}) = do
+  let args = [T.unpack url, T.unpack (fromMaybe name cvsModule)]
+  (_, out, err, pid) <- S.runInteractiveProcess "nix-prefetch-cvs" args Nothing Nothing
+  hashes <- S.lines out >>= S.decodeUtf8 >>= S.toList
+  _ <- S.waitForProcess pid
+  case hashes of
+    (hash:_) -> return fetch { sha256 = Just hash }
+    _ -> S.supply err S.stderr >> error ("unable to prefetch " ++ T.unpack url)
+
+prefetch _ fetch@(SVN {..}) = do
+  let args = [T.unpack url, T.unpack rev]
+  (_, out, err, pid) <- S.runInteractiveProcess "nix-prefetch-svn" args Nothing Nothing
+  hashes <- S.lines out >>= S.decodeUtf8 >>= S.toList
+  _ <- S.waitForProcess pid
+  case hashes of
+    (hash:_) -> return fetch { sha256 = Just hash }
+    _ -> S.supply err S.stderr >> error ("unable to prefetch " ++ T.unpack url)
