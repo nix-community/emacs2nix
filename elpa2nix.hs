@@ -30,7 +30,7 @@ import qualified System.IO.Streams as S
 import qualified System.IO.Streams.Attoparsec as S
 import System.IO.Temp (withSystemTempFile)
 
-import Paths_elpa2nix
+import Paths_emacs2nix
 
 import qualified Distribution.Elpa.Package as Elpa
 import qualified Distribution.Nix.Package as Nix

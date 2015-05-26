@@ -1,3 +1,4 @@
 /dist/
-archive-contents
-/elpa.json
+/archive-contents
+*.json
+*.prof
