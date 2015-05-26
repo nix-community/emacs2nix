@@ -1,16 +1,16 @@
 { mkDerivation, aeson, aeson-pretty, async, base, bytestring
-, containers, cryptohash, filepath, http-streams, io-streams
-, process, stdenv, temporary, text
+, containers, filepath, http-streams, io-streams
+, optparse-applicative, process, stdenv, temporary, text
 }:
 mkDerivation {
   pname = "elpa2nix";
   version = "0.1.0.0";
   src = ./.;
-  isLibrary = false;
+  isLibrary = true;
   isExecutable = true;
   buildDepends = [
-    aeson aeson-pretty async base bytestring containers cryptohash
-    filepath http-streams io-streams process temporary text
+    aeson aeson-pretty async base bytestring containers filepath
+    http-streams io-streams optparse-applicative process temporary text
   ];
   homepage = "http://github.com/ttuegel/elpa2nix";
   description = "Automatically generate Nix expressions for Emacs packages";

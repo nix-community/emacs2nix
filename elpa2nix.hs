@@ -8,9 +8,10 @@ module Main (main) where
 #if __GLASGOW_HASKELL__ < 710
 import Control.Applicative
 #endif
-import Control.Concurrent (forkIO, getNumCapabilities)
+import Control.Concurrent (forkIO, setNumCapabilities)
 import Control.Concurrent.Async (Concurrently(..))
 import Control.Exception (SomeException(..), handle)
+import Control.Monad (join, when)
 import Data.Aeson (FromJSON(..), json')
 import Data.Aeson.Encode.Pretty (encodePretty)
 import Data.Aeson.Types (parseMaybe)
@@ -18,15 +19,11 @@ import Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as B8
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as M
-import Data.Maybe (fromJust, fromMaybe, mapMaybe)
-import Data.Monoid ((<>))
-import Data.Ord (comparing)
+import Data.Maybe (fromJust, mapMaybe)
 import Data.Text (Text)
 import qualified Data.Text as T
-import Data.Traversable (for)
 import qualified Network.Http.Client as Http
-import System.Console.GetOpt
-import System.Environment (getArgs)
+import Options.Applicative
 import System.FilePath ((</>), (<.>))
 import System.IO (hClose)
 import qualified System.IO.Streams as S
@@ -39,65 +36,42 @@ import qualified Distribution.Elpa.Package as Elpa
 import qualified Distribution.Nix.Package as Nix
 
 main :: IO ()
-main = do
-  opts@(Options {..}) <- getOptions
-  getArchives opts >>= writePackages output
-
-data Options =
-  Options
-  { output :: FilePath
-  , input :: FilePath
-  , uris :: [String]
-  , threads :: Int
-  }
-
-getOptions :: IO Options
-getOptions = do
-  args <- getArgs
-  (opts, uris_) <-
-       case getOpt Permute optdescr args of
-         (opts, uris_, []) -> return (foldl (flip id) dftl opts, uris_)
-         (_, _, errs) -> error (concat errs ++ usageInfo header optdescr)
-  ncap <- getNumCapabilities
-  return opts
-    { uris = uris_
-    , threads = if threads opts == 0 then ncap else threads opts
-    , input = if input opts == "" then output opts else input opts
-    }
+main = join (execParser (info (helper <*> parser) desc))
   where
-    header = "Usage: elpa2nix [OPTION...] URIs..."
-    dftl = Options { output = "", uris = [], threads = 0, input = "" }
-    optdescr =
-      [ Option ['o'] [] (ReqArg setOutput "FILE") "output FILE"
-      , Option ['i'] [] (ReqArg setInput "FILE") "input FILE (defaults to output)"
-      , Option ['t'] [] (ReqArg setThreads "N") "use N threads"
-      ]
-    setOutput out opts = opts { output = out }
-    setInput inp opts = opts { input = inp }
-    setThreads n opts = opts { threads = read n }
+    desc = fullDesc <> progDesc "Generate Nix expressions from ELPA"
 
-getArchives :: Options -> IO (Map Text Nix.Package)
-getArchives Options {..} = do
-  archives <- runConcurrently $ for uris $ \uri -> Concurrently (getPackages uri)
-  oldPkgs <- readPackages input
-  let pkgs = foldr (M.unionWith keepLatestVersion) oldPkgs archives
-  M.fromList . mapMaybe liftMaybe . M.toList
-    <$> runConcurrently (M.traverseWithKey hashPackage pkgs)
+    parser :: Parser (IO ())
+    parser =
+      elpa2nix
+      <$> (threads <|> pure 0)
+      <*> output
+      <*> server
+      where
+        threads = option auto (long "threads" <> short 't' <> metavar "N"
+                              <> help "use N threads; default is number of CPUs")
+        output = strOption (long "output" <> short 'o' <> metavar "FILE"
+                            <> help "write output to FILE")
+        server = strArgument (metavar "URL"
+                              <> help "get packages from server at URL")
+
+elpa2nix :: Int -> FilePath -> String -> IO ()
+elpa2nix threads output server = do
+  when (threads > 0) (setNumCapabilities threads)
+
+  archives <- runConcurrently $ Concurrently (getPackages server)
+  packages <- M.fromList . mapMaybe liftMaybe . M.toList
+              <$> runConcurrently (M.traverseWithKey hashPackage archives)
+
+  writePackages output packages
   where
     liftMaybe (x, y) = (,) x <$> y
-    keepLatestVersion a b =
-      case comparing Elpa.ver a b of
-        LT -> b
-        GT -> a
-        EQ -> b
 
 getPackages :: String -> IO (Map Text Elpa.Package)
 getPackages uri = do
-  Http.get (B8.pack $ uri </> "archive-contents") $ \_ str -> do
-    withSystemTempFile "elpa2nix-archive-contents-" $ \path _h -> do
-      _h <- S.handleToOutputStream _h >>= S.atEndOfOutput (hClose _h)
-      S.supply str _h
-      S.write Nothing _h
+  Http.get (B8.pack $ uri </> "archive-contents") $ \_ contents -> do
+    withSystemTempFile "elpa2nix-archive-contents-" $ \path h -> do
+      tmp <- S.handleToOutputStream h >>= S.atEndOfOutput (hClose h)
+      S.connect contents tmp
       M.map setArchive <$> readArchive path
   where
     setArchive pkg = pkg { Elpa.archive = Just uri }
@@ -113,11 +87,6 @@ readArchive path = do
   S.waitForProcess pid >> return pkgs
   where
     eval = "(print-archive-contents-as-json " ++ show path ++ ")"
-
-readPackages :: FilePath -> IO (Map Text Elpa.Package)
-readPackages path =
-  handle (\(SomeException _) -> return M.empty)
-    $ fromMaybe M.empty <$> S.withFileAsInput path parseJsonFromStream
 
 parseJsonFromStream :: FromJSON a => S.InputStream ByteString -> IO (Maybe a)
 parseJsonFromStream stream = parseMaybe parseJSON <$> S.parseFromStream json' stream
@@ -141,6 +110,7 @@ hashPackage name pkg = Concurrently $ handle brokenPkg $ do
                   { Nix.url = T.pack url
                   , Nix.sha256 = sha256
                   }
+    , Nix.recipe = Nothing
     }
   where
     nameS = T.unpack name
