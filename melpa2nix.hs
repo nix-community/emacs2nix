@@ -14,27 +14,26 @@ import qualified System.IO.Streams as S
 import Distribution.Melpa
 
 main :: IO ()
-main = join $ execParser
-       (info (helper <*> melpa2nixParser)
-        (fullDesc <> progDesc "Generate Nix expressions from MELPA recipes"))
-
-melpa2nixParser :: Parser (IO ())
-melpa2nixParser =
-  melpa2nix
-
-  <$> (threads <|> pure 0)
-
-  <*> strOption (long "melpa-dir" <> metavar "DIR"
-                 <> help "path to MELPA repository")
-
-  <*> strOption (long "work-dir" <> metavar "DIR"
-                 <> help "path to temporary workspace")
-
-  <*> strOption (long "melpa-out" <> metavar "FILE"
-                 <> help "dump MELPA data to FILE")
+main = join (execParser (info (helper <*> parser) desc))
   where
-    threads = option auto (long "threads" <> metavar "N"
-                           <> help "use N threads; default is number of CPUs")
+    desc = fullDesc <> progDesc "Generate Nix expressions from MELPA recipes"
+
+    parser :: Parser (IO ())
+    parser =
+      melpa2nix
+      <$> (threads <|> pure 0)
+      <*> melpa
+      <*> work
+      <*> output
+      where
+        threads = option auto (long "threads" <> short 't' <> metavar "N"
+                              <> help "use N threads; default is number of CPUs")
+        melpa = strOption (long "melpa" <> metavar "DIR"
+                           <> help "path to MELPA repository")
+        work = strOption (long "work" <> metavar "DIR"
+                          <> help "path to temporary workspace")
+        output = strOption (long "output" <> short 'o' <> metavar "FILE"
+                            <> help "dump MELPA data to FILE")
 
 melpa2nix :: Int  -- ^ number of threads to use
           -> FilePath  -- ^ path to MELPA repository
