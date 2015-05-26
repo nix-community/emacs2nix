@@ -106,9 +106,9 @@ hashPackage name pkg = Concurrently $ handle brokenPkg $ do
   return $ Just Nix.Package
     { Nix.ver = ver
     , Nix.deps = maybe [] M.keys (Elpa.deps pkg)
-    , Nix.fetch = Nix.FetchURL
+    , Nix.fetch = Nix.URL
                   { Nix.url = T.pack url
-                  , Nix.sha256 = sha256
+                  , Nix.sha256 = Just sha256
                   }
     , Nix.build = Nix.ElpaPackage
     }

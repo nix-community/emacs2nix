@@ -10,15 +10,27 @@ import qualified Data.Char as Char
 import Data.Text (Text)
 import GHC.Generics
 
-data Fetch = FetchURL { url :: Text, sha256 :: Text }
+data Fetch = URL { url :: Text, sha256 :: Maybe Text }
+           | Git { url :: Text, rev :: Text, branchName :: Text, sha256 :: Maybe Text }
+           | Bzr { url :: Text, rev :: Text, sha256 :: Maybe Text }
+           | CVS { url :: Text, cvsModule :: Text, sha256 :: Maybe Text }
+           | Hg { url :: Text, rev :: Text, sha256 :: Maybe Text }
+           | SVN { url :: Text, rev :: Text, sha256 :: Maybe Text }
            | NoFetch
            deriving Generic
 
 fetchOptions :: Options
 fetchOptions = defaultOptions
-               { constructorTagModifier = map Char.toLower
+               { constructorTagModifier = ("fetch" ++) . map Char.toLower
                , sumEncoding = ObjectWithSingleField
+               , omitNothingFields = True
+               , fieldLabelModifier = fetchLabelModifier
                }
+  where
+    fetchLabelModifier field =
+      case field of
+        "cvsModule" -> "module"
+        _ -> field
 
 instance FromJSON Fetch where
   parseJSON = genericParseJSON fetchOptions
@@ -32,9 +44,12 @@ data Build = MelpaPackage { recipe :: Text }
 
 buildOptions :: Options
 buildOptions = defaultOptions
-               { constructorTagModifier = map Char.toLower
+               { constructorTagModifier = buildTagModifier
                , sumEncoding = ObjectWithSingleField
                }
+  where
+    buildTagModifier [] = []
+    buildTagModifier (x:xs) = Char.toLower x : xs
 
 instance FromJSON Build where
   parseJSON = genericParseJSON buildOptions
