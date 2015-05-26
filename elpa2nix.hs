@@ -1,70 +1,47 @@
 {-# LANGUAGE CPP #-}
-{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ViewPatterns #-}
 
-module Main where
+module Main (main) where
 
 #if __GLASGOW_HASKELL__ < 710
 import Control.Applicative
 #endif
 import Control.Concurrent (forkIO, getNumCapabilities)
 import Control.Concurrent.Async (Concurrently(..))
-import Control.Concurrent.QSem
-import Control.Exception (SomeException(..), bracket_, handle)
-import Crypto.Hash
-  (Digest, HashAlgorithm(..), SHA256, digestToHexByteString, hashUpdate)
-import Data.Aeson (FromJSON(..), ToJSON(..), json')
+import Control.Exception (SomeException(..), handle)
+import Data.Aeson (FromJSON(..), json')
 import Data.Aeson.Encode.Pretty (encodePretty)
-import Data.Aeson.Types (defaultOptions, genericParseJSON, genericToJSON, parseMaybe)
+import Data.Aeson.Types (parseMaybe)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as B8
-import Data.List (intercalate)
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as M
-import Data.Maybe (fromMaybe, isJust)
+import Data.Maybe (fromJust, fromMaybe, mapMaybe)
+import Data.Monoid ((<>))
 import Data.Ord (comparing)
 import Data.Text (Text)
 import qualified Data.Text as T
-import qualified Data.Text.Encoding as T
 import Data.Traversable (for)
-import GHC.Generics (Generic)
 import qualified Network.Http.Client as Http
 import System.Console.GetOpt
 import System.Environment (getArgs)
-import System.Exit (exitFailure)
 import System.FilePath ((</>), (<.>))
-import System.IO (hClose, hPutStrLn, stderr)
-import System.IO.Streams (InputStream)
+import System.IO (hClose)
 import qualified System.IO.Streams as S
 import qualified System.IO.Streams.Attoparsec as S
 import System.IO.Temp (withSystemTempFile)
 
 import Paths_elpa2nix
 
+import qualified Distribution.Elpa.Package as Elpa
+import qualified Distribution.Nix.Package as Nix
+
 main :: IO ()
 main = do
   opts@(Options {..}) <- getOptions
   getArchives opts >>= writePackages output
-
-data Package =
-  Package
-  { ver :: [Integer]
-  , deps :: Maybe (Map Text [Integer])
-  , desc :: Text
-  , dist :: Text -- TODO: replace with an enumeration
-  , sha256 :: Maybe Text
-  , archive :: Maybe String
-  , broken :: Maybe Bool
-  }
-  deriving (Eq, Generic, Read, Show)
-
-instance FromJSON Package where
-  parseJSON = genericParseJSON defaultOptions
-
-instance ToJSON Package where
-  toJSON = genericToJSON defaultOptions
 
 data Options =
   Options
@@ -99,24 +76,22 @@ getOptions = do
     setInput inp opts = opts { input = inp }
     setThreads n opts = opts { threads = read n }
 
-die :: String -> IO ()
-die str = hPutStrLn stderr str >> exitFailure
-
-getArchives :: Options -> IO (Map Text Package)
+getArchives :: Options -> IO (Map Text Nix.Package)
 getArchives Options {..} = do
   archives <- runConcurrently $ for uris $ \uri -> Concurrently (getPackages uri)
   oldPkgs <- readPackages input
   let pkgs = foldr (M.unionWith keepLatestVersion) oldPkgs archives
-  sem <- newQSem threads
-  runConcurrently $ M.traverseWithKey (hashPackage oldPkgs sem) pkgs
+  M.fromList . mapMaybe liftMaybe . M.toList
+    <$> runConcurrently (M.traverseWithKey hashPackage pkgs)
   where
+    liftMaybe (x, y) = (,) x <$> y
     keepLatestVersion a b =
-      case comparing ver a b of
+      case comparing Elpa.ver a b of
         LT -> b
         GT -> a
         EQ -> b
 
-getPackages :: String -> IO (Map Text Package)
+getPackages :: String -> IO (Map Text Elpa.Package)
 getPackages uri = do
   Http.get (B8.pack $ uri </> "archive-contents") $ \_ str -> do
     withSystemTempFile "elpa2nix-archive-contents-" $ \path _h -> do
@@ -125,9 +100,9 @@ getPackages uri = do
       S.write Nothing _h
       M.map setArchive <$> readArchive path
   where
-    setArchive pkg = pkg { archive = Just uri }
+    setArchive pkg = pkg { Elpa.archive = Just uri }
 
-readArchive :: FilePath -> IO (Map Text Package)
+readArchive :: FilePath -> IO (Map Text Elpa.Package)
 readArchive path = do
   load <- getDataFileName "elpa2json.el"
   (_, out, err, pid) <- S.runInteractiveProcess "emacs"
@@ -139,7 +114,7 @@ readArchive path = do
   where
     eval = "(print-archive-contents-as-json " ++ show path ++ ")"
 
-readPackages :: FilePath -> IO (Map Text Package)
+readPackages :: FilePath -> IO (Map Text Elpa.Package)
 readPackages path =
   handle (\(SomeException _) -> return M.empty)
     $ fromMaybe M.empty <$> S.withFileAsInput path parseJsonFromStream
@@ -147,42 +122,44 @@ readPackages path =
 parseJsonFromStream :: FromJSON a => S.InputStream ByteString -> IO (Maybe a)
 parseJsonFromStream stream = parseMaybe parseJSON <$> S.parseFromStream json' stream
 
-hashPackage :: Map Text Package -> QSem -> Text -> Package -> Concurrently Package
-hashPackage pkgs sem name pkg =
-  Concurrently $ handle brokenPkg $
-  case M.lookup name pkgs of
-    Just pkg' | isJust (sha256 pkg') -> return pkg' { desc = "" }
-    _ -> do
-      let uri = fromMaybe (error "missing archive URI") (archive pkg)
-          filename = T.unpack name ++ version_
-          version_ =
-            case ver pkg of
-              [] -> ""
-              vers -> "-" ++ intercalate "." (map show vers)
-          ext = case dist pkg of
-                  "single" -> "el"
-                  "tar" -> "tar"
-                  other -> error $ "unrecognized distribution type " ++ T.unpack other
-      hash_ <- withQSem sem $ Http.get (B8.pack $ uri </> filename <.> ext) $ \_ -> hashStream
-      return pkg { sha256 = Just hash_, desc = "" }
+hashPackage :: Text -> Elpa.Package -> Concurrently (Maybe Nix.Package)
+hashPackage name pkg = Concurrently $ handle brokenPkg $ do
+  let ver = T.intercalate "." (map (T.pack . show) (Elpa.ver pkg))
+      basename
+        | null (Elpa.ver pkg) = T.unpack name
+        | otherwise = T.unpack (name <> "-" <> ver)
+      ext = case Elpa.dist pkg of
+              "single" -> "el"
+              "tar" -> "tar"
+              other -> error (nameS ++ ": unrecognized distribution type " ++ T.unpack other)
+      url = fromJust (Elpa.archive pkg) </> basename <.> ext
+  sha256 <- prefetchURL url
+  return $ Just Nix.Package
+    { Nix.ver = ver
+    , Nix.deps = maybe [] M.keys (Elpa.deps pkg)
+    , Nix.fetch = Nix.FetchURL
+                  { Nix.url = T.pack url
+                  , Nix.sha256 = sha256
+                  }
+    }
   where
     nameS = T.unpack name
     brokenPkg (SomeException e) = do
-      putStrLn $ "marking " ++ nameS ++ " broken due to exception:\n" ++ show e
-      return pkg { broken = Just True }
+      putStrLn $ nameS ++ ": encountered exception\n" ++ show e
+      return Nothing
 
-writePackages :: FilePath -> Map Text Package -> IO ()
+prefetchURL :: FilePath -> IO Text
+prefetchURL url = do
+  (inp, out, err, pid) <- S.runInteractiveProcess "nix-prefetch-url" [url] Nothing Nothing
+  S.write Nothing inp
+  hashes <- S.lines out >>= S.decodeUtf8 >>= S.toList
+  _ <- S.waitForProcess pid
+  case hashes of
+    [] -> S.supply err S.stderr >> error ("unable to prefetch " ++ url)
+    (sha256:_) -> return sha256
+
+writePackages :: FilePath -> Map Text Nix.Package -> IO ()
 writePackages path pkgs =
   S.withFileAsOutput path $ \out -> do
     enc <- S.fromLazyByteString (encodePretty pkgs)
     S.connect enc out
-
-withQSem :: QSem -> IO a -> IO a
-withQSem qsem go = bracket_ (waitQSem qsem) (signalQSem qsem) go
-
-hashStream :: InputStream ByteString -> IO Text
-hashStream stream = do
-  ctx <- S.fold hashUpdate hashInit stream
-  let dig :: Digest SHA256
-      dig = hashFinalize ctx
-  return $ T.decodeUtf8 (digestToHexByteString dig)
