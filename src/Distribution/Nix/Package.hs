@@ -29,11 +29,15 @@ data Package = Package
                { ver :: Text
                , deps :: [Text]
                , fetch :: Fetch
+               , recipe :: Maybe Text
                }
              deriving Generic
 
+packageOptions :: Options
+packageOptions = defaultOptions { omitNothingFields = True }
+
 instance FromJSON Package where
-  parseJSON = genericParseJSON defaultOptions
+  parseJSON = genericParseJSON packageOptions
 
 instance ToJSON Package where
-  toJSON = genericToJSON defaultOptions
+  toJSON = genericToJSON packageOptions
