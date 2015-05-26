@@ -110,7 +110,7 @@ hashPackage name pkg = Concurrently $ handle brokenPkg $ do
                   { Nix.url = T.pack url
                   , Nix.sha256 = sha256
                   }
-    , Nix.recipe = Nothing
+    , Nix.build = Nix.ElpaPackage
     }
   where
     nameS = T.unpack name

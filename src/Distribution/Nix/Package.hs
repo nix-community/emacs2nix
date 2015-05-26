@@ -26,11 +26,27 @@ instance FromJSON Fetch where
 instance ToJSON Fetch where
   toJSON = genericToJSON fetchOptions
 
+data Build = MelpaPackage { recipe :: Text }
+           | ElpaPackage
+           deriving Generic
+
+buildOptions :: Options
+buildOptions = defaultOptions
+               { constructorTagModifier = map Char.toLower
+               , sumEncoding = ObjectWithSingleField
+               }
+
+instance FromJSON Build where
+  parseJSON = genericParseJSON buildOptions
+
+instance ToJSON Build where
+  toJSON = genericToJSON buildOptions
+
 data Package = Package
                { ver :: Text
                , deps :: [Text]
                , fetch :: Fetch
-               , recipe :: Maybe Text
+               , build :: Build
                }
              deriving Generic
 
