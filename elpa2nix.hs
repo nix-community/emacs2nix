@@ -18,7 +18,7 @@ import Data.Aeson.Types (parseMaybe)
 import Data.ByteString (ByteString)
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as M
-import Data.Maybe (fromJust, mapMaybe)
+import Data.Maybe (mapMaybe)
 import Data.Text (Text)
 import qualified Data.Text as T
 import Options.Applicative
@@ -59,7 +59,7 @@ elpa2nix threads output server = do
 
   archives <- runConcurrently $ Concurrently (getPackages server)
   packages <- M.fromList . mapMaybe liftMaybe . M.toList
-              <$> runConcurrently (M.traverseWithKey hashPackage archives)
+              <$> runConcurrently (M.traverseWithKey (hashPackage server) archives)
 
   writePackages output packages
   where
@@ -73,9 +73,7 @@ getPackages uri = do
     tmp <- S.handleToOutputStream h >>= S.atEndOfOutput (hClose h)
     S.connect contents tmp
     _ <- S.waitForProcess pid
-    M.map setArchive <$> readArchive path
-  where
-    setArchive pkg = pkg { Elpa.archive = Just uri }
+    readArchive path
 
 readArchive :: FilePath -> IO (Map Text Elpa.Package)
 readArchive path = do
@@ -91,8 +89,8 @@ readArchive path = do
 parseJsonFromStream :: FromJSON a => S.InputStream ByteString -> IO (Maybe a)
 parseJsonFromStream stream = parseMaybe parseJSON <$> S.parseFromStream json' stream
 
-hashPackage :: Text -> Elpa.Package -> Concurrently (Maybe Nix.Package)
-hashPackage name pkg = Concurrently $ handle brokenPkg $ do
+hashPackage :: String -> Text -> Elpa.Package -> Concurrently (Maybe Nix.Package)
+hashPackage server name pkg = Concurrently $ handle brokenPkg $ do
   let ver = T.intercalate "." (map (T.pack . show) (Elpa.ver pkg))
       basename
         | null (Elpa.ver pkg) = T.unpack name
@@ -101,7 +99,7 @@ hashPackage name pkg = Concurrently $ handle brokenPkg $ do
               "single" -> "el"
               "tar" -> "tar"
               other -> error (nameS ++ ": unrecognized distribution type " ++ T.unpack other)
-      url = fromJust (Elpa.archive pkg) </> basename <.> ext
+      url = server </> basename <.> ext
   fetcher <- Nix.prefetch Nix.URL { Nix.url = T.pack url
                                   , Nix.sha256 = Nothing
                                   }

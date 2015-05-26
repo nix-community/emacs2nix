@@ -12,10 +12,7 @@ data Package =
   Package
   { ver :: [Integer]
   , deps :: Maybe (Map Text [Integer])
-  , desc :: Text
   , dist :: Text -- TODO: replace with an enumeration
-  , sha256 :: Maybe Text
-  , archive :: Maybe String
   , broken :: Maybe Bool
   }
   deriving (Eq, Generic, Read, Show)
