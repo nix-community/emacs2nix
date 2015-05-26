@@ -16,13 +16,11 @@ import Data.Aeson (FromJSON(..), json')
 import Data.Aeson.Encode.Pretty (encodePretty)
 import Data.Aeson.Types (parseMaybe)
 import Data.ByteString (ByteString)
-import qualified Data.ByteString.Char8 as B8
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as M
 import Data.Maybe (fromJust, mapMaybe)
 import Data.Text (Text)
 import qualified Data.Text as T
-import qualified Network.Http.Client as Http
 import Options.Applicative
 import System.FilePath ((</>), (<.>))
 import System.IO (hClose)
@@ -68,11 +66,13 @@ elpa2nix threads output server = do
 
 getPackages :: String -> IO (Map Text Elpa.Package)
 getPackages uri = do
-  Http.get (B8.pack $ uri </> "archive-contents") $ \_ contents -> do
-    withSystemTempFile "elpa2nix-archive-contents-" $ \path h -> do
-      tmp <- S.handleToOutputStream h >>= S.atEndOfOutput (hClose h)
-      S.connect contents tmp
-      M.map setArchive <$> readArchive path
+  let args = [uri </> "archive-contents"]
+  (_, contents, _, pid) <- S.runInteractiveProcess "curl" args Nothing Nothing
+  withSystemTempFile "elpa2nix-archive-contents-" $ \path h -> do
+    tmp <- S.handleToOutputStream h >>= S.atEndOfOutput (hClose h)
+    S.connect contents tmp
+    _ <- S.waitForProcess pid
+    M.map setArchive <$> readArchive path
   where
     setArchive pkg = pkg { Elpa.archive = Just uri }
 

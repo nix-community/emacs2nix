@@ -1,6 +1,0 @@
-[submodule "http-streams"]
-	path = http-streams
-	url = https://github.com/afcowie/http-streams.git
-[submodule "http-common"]
-	path = http-common
-	url = https://github.com/afcowie/http-common.git

@@ -1,7 +1,7 @@
 { mkDerivation, aeson, aeson-pretty, async, attoparsec, base
-, bytestring, containers, directory, errors, filepath, http-streams
-, io-streams, optparse-applicative, stdenv, temporary, text
-, transformers, unordered-containers
+, bytestring, containers, directory, errors, filepath, io-streams
+, optparse-applicative, stdenv, temporary, text, transformers
+, unordered-containers
 }:
 mkDerivation {
   pname = "emacs2nix";
@@ -11,9 +11,8 @@ mkDerivation {
   isExecutable = true;
   buildDepends = [
     aeson aeson-pretty async attoparsec base bytestring containers
-    directory errors filepath http-streams io-streams
-    optparse-applicative temporary text transformers
-    unordered-containers
+    directory errors filepath io-streams optparse-applicative temporary
+    text transformers unordered-containers
   ];
   description = "Automatically generate Nix expressions for Emacs packages";
   license = stdenv.lib.licenses.gpl3;

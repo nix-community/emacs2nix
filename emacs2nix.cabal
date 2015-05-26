@@ -86,7 +86,6 @@ executable elpa2nix
     , containers
     , emacs2nix
     , filepath
-    , http-streams == 0.8.*
     , io-streams
     , optparse-applicative >= 0.11
     , temporary == 1.2.*
