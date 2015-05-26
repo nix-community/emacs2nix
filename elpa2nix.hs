@@ -8,7 +8,7 @@ module Main (main) where
 #if __GLASGOW_HASKELL__ < 710
 import Control.Applicative
 #endif
-import Control.Concurrent (forkIO, setNumCapabilities)
+import Control.Concurrent (setNumCapabilities)
 import Control.Concurrent.Async (Concurrently(..))
 import Control.Exception (SomeException(..), handle)
 import Control.Monad (join, when)
@@ -31,6 +31,7 @@ import System.IO.Temp (withSystemTempFile)
 import Paths_emacs2nix
 
 import qualified Distribution.Elpa.Package as Elpa
+import qualified Distribution.Nix.Fetch as Nix
 import qualified Distribution.Nix.Package as Nix
 
 main :: IO ()
@@ -79,10 +80,9 @@ getPackages uri = do
 readArchive :: FilePath -> IO (Map Text Elpa.Package)
 readArchive path = do
   load <- getDataFileName "elpa2json.el"
-  (_, out, err, pid) <- S.runInteractiveProcess "emacs"
+  (_, out, _, pid) <- S.runInteractiveProcess "emacs"
                       ["--batch", "--load", load, "--eval", eval]
                       Nothing Nothing
-  _ <- forkIO $ S.supply err S.stderr
   Just pkgs <- parseJsonFromStream out
   S.waitForProcess pid >> return pkgs
   where
@@ -102,31 +102,19 @@ hashPackage name pkg = Concurrently $ handle brokenPkg $ do
               "tar" -> "tar"
               other -> error (nameS ++ ": unrecognized distribution type " ++ T.unpack other)
       url = fromJust (Elpa.archive pkg) </> basename <.> ext
-  sha256 <- prefetchURL url
+  fetcher <- Nix.prefetch Nix.URL { Nix.url = T.pack url
+                                  , Nix.sha256 = Nothing
+                                  }
   return $ Just Nix.Package
-    { Nix.ver = ver
-    , Nix.deps = maybe [] M.keys (Elpa.deps pkg)
-    , Nix.fetch = Nix.URL
-                  { Nix.url = T.pack url
-                  , Nix.sha256 = Just sha256
-                  }
-    , Nix.build = Nix.ElpaPackage
+    { Nix.version = ver
+    , Nix.fetch = fetcher
+    , Nix.build = Nix.ElpaPackage { Nix.deps = maybe [] M.keys (Elpa.deps pkg) }
     }
   where
     nameS = T.unpack name
     brokenPkg (SomeException e) = do
       putStrLn $ nameS ++ ": encountered exception\n" ++ show e
       return Nothing
-
-prefetchURL :: FilePath -> IO Text
-prefetchURL url = do
-  (inp, out, err, pid) <- S.runInteractiveProcess "nix-prefetch-url" [url] Nothing Nothing
-  S.write Nothing inp
-  hashes <- S.lines out >>= S.decodeUtf8 >>= S.toList
-  _ <- S.waitForProcess pid
-  case hashes of
-    [] -> S.supply err S.stderr >> error ("unable to prefetch " ++ url)
-    (sha256:_) -> return sha256
 
 writePackages :: FilePath -> Map Text Nix.Package -> IO ()
 writePackages path pkgs =
