@@ -7,7 +7,6 @@ module Main where
 import Control.Concurrent (setNumCapabilities)
 import Control.Monad (join, when)
 import Data.Aeson.Encode.Pretty (encodePretty)
-import qualified Data.Text as T
 import Options.Applicative
 import qualified System.IO.Streams as S
 
@@ -43,11 +42,7 @@ melpa2nix :: Int  -- ^ number of threads to use
 melpa2nix nthreads melpaDir workDir melpaOut = do
   when (nthreads > 0) $ setNumCapabilities nthreads
 
-  oldMelpa <- readMelpa melpaOut
-
-  melpa <- getMelpa melpaDir workDir oldMelpa >>= \case
-    Left errmsg -> fail (T.unpack errmsg)
-    Right result -> return result
+  melpa <- getMelpa melpaDir workDir
 
   S.withFileAsOutput melpaOut $ \out -> do
     enc <- S.fromLazyByteString (encodePretty melpa)

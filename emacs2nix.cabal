@@ -22,18 +22,6 @@ library
   exposed-modules:
     Distribution.Elpa.Package
     Distribution.Melpa
-    Distribution.Melpa.Fetcher
-    Distribution.Melpa.Fetcher.Bzr
-    Distribution.Melpa.Fetcher.CVS
-    Distribution.Melpa.Fetcher.Darcs
-    Distribution.Melpa.Fetcher.Fossil
-    Distribution.Melpa.Fetcher.Git
-    Distribution.Melpa.Fetcher.GitHub
-    Distribution.Melpa.Fetcher.Hg
-    Distribution.Melpa.Fetcher.SVN
-    Distribution.Melpa.Fetcher.Wiki
-    Distribution.Melpa.Files
-    Distribution.Melpa.Package
     Distribution.Melpa.Recipe
     Distribution.Nix.Fetch
     Distribution.Nix.Package

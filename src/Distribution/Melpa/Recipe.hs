@@ -1,4 +1,5 @@
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
@@ -8,89 +9,57 @@ module Distribution.Melpa.Recipe where
 #if __GLASGOW_HASKELL__ < 710
 import Control.Applicative
 #endif
-import Control.Exception (bracket)
 import Data.Aeson
-import Data.Aeson.Types (parseEither)
-import qualified Data.HashMap.Strict as HM
-import Data.Map.Strict (Map)
+import Data.Aeson.Types
+  ( Options(..), SumEncoding(..), defaultOptions, defaultTaggedObject, parseEither )
+import qualified Data.Char as Char
+import Data.Map (Map)
+import qualified Data.Map as M
 #if __GLASGOW_HASKELL__ < 710
 import Data.Monoid
+#else
+import Data.Monoid ((<>))
 #endif
 import Data.Text (Text)
 import qualified Data.Text as T
+import GHC.Generics
 import System.FilePath
 import qualified System.IO.Streams as S
 import qualified System.IO.Streams.Attoparsec as S
 
-import Distribution.Melpa.Fetcher
-import Distribution.Melpa.Fetcher.Bzr
-import Distribution.Melpa.Fetcher.CVS
-import Distribution.Melpa.Fetcher.Darcs
-import Distribution.Melpa.Fetcher.Fossil
-import Distribution.Melpa.Fetcher.Git
-import Distribution.Melpa.Fetcher.GitHub
-import Distribution.Melpa.Fetcher.Hg
-import Distribution.Melpa.Fetcher.SVN
-import Distribution.Melpa.Fetcher.Wiki
-
 import Paths_emacs2nix (getDataFileName)
 
-data Recipe =
-  forall f. (FromJSON f, ToJSON f) => Recipe
-  { fetcher :: Fetcher f
-  , recipe :: f
-  , sha256 :: Maybe Text
-  }
+data Recipe = Bzr { url :: Text, commit :: Maybe Text }
+            | Git { url :: Text, commit :: Maybe Text, branch :: Maybe Text }
+            | GitHub { repo :: Text, commit :: Maybe Text, branch :: Maybe Text }
+            | CVS { url :: Text, cvsModule :: Maybe Text }
+            | Darcs { url :: Text }
+            | Fossil { url :: Text }
+            | Hg { url :: Text, commit :: Maybe Text }
+            | SVN { url :: Text, commit :: Maybe Text }
+            | Wiki { wikiUrl :: Maybe Text }
+            deriving Generic
 
-instance FromJSON Recipe where
-  parseJSON = withObject "fetcher" $ \obj -> do
-    fetch <- obj .: "fetcher"
-    let obj_ = Object obj
-    sha256 <- obj .:? "sha256"
-    case fetch of
-      "git" -> do
-        recipe <- parseJSON obj_
-        let fetcher = fetchGit
-        return Recipe {..}
-      "github" -> do
-        recipe <- parseJSON obj_
-        let fetcher = fetchGitHub
-        return Recipe {..}
-      "bzr" -> do
-        recipe <- parseJSON obj_
-        let fetcher = fetchBzr
-        return Recipe {..}
-      "hg" -> do
-        recipe <- parseJSON obj_
-        let fetcher = fetchHg
-        return Recipe {..}
-      "darcs" -> do
-        recipe <- parseJSON obj_
-        let fetcher = fetchDarcs
-        return Recipe {..}
-      "fossil" -> do
-        recipe <- parseJSON obj_
-        let fetcher = fetchFossil
-        return Recipe {..}
-      "svn" -> do
-        recipe <- parseJSON obj_
-        let fetcher = fetchSVN
-        return Recipe {..}
-      "cvs" -> do
-        recipe <- parseJSON obj_
-        let fetcher = fetchCVS
-        return Recipe {..}
-      "wiki" -> do
-        recipe <- parseJSON obj_
-        let fetcher = fetchWiki
-        return Recipe {..}
-      unknown -> fail ("unknown fetcher '" ++ T.unpack unknown ++ "'")
+recipeOptions :: Options
+recipeOptions = defaultOptions
+                { omitNothingFields = True
+                , fieldLabelModifier = recipeFieldModifier
+                , constructorTagModifier = recipeTagModifier
+                , sumEncoding = defaultTaggedObject { tagFieldName = "fetcher" }
+                }
+  where
+    recipeFieldModifier field =
+      case field of
+        "cvsModule" -> "module"
+        "wikiUrl" -> "url"
+        _ -> field
+    recipeTagModifier = map Char.toLower
 
 instance ToJSON Recipe where
-  toJSON Recipe {..} = addHash (toJSON recipe)
-    where
-      addHash (Object obj) = Object (maybe id (HM.insert "sha256") (String <$> sha256) obj)
-      addHash _ = error "the impossible happened"
+  toJSON = genericToJSON recipeOptions
+
+instance FromJSON Recipe where
+  parseJSON = genericParseJSON recipeOptions
 
 readRecipes :: FilePath -> IO (Map Text Recipe)
 readRecipes melpaDir = do
@@ -102,10 +71,11 @@ readRecipes melpaDir = do
              , "-l", dumpRecipesEl
              , "-f", "dump-recipes-json", recipesDir
              ]
-  bracket
-    (S.runInteractiveProcess "emacs" args Nothing Nothing)
-    (\(_, _, _, pid) -> S.waitForProcess pid)
-    (\(inp, out, _, _) -> do
-           S.write Nothing inp
-           result <- parseEither parseJSON <$> S.parseFromStream json' out
-           either error return result)
+  (_, out, _, _) <- S.runInteractiveProcess "emacs" args Nothing Nothing
+  result <- parseEither parseJSON <$> S.parseFromStream json' out
+  case result of
+    Left err -> do
+      let msg = "error reading recipes: " <> T.pack err
+      S.write (Just msg) =<< S.encodeUtf8 S.stderr
+      return M.empty
+    Right recipes -> return recipes
