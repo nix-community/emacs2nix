@@ -4,7 +4,9 @@
 
 module Distribution.Melpa (getMelpa, readMelpa) where
 
+import Control.Concurrent (getNumCapabilities)
 import Control.Concurrent.Async (Concurrently(..))
+import Control.Concurrent.QSem
 import Control.Error hiding (err)
 import Control.Exception (SomeException(..), bracket, handle)
 import Control.Monad (MonadPlus(..), liftM)
@@ -37,95 +39,98 @@ readMelpa packagesJson =
   (S.withFileAsInput packagesJson $ \inp ->
        parseMaybe parseJSON <$> S.parseFromStream json' inp)
 
-getMelpa :: FilePath -> FilePath -> IO (Map Text Nix.Package)
-getMelpa melpaDir workDir = do
+getMelpa :: Int -> FilePath -> FilePath -> IO (Map Text Nix.Package)
+getMelpa nthreads melpaDir workDir = do
   recipes <- readRecipes melpaDir
 
   createDirectoryIfMissing True workDir
 
+  sem <- (if nthreads > 0 then pure nthreads else getNumCapabilities) >>= newQSem
   M.fromList . mapMaybe liftMaybe . M.toList
-    <$> runConcurrently (M.traverseWithKey (getPackage melpaDir workDir) recipes)
+    <$> runConcurrently (M.traverseWithKey (getPackage sem melpaDir workDir) recipes)
   where
     liftMaybe (x, y) = (,) x <$> y
 
-getPackage :: FilePath -> FilePath -> Text -> Recipe -> Concurrently (Maybe Nix.Package)
-getPackage melpaDir workDir name recipe = Concurrently $ do
-  let packageBuildEl = melpaDir </> "package-build.el"
-      recipeFile = melpaDir </> "recipes" </> T.unpack name
-      sourceDir = workDir </> T.unpack name
-  recipeExp <- S.withFileAsInput recipeFile (\inp -> S.fold (<>) T.empty =<< S.decodeUtf8 inp)
-  runMaybeT $ do
-    version <- getVersion packageBuildEl recipeFile name sourceDir
-    fetch0 <- case recipe of
-                Bzr {..} -> do
-                  rev <- revision_Bzr name sourceDir
-                  return Nix.Bzr { Nix.url = url
-                                 , Nix.rev = rev
-                                 , Nix.sha256 = Nothing
-                                 }
-                Git {..} -> do
-                  rev <- revision_Git name branch sourceDir
-                  return Nix.Git { Nix.url = url
-                                 , Nix.rev = rev
-                                 , Nix.branchName = branch
-                                 , Nix.sha256 = Nothing
-                                 }
-                GitHub {..} -> do
-                  rev <- revision_Git name branch sourceDir
-                  let url = "git://github.com/" <> repo <> ".git"
-                  return Nix.Git { Nix.url = url
-                                 , Nix.rev = rev
-                                 , Nix.branchName = branch
-                                 , Nix.sha256 = Nothing
-                                 }
-                GitLab {..} -> do
-                  rev <- revision_Git name branch sourceDir
-                  let url = "https://gitlab.com/" <> repo <> ".git"
-                  return Nix.Git { Nix.url = url
-                                 , Nix.rev = rev
-                                 , Nix.branchName = branch
-                                 , Nix.sha256 = Nothing
-                                 }
-                CVS {..} -> do
-                  return Nix.CVS { Nix.url = url
-                                 , Nix.cvsModule = cvsModule
-                                 , Nix.sha256 = Nothing
-                                 }
-                Darcs {..} -> do
-                  let errmsg = name <> ": fetcher 'darcs' not supported"
-                  liftIO (S.write (Just errmsg) =<< S.encodeUtf8 S.stderr)
-                  mzero
-                Fossil {..} -> do
-                  let errmsg = name <> ": fetcher 'fossil' not supported"
-                  liftIO (S.write (Just errmsg) =<< S.encodeUtf8 S.stderr)
-                  mzero
-                Hg {..} -> do
-                  rev <- revision_Hg name sourceDir
-                  return Nix.Hg { Nix.url = url
-                                , Nix.rev = rev
-                                , Nix.sha256 = Nothing
-                                }
-                SVN {..} -> do
-                  rev <- revision_SVN name sourceDir
-                  return Nix.SVN { Nix.url = url
-                                 , Nix.rev = rev
-                                 , Nix.sha256 = Nothing
-                                 }
-                Wiki {..} -> do
-                  let url = fromMaybe defaultUrl wikiUrl
-                      defaultUrl = "http://www.emacswiki.org/emacs/download/" <> name <> ".el"
-                  return Nix.URL { Nix.url = url
-                                 , Nix.sha256 = Nothing
-                                 }
-    (path, fetch) <- liftIO $ Nix.prefetch name fetch0
-    deps <- M.keys <$> getDeps packageBuildEl recipeFile name path
-    return Nix.Package { Nix.version = version
-                       , Nix.fetch = fetch
-                       , Nix.build = Nix.MelpaPackage
-                                     { Nix.recipe = recipeExp
-                                     , Nix.deps = deps
-                                     }
-                       }
+getPackage :: QSem -> FilePath -> FilePath -> Text -> Recipe -> Concurrently (Maybe Nix.Package)
+getPackage sem melpaDir workDir name recipe
+  = Concurrently $ bracket (waitQSem sem) (\_ -> signalQSem sem) $ \_ -> do
+    putStrLn (T.unpack name)
+    let packageBuildEl = melpaDir </> "package-build.el"
+        recipeFile = melpaDir </> "recipes" </> T.unpack name
+        sourceDir = workDir </> T.unpack name
+    recipeExp <- S.withFileAsInput recipeFile (\inp -> S.fold (<>) T.empty =<< S.decodeUtf8 inp)
+    runMaybeT $ do
+      version <- getVersion packageBuildEl recipeFile name sourceDir
+      fetch0 <- case recipe of
+                  Bzr {..} -> do
+                    rev <- revision_Bzr name sourceDir
+                    return Nix.Bzr { Nix.url = url
+                                   , Nix.rev = rev
+                                   , Nix.sha256 = Nothing
+                                   }
+                  Git {..} -> do
+                    rev <- revision_Git name branch sourceDir
+                    return Nix.Git { Nix.url = url
+                                   , Nix.rev = rev
+                                   , Nix.branchName = branch
+                                   , Nix.sha256 = Nothing
+                                   }
+                  GitHub {..} -> do
+                    rev <- revision_Git name branch sourceDir
+                    let url = "git://github.com/" <> repo <> ".git"
+                    return Nix.Git { Nix.url = url
+                                   , Nix.rev = rev
+                                   , Nix.branchName = branch
+                                   , Nix.sha256 = Nothing
+                                   }
+                  GitLab {..} -> do
+                    rev <- revision_Git name branch sourceDir
+                    let url = "https://gitlab.com/" <> repo <> ".git"
+                    return Nix.Git { Nix.url = url
+                                   , Nix.rev = rev
+                                   , Nix.branchName = branch
+                                   , Nix.sha256 = Nothing
+                                   }
+                  CVS {..} -> do
+                    return Nix.CVS { Nix.url = url
+                                   , Nix.cvsModule = cvsModule
+                                   , Nix.sha256 = Nothing
+                                   }
+                  Darcs {..} -> do
+                    let errmsg = name <> ": fetcher 'darcs' not supported"
+                    liftIO (S.write (Just errmsg) =<< S.encodeUtf8 S.stderr)
+                    mzero
+                  Fossil {..} -> do
+                    let errmsg = name <> ": fetcher 'fossil' not supported"
+                    liftIO (S.write (Just errmsg) =<< S.encodeUtf8 S.stderr)
+                    mzero
+                  Hg {..} -> do
+                    rev <- revision_Hg name sourceDir
+                    return Nix.Hg { Nix.url = url
+                                  , Nix.rev = rev
+                                  , Nix.sha256 = Nothing
+                                  }
+                  SVN {..} -> do
+                    rev <- revision_SVN name sourceDir
+                    return Nix.SVN { Nix.url = url
+                                   , Nix.rev = rev
+                                   , Nix.sha256 = Nothing
+                                   }
+                  Wiki {..} -> do
+                    let url = fromMaybe defaultUrl wikiUrl
+                        defaultUrl = "http://www.emacswiki.org/emacs/download/" <> name <> ".el"
+                    return Nix.URL { Nix.url = url
+                                   , Nix.sha256 = Nothing
+                                   }
+      (path, fetch) <- liftIO $ Nix.prefetch name fetch0
+      deps <- M.keys <$> getDeps packageBuildEl recipeFile name path
+      return Nix.Package { Nix.version = version
+                         , Nix.fetch = fetch
+                         , Nix.build = Nix.MelpaPackage
+                                       { Nix.recipe = recipeExp
+                                       , Nix.deps = deps
+                                       }
+                         }
 
 getVersion :: FilePath -> FilePath -> Text -> FilePath -> MaybeT IO Text
 getVersion packageBuildEl recipeFile packageName sourceDir = do

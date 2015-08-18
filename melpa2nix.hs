@@ -42,7 +42,7 @@ melpa2nix :: Int  -- ^ number of threads to use
 melpa2nix nthreads melpaDir workDir melpaOut = do
   when (nthreads > 0) $ setNumCapabilities nthreads
 
-  melpa <- getMelpa melpaDir workDir
+  melpa <- getMelpa nthreads melpaDir workDir
 
   S.withFileAsOutput melpaOut $ \out -> do
     enc <- S.fromLazyByteString (encodePretty melpa)
