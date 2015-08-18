@@ -4,6 +4,7 @@
 
 module Distribution.Nix.Fetch where
 
+import Control.Exception (bracket)
 import Data.Aeson (FromJSON(..), ToJSON(..))
 import Data.Aeson.Types
   ( Options(..), SumEncoding(..), defaultOptions
@@ -50,56 +51,68 @@ prefetch _ fetch@(URL {..}) = do
   let args = [T.unpack url]
   oldEnv <- M.fromList <$> getEnvironment
   let env = M.toList (M.insert "PRINT_PATH" "1" oldEnv)
-  (_, out, err, pid) <- S.runInteractiveProcess "nix-prefetch-url" args Nothing (Just env)
-  hashes <- S.lines out >>= S.decodeUtf8 >>= S.toList
-  _ <- S.waitForProcess pid
-  case hashes of
-    (hash:path:_) -> return (T.unpack path, fetch { sha256 = Just hash })
-    _ -> S.supply err S.stderr >> error ("unable to prefetch " ++ T.unpack url)
+  bracket
+    (S.runInteractiveProcess "nix-prefetch-url" args Nothing (Just env))
+    (\(_, _, _, pid) -> S.waitForProcess pid)
+    (\(_, out, err, _) -> do
+         hashes <- S.lines out >>= S.decodeUtf8 >>= S.toList
+         case hashes of
+           (hash:path:_) -> return (T.unpack path, fetch { sha256 = Just hash })
+           _ -> S.supply err S.stderr >> error ("unable to prefetch " ++ T.unpack url))
 
 prefetch _ fetch@(Git {..}) = do
   let args = ["--url", T.unpack url, "--rev", T.unpack rev]
              ++ fromMaybe [] (do name <- branchName
                                  return ["--branch-name", T.unpack name])
-  (_, out, err, pid) <- S.runInteractiveProcess "nix-prefetch-git" args Nothing Nothing
-  hashes <- S.lines out >>= S.decodeUtf8 >>= S.toList
-  _ <- S.waitForProcess pid
-  case hashes of
-    (_:hash:path:_) -> return (T.unpack path, fetch { sha256 = Just hash })
-    _ -> S.supply err S.stderr >> error ("unable to prefetch " ++ T.unpack url)
+  bracket
+    (S.runInteractiveProcess "nix-prefetch-git" args Nothing Nothing)
+    (\(_, _, _, pid) -> S.waitForProcess pid)
+    (\(_, out, err, _) -> do
+         hashes <- S.lines out >>= S.decodeUtf8 >>= S.toList
+         case hashes of
+           (_:hash:path:_) -> return (T.unpack path, fetch { sha256 = Just hash })
+           _ -> S.supply err S.stderr >> error ("unable to prefetch " ++ T.unpack url))
 
 prefetch _ fetch@(Bzr {..}) = do
   let args = [T.unpack url, T.unpack rev]
-  (_, out, err, pid) <- S.runInteractiveProcess "nix-prefetch-bzr" args Nothing Nothing
-  hashes <- S.lines out >>= S.decodeUtf8 >>= S.toList
-  _ <- S.waitForProcess pid
-  case hashes of
-    (hash:path:_) -> return (T.unpack path, fetch { sha256 = Just hash })
-    _ -> S.supply err S.stderr >> error ("unable to prefetch " ++ T.unpack url)
+  bracket
+    (S.runInteractiveProcess "nix-prefetch-bzr" args Nothing Nothing)
+    (\(_, _, _, pid) -> S.waitForProcess pid)
+    (\(_, out, err, _) -> do
+         hashes <- S.lines out >>= S.decodeUtf8 >>= S.toList
+         case hashes of
+           (hash:path:_) -> return (T.unpack path, fetch { sha256 = Just hash })
+           _ -> S.supply err S.stderr >> error ("unable to prefetch " ++ T.unpack url))
 
 prefetch _ fetch@(Hg {..}) = do
   let args = [T.unpack url, T.unpack rev]
-  (_, out, err, pid) <- S.runInteractiveProcess "nix-prefetch-hg" args Nothing Nothing
-  hashes <- S.lines out >>= S.decodeUtf8 >>= S.toList
-  _ <- S.waitForProcess pid
-  case hashes of
-    (hash:path:_) -> return (T.unpack path, fetch { sha256 = Just hash })
-    _ -> S.supply err S.stderr >> error ("unable to prefetch " ++ T.unpack url)
+  bracket
+    (S.runInteractiveProcess "nix-prefetch-hg" args Nothing Nothing)
+    (\(_, _, _, pid) -> S.waitForProcess pid)
+    (\(_, out, err, _) -> do
+         hashes <- S.lines out >>= S.decodeUtf8 >>= S.toList
+         case hashes of
+           (hash:path:_) -> return (T.unpack path, fetch { sha256 = Just hash })
+           _ -> S.supply err S.stderr >> error ("unable to prefetch " ++ T.unpack url))
 
 prefetch name fetch@(CVS {..}) = do
   let args = [T.unpack url, T.unpack (fromMaybe name cvsModule)]
-  (_, out, err, pid) <- S.runInteractiveProcess "nix-prefetch-cvs" args Nothing Nothing
-  hashes <- S.lines out >>= S.decodeUtf8 >>= S.toList
-  _ <- S.waitForProcess pid
-  case hashes of
-    (hash:path:_) -> return (T.unpack path, fetch { sha256 = Just hash })
-    _ -> S.supply err S.stderr >> error ("unable to prefetch " ++ T.unpack url)
+  bracket
+    (S.runInteractiveProcess "nix-prefetch-cvs" args Nothing Nothing)
+    (\(_, _, _, pid) -> S.waitForProcess pid)
+    (\(_, out, err, _) -> do
+         hashes <- S.lines out >>= S.decodeUtf8 >>= S.toList
+         case hashes of
+           (hash:path:_) -> return (T.unpack path, fetch { sha256 = Just hash })
+           _ -> S.supply err S.stderr >> error ("unable to prefetch " ++ T.unpack url))
 
 prefetch _ fetch@(SVN {..}) = do
   let args = [T.unpack url, T.unpack rev]
-  (_, out, err, pid) <- S.runInteractiveProcess "nix-prefetch-svn" args Nothing Nothing
-  hashes <- S.lines out >>= S.decodeUtf8 >>= S.toList
-  _ <- S.waitForProcess pid
-  case hashes of
-    (hash:path:_) -> return (T.unpack path, fetch { sha256 = Just hash })
-    _ -> S.supply err S.stderr >> error ("unable to prefetch " ++ T.unpack url)
+  bracket
+    (S.runInteractiveProcess "nix-prefetch-svn" args Nothing Nothing)
+    (\(_, _, _, pid) -> S.waitForProcess pid)
+    (\(_, out, err, _) -> do
+         hashes <- S.lines out >>= S.decodeUtf8 >>= S.toList
+         case hashes of
+           (hash:path:_) -> return (T.unpack path, fetch { sha256 = Just hash })
+           _ -> S.supply err S.stderr >> error ("unable to prefetch " ++ T.unpack url))
