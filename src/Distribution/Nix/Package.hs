@@ -12,8 +12,8 @@ import GHC.Generics
 
 import Distribution.Nix.Fetch
 
-data Build = MelpaPackage { recipe :: Text, deps :: [Text] }
-           | ElpaPackage { deps :: [Text] }
+data Build = MelpaPackage { recipe :: !Text, deps :: ![Text] }
+           | ElpaPackage { deps :: ![Text] }
            deriving Generic
 
 buildOptions :: Options
@@ -32,9 +32,9 @@ instance ToJSON Build where
   toJSON = genericToJSON buildOptions
 
 data Package = Package
-               { version :: Text
-               , fetch :: Fetch
-               , build :: Build
+               { version :: !Text
+               , fetch :: !Fetch
+               , build :: !Build
                }
              deriving Generic
 
