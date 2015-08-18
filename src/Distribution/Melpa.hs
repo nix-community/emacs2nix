@@ -13,8 +13,8 @@ import Data.Aeson (parseJSON)
 import Data.Aeson.Parser (json')
 import Data.Aeson.Types (parseEither, parseMaybe)
 import Data.Char (isHexDigit)
-import Data.Map (Map)
-import qualified Data.Map as M
+import Data.Map.Strict (Map)
+import qualified Data.Map.Strict as M
 import Data.Monoid ((<>))
 import Data.Text (Text)
 import qualified Data.Text as T
@@ -73,6 +73,14 @@ getPackage melpaDir workDir name recipe = Concurrently $ do
                 GitHub {..} -> do
                   rev <- revision_Git name branch sourceDir
                   let url = "git://github.com/" <> repo <> ".git"
+                  return Nix.Git { Nix.url = url
+                                 , Nix.rev = rev
+                                 , Nix.branchName = branch
+                                 , Nix.sha256 = Nothing
+                                 }
+                GitLab {..} -> do
+                  rev <- revision_Git name branch sourceDir
+                  let url = "https://gitlab.com/" <> repo <> ".git"
                   return Nix.Git { Nix.url = url
                                  , Nix.rev = rev
                                  , Nix.branchName = branch
