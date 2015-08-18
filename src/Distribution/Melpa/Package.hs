@@ -90,15 +90,18 @@ getDeps packageBuildEl recipeFile packageName sourceDirOrEl = do
                , "-l", getDepsEl
                , "-f", "get-deps", recipeFile, T.unpack packageName, sourceDir
                ]
-    (_, out, _, _) <- S.runInteractiveProcess "emacs" args Nothing Nothing
-    result <- parseEither parseJSON <$> S.parseFromStream json' out
-    let anyerr txt = "error parsing dependencies in "
-                     <> T.pack sourceDir <> ":\n" <> txt
-    case result of
-      Left errmsg -> do
-        S.write (Just $ anyerr $ T.pack errmsg) =<< S.encodeUtf8 S.stderr
-        return Nothing
-      Right deps_ -> return $ Just deps_
+    bracket
+      (S.runInteractiveProcess "emacs" args Nothing Nothing)
+      (\(_, _, _, pid) -> S.waitForProcess pid)
+      (\(_, out, _, _) -> do
+           result <- parseEither parseJSON <$> S.parseFromStream json' out
+           let anyerr txt = "error parsing dependencies in "
+                            <> T.pack sourceDir <> ":\n" <> txt
+           case result of
+             Left errmsg -> do
+               S.write (Just $ anyerr $ T.pack errmsg) =<< S.encodeUtf8 S.stderr
+               return Nothing
+             Right deps_ -> return $ Just deps_)
 
 getVersion :: FilePath -> FilePath -> Text -> FilePath -> MaybeT IO Text
 getVersion packageBuildEl recipeFile packageName sourceDir = do
@@ -108,6 +111,7 @@ getVersion packageBuildEl recipeFile packageName sourceDir = do
              , "-l", checkoutEl
              , "-f", "checkout", recipeFile, T.unpack packageName, sourceDir
              ]
-  handleAll $ MaybeT $ do
-    (_, out, _, _) <- S.runInteractiveProcess "emacs" args Nothing Nothing
-    S.fold (<>) Nothing =<< S.map Just =<< S.decodeUtf8 out
+  handleAll $ MaybeT $ bracket
+    (S.runInteractiveProcess "emacs" args Nothing Nothing)
+    (\(_, _, _, pid) -> S.waitForProcess pid)
+    (\(_, out, _, _) -> S.fold (<>) Nothing =<< S.map Just =<< S.decodeUtf8 out)

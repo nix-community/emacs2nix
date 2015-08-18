@@ -6,7 +6,7 @@ module Distribution.Melpa (getMelpa, readMelpa) where
 
 import Control.Concurrent.Async (Concurrently(..))
 import Control.Error hiding (err)
-import Control.Exception (SomeException(..), handle)
+import Control.Exception (SomeException(..), bracket, handle)
 import Control.Monad (MonadPlus(..), liftM)
 import Control.Monad.IO.Class
 import Data.Aeson (parseJSON)
@@ -135,9 +135,10 @@ getVersion packageBuildEl recipeFile packageName sourceDir = do
              , "-l", checkoutEl
              , "-f", "checkout", recipeFile, T.unpack packageName, sourceDir
              ]
-  handleAll $ MaybeT $ do
-    (_, out, _, _) <- S.runInteractiveProcess "emacs" args Nothing Nothing
-    S.fold (<>) Nothing =<< S.map Just =<< S.decodeUtf8 out
+  handleAll $ MaybeT (bracket
+    (S.runInteractiveProcess "emacs" args Nothing Nothing)
+    (\(_, _, _, pid) -> S.waitForProcess pid)
+    (\(_, out, _, _) -> S.fold (<>) Nothing =<< S.map Just =<< S.decodeUtf8 out))
 
 getDeps :: FilePath -> FilePath -> Text -> FilePath -> MaybeT IO (Map Text [Integer])
 getDeps packageBuildEl recipeFile packageName sourceDirOrEl = do
@@ -157,42 +158,48 @@ getDeps packageBuildEl recipeFile packageName sourceDirOrEl = do
                , "-l", getDepsEl
                , "-f", "get-deps", recipeFile, T.unpack packageName, sourceDir
                ]
-    (_, out, _, _) <- S.runInteractiveProcess "emacs" args Nothing Nothing
-    result <- parseEither parseJSON <$> S.parseFromStream json' out
-    let anyerr txt = "error parsing dependencies in "
-                     <> T.pack sourceDir <> ":\n" <> txt
-    case result of
-      Left errmsg -> do
-        S.write (Just $ anyerr $ T.pack errmsg) =<< S.encodeUtf8 S.stderr
-        return Nothing
-      Right deps_ -> return $ Just deps_
+    bracket
+      (S.runInteractiveProcess "emacs" args Nothing Nothing)
+      (\(_, _, _, pid) -> S.waitForProcess pid)
+      (\(_, out, _, _) -> do
+           result <- parseEither parseJSON <$> S.parseFromStream json' out
+           let anyerr txt = "error parsing dependencies in "
+                            <> T.pack sourceDir <> ":\n" <> txt
+           case result of
+             Left errmsg -> do
+               S.write (Just $ anyerr $ T.pack errmsg) =<< S.encodeUtf8 S.stderr
+               return Nothing
+             Right deps_ -> return $ Just deps_)
 
 revision_Bzr :: Text -> FilePath -> MaybeT IO Text
 revision_Bzr name tmp = handleAll $ MaybeT $ do
   let args = [ "log", "-l1", tmp ]
-  (_, out, _, pid) <- S.runInteractiveProcess "bzr" args Nothing Nothing
-  let getRevno = (T.strip <$>) . T.stripPrefix "revno:"
-  revnos <- liftM (mapMaybe getRevno)
-            $ S.lines out >>= S.decodeUtf8 >>= S.toList
-  _ <- S.waitForProcess pid
-  case revnos of
-    (rev:_) -> return (Just rev)
-    _ -> do
-      let errmsg = name <> ": could not find revision"
-      S.write (Just errmsg) =<< S.encodeUtf8 S.stderr
-      return Nothing
+  bracket
+    (S.runInteractiveProcess "bzr" args Nothing Nothing)
+    (\(_, _, _, pid) -> S.waitForProcess pid)
+    (\(_, out, _, _) -> do
+         let getRevno = (T.strip <$>) . T.stripPrefix "revno:"
+         revnos <- liftM (mapMaybe getRevno)
+                   $ S.lines out >>= S.decodeUtf8 >>= S.toList
+         case revnos of
+           (rev:_) -> return (Just rev)
+           _ -> do
+             let errmsg = name <> ": could not find revision"
+             S.write (Just errmsg) =<< S.encodeUtf8 S.stderr
+             return Nothing)
 
 revision_Git :: Text -> Maybe Text -> FilePath -> MaybeT IO Text
-revision_Git name branch tmp = MaybeT $ do
-  (_, out, _, pid) <- S.runInteractiveProcess "git" gitArgs (Just tmp) Nothing
-  revs <- S.lines out >>= S.decodeUtf8 >>= S.toList
-  _ <- S.waitForProcess pid
-  case revs of
-    (rev:_) -> return (Just rev)
-    _ -> do
-      let errmsg = name <> ": could not find revision"
-      S.write (Just errmsg) =<< S.encodeUtf8 S.stderr
-      return Nothing
+revision_Git name branch tmp = MaybeT $ bracket
+  (S.runInteractiveProcess "git" gitArgs (Just tmp) Nothing)
+  (\(_, _, _, pid) -> S.waitForProcess pid)
+  (\(_, out, _, _) -> do
+       revs <- S.lines out >>= S.decodeUtf8 >>= S.toList
+       case revs of
+         (rev:_) -> return (Just rev)
+         _ -> do
+           let errmsg = name <> ": could not find revision"
+           S.write (Just errmsg) =<< S.encodeUtf8 S.stderr
+           return Nothing)
   where
     fullBranch = do
         branch_ <- branch
@@ -203,17 +210,18 @@ revision_Git name branch tmp = MaybeT $ do
               ++ maybeToList fullBranch
 
 revision_Hg :: Text -> FilePath -> MaybeT IO Text
-revision_Hg name tmp = handleAll $ MaybeT $ do
-  (_, out, _, pid) <- S.runInteractiveProcess "hg" ["tags"] (Just tmp) Nothing
-  lines_ <- S.lines out >>= S.decodeUtf8 >>= S.toList
-  let revs = catMaybes (hgRev <$> lines_)
-  _ <- S.waitForProcess pid
-  case revs of
-    (rev:_) -> return (Just rev)
-    _ -> do
-      let errmsg = name <> ": could not find revision"
-      S.write (Just errmsg) =<< S.encodeUtf8 S.stderr
-      return Nothing
+revision_Hg name tmp = handleAll $ MaybeT $ bracket
+  (S.runInteractiveProcess "hg" ["tags"] (Just tmp) Nothing)
+  (\(_, _, _, pid) -> S.waitForProcess pid)
+  (\(_, out, _, _) -> do
+       lines_ <- S.lines out >>= S.decodeUtf8 >>= S.toList
+       let revs = catMaybes (hgRev <$> lines_)
+       case revs of
+         (rev:_) -> return (Just rev)
+         _ -> do
+           let errmsg = name <> ": could not find revision"
+           S.write (Just errmsg) =<< S.encodeUtf8 S.stderr
+           return Nothing)
   where
     hgRev txt = do
         afterTip <- T.strip <$> T.stripPrefix "tip" txt
@@ -223,17 +231,18 @@ revision_Hg name tmp = handleAll $ MaybeT $ do
           else return rev
 
 revision_SVN :: Text -> FilePath -> MaybeT IO Text
-revision_SVN name tmp = handleAll $ MaybeT $ do
-  (_, out, _, pid) <- S.runInteractiveProcess "svn" ["info"] (Just tmp) Nothing
-  lines_ <- S.lines out >>= S.decodeUtf8 >>= S.toList
-  let revs = catMaybes (svnRev <$> lines_)
-  _ <- S.waitForProcess pid
-  case revs of
-    (rev:_) -> return (Just rev)
-    _ -> do
-      let errmsg = name <> ": could not find revision"
-      S.write (Just errmsg) =<< S.encodeUtf8 S.stderr
-      return Nothing
+revision_SVN name tmp = handleAll $ MaybeT $ bracket
+  (S.runInteractiveProcess "svn" ["info"] (Just tmp) Nothing)
+  (\(_, _, _, pid) -> S.waitForProcess pid)
+  (\(_, out, _, _) -> do
+       lines_ <- S.lines out >>= S.decodeUtf8 >>= S.toList
+       let revs = catMaybes (svnRev <$> lines_)
+       case revs of
+         (rev:_) -> return (Just rev)
+         _ -> do
+           let errmsg = name <> ": could not find revision"
+           S.write (Just errmsg) =<< S.encodeUtf8 S.stderr
+           return Nothing)
   where
     svnRev = fmap T.strip . T.stripPrefix "Revision:"
 
