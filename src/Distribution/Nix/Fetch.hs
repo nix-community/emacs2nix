@@ -4,19 +4,21 @@
 
 module Distribution.Nix.Fetch where
 
-import Control.Exception (bracket)
+import Control.Error
+import Control.Monad.IO.Class
 import Data.Aeson (FromJSON(..), ToJSON(..))
 import Data.Aeson.Types
   ( Options(..), SumEncoding(..), defaultOptions
   , genericParseJSON, genericToJSON )
 import qualified Data.Char as Char
 import qualified Data.Map.Strict as M
-import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import qualified Data.Text as T
 import GHC.Generics
 import System.Environment (getEnvironment)
 import qualified System.IO.Streams as S
+
+import Util (runInteractiveProcess)
 
 data Fetch = URL { url :: Text, sha256 :: Maybe Text }
            | Git { url :: Text, rev :: Text, branchName :: Maybe Text, sha256 :: Maybe Text }
@@ -45,74 +47,59 @@ instance FromJSON Fetch where
 instance ToJSON Fetch where
   toJSON = genericToJSON fetchOptions
 
-prefetch :: Text -> Fetch -> IO (FilePath, Fetch)
+addToEnv :: MonadIO m => String -> String -> m [(String, String)]
+addToEnv var val = liftIO $ M.toList . M.insert var val . M.fromList <$> getEnvironment
+
+prefetch :: Text -> Fetch -> EitherT String IO (FilePath, Fetch)
 
 prefetch _ fetch@(URL {..}) = do
   let args = [T.unpack url]
-  oldEnv <- M.fromList <$> getEnvironment
-  let env = M.toList (M.insert "PRINT_PATH" "1" oldEnv)
-  bracket
-    (S.runInteractiveProcess "nix-prefetch-url" args Nothing (Just env))
-    (\(_, _, _, pid) -> S.waitForProcess pid)
-    (\(_, out, err, _) -> do
-         hashes <- S.lines out >>= S.decodeUtf8 >>= S.toList
-         case hashes of
-           (hash:path:_) -> return (T.unpack path, fetch { sha256 = Just hash })
-           _ -> S.supply err S.stderr >> error ("unable to prefetch " ++ T.unpack url))
+  env <- addToEnv "PRINT_PATH" "1"
+  runInteractiveProcess "nix-prefetch-url" args Nothing (Just env) $ \out -> EitherT $ do
+    hashes <- S.lines out >>= S.decodeUtf8 >>= S.toList
+    case hashes of
+      (hash:path:_) -> return (Right (T.unpack path, fetch { sha256 = Just hash }))
+      _ -> return (Left "unable to prefetch")
 
 prefetch _ fetch@(Git {..}) = do
   let args = ["--url", T.unpack url, "--rev", T.unpack rev]
              ++ fromMaybe [] (do name <- branchName
                                  return ["--branch-name", T.unpack name])
-  bracket
-    (S.runInteractiveProcess "nix-prefetch-git" args Nothing Nothing)
-    (\(_, _, _, pid) -> S.waitForProcess pid)
-    (\(_, out, err, _) -> do
-         hashes <- S.lines out >>= S.decodeUtf8 >>= S.toList
-         case hashes of
-           (_:hash:path:_) -> return (T.unpack path, fetch { sha256 = Just hash })
-           _ -> S.supply err S.stderr >> error ("unable to prefetch " ++ T.unpack url))
+  env <- addToEnv "PRINT_PATH" "1"
+  runInteractiveProcess "nix-prefetch-git" args Nothing (Just env) $ \out -> EitherT $ do
+    hashes <- S.lines out >>= S.decodeUtf8 >>= S.toList
+    case hashes of
+      (_:_:hash:path:_) -> return (Right (T.unpack path, fetch { sha256 = Just hash }))
+      _ -> return (Left "unable to prefetch")
 
 prefetch _ fetch@(Bzr {..}) = do
   let args = [T.unpack url, T.unpack rev]
-  bracket
-    (S.runInteractiveProcess "nix-prefetch-bzr" args Nothing Nothing)
-    (\(_, _, _, pid) -> S.waitForProcess pid)
-    (\(_, out, err, _) -> do
-         hashes <- S.lines out >>= S.decodeUtf8 >>= S.toList
-         case hashes of
-           (hash:path:_) -> return (T.unpack path, fetch { sha256 = Just hash })
-           _ -> S.supply err S.stderr >> error ("unable to prefetch " ++ T.unpack url))
+  runInteractiveProcess "nix-prefetch-bzr" args Nothing Nothing $ \out -> EitherT $ do
+    hashes <- S.lines out >>= S.decodeUtf8 >>= S.toList
+    case hashes of
+      (hash:path:_) -> return (Right (T.unpack path, fetch { sha256 = Just hash }))
+      _ -> return (Left "unable to prefetch")
 
 prefetch _ fetch@(Hg {..}) = do
   let args = [T.unpack url, T.unpack rev]
-  bracket
-    (S.runInteractiveProcess "nix-prefetch-hg" args Nothing Nothing)
-    (\(_, _, _, pid) -> S.waitForProcess pid)
-    (\(_, out, err, _) -> do
-         hashes <- S.lines out >>= S.decodeUtf8 >>= S.toList
-         case hashes of
-           (hash:path:_) -> return (T.unpack path, fetch { sha256 = Just hash })
-           _ -> S.supply err S.stderr >> error ("unable to prefetch " ++ T.unpack url))
+  runInteractiveProcess "nix-prefetch-hg" args Nothing Nothing $ \out -> EitherT $ do
+    hashes <- S.lines out >>= S.decodeUtf8 >>= S.toList
+    case hashes of
+      (hash:path:_) -> return (Right (T.unpack path, fetch { sha256 = Just hash }))
+      _ -> return (Left "unable to prefetch")
 
 prefetch name fetch@(CVS {..}) = do
   let args = [T.unpack url, T.unpack (fromMaybe name cvsModule)]
-  bracket
-    (S.runInteractiveProcess "nix-prefetch-cvs" args Nothing Nothing)
-    (\(_, _, _, pid) -> S.waitForProcess pid)
-    (\(_, out, err, _) -> do
-         hashes <- S.lines out >>= S.decodeUtf8 >>= S.toList
-         case hashes of
-           (hash:path:_) -> return (T.unpack path, fetch { sha256 = Just hash })
-           _ -> S.supply err S.stderr >> error ("unable to prefetch " ++ T.unpack url))
+  runInteractiveProcess "nix-prefetch-cvs" args Nothing Nothing $ \out -> EitherT $ do
+    hashes <- S.lines out >>= S.decodeUtf8 >>= S.toList
+    case hashes of
+      (hash:path:_) -> return (Right (T.unpack path, fetch { sha256 = Just hash }))
+      _ -> return (Left "unable to prefetch")
 
 prefetch _ fetch@(SVN {..}) = do
   let args = [T.unpack url, T.unpack rev]
-  bracket
-    (S.runInteractiveProcess "nix-prefetch-svn" args Nothing Nothing)
-    (\(_, _, _, pid) -> S.waitForProcess pid)
-    (\(_, out, err, _) -> do
-         hashes <- S.lines out >>= S.decodeUtf8 >>= S.toList
-         case hashes of
-           (hash:path:_) -> return (T.unpack path, fetch { sha256 = Just hash })
-           _ -> S.supply err S.stderr >> error ("unable to prefetch " ++ T.unpack url))
+  runInteractiveProcess "nix-prefetch-svn" args Nothing Nothing $ \out -> EitherT $ do
+    hashes <- S.lines out >>= S.decodeUtf8 >>= S.toList
+    case hashes of
+      (hash:path:_) -> return (Right (T.unpack path, fetch { sha256 = Just hash }))
+      _ -> return (Left "unable to prefetch")

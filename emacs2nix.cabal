@@ -27,6 +27,7 @@ library
     Distribution.Nix.Package
   other-modules:
     Paths_emacs2nix
+    Util
   hs-source-dirs: src
   build-depends:
       base >= 4.7 && < 5
@@ -74,6 +75,7 @@ executable elpa2nix
     , bytestring
     , containers
     , emacs2nix
+    , errors
     , filepath
     , io-streams
     , optparse-applicative >= 0.11

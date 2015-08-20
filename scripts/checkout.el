@@ -10,5 +10,5 @@
     (`(,recipe-file ,package-name ,work-dir)
      (progn
        (setq package-build-verbose nil)
-       (let* ((recipe (cdr (pb/read-from-file recipe-file))))
+       (let* ((recipe (cdr (package-build--read-from-file recipe-file))))
          (princ (package-build-checkout package-name recipe (file-name-as-directory work-dir))))))))

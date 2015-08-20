@@ -10,6 +10,7 @@ import Control.Applicative
 #endif
 import Control.Concurrent (setNumCapabilities)
 import Control.Concurrent.Async (Concurrently(..))
+import Control.Error
 import Control.Exception (SomeException(..), handle)
 import Control.Monad (join, when)
 import Data.Aeson (FromJSON(..), json')
@@ -18,7 +19,6 @@ import Data.Aeson.Types (parseMaybe)
 import Data.ByteString (ByteString)
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as M
-import Data.Maybe (mapMaybe)
 import Data.Text (Text)
 import qualified Data.Text as T
 import Options.Applicative
@@ -100,10 +100,10 @@ hashPackage server name pkg = Concurrently $ handle brokenPkg $ do
               "tar" -> "tar"
               other -> error (nameS ++ ": unrecognized distribution type " ++ T.unpack other)
       url = server </> basename <.> ext
-  (_, fetcher) <- Nix.prefetch name
-                  Nix.URL { Nix.url = T.pack url
-                          , Nix.sha256 = Nothing
-                          }
+  let fetch = Nix.URL { Nix.url = T.pack url
+                      , Nix.sha256 = Nothing
+                      }
+  Right (_, fetcher) <- runEitherT (Nix.prefetch name fetch)
   return $ Just Nix.Package
     { Nix.version = ver
     , Nix.fetch = fetcher
