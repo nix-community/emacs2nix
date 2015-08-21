@@ -53,6 +53,7 @@ executable melpa2nix
   main-is: melpa2nix.hs
   build-depends:
       base
+    , aeson
     , aeson-pretty >= 0.7.2 && < 1
     , containers
     , directory

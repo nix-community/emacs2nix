@@ -15,7 +15,7 @@ import Data.Aeson (parseJSON)
 import Data.Aeson.Parser (json')
 import Data.Aeson.Types (parseEither, parseMaybe)
 import Data.Char (isHexDigit)
-import Data.Map.Strict (Map)
+import Data.Map.Strict ( Map )
 import qualified Data.Map.Strict as M
 import Data.Monoid ((<>))
 import Data.Set ( Set )
@@ -45,9 +45,11 @@ readMelpa packagesJson =
   (S.withFileAsInput packagesJson $ \inp ->
        parseMaybe parseJSON <$> S.parseFromStream json' inp)
 
-getMelpa :: Int -> FilePath -> FilePath -> Set Text
+getMelpa :: Int -> FilePath -> FilePath
+         -> Map Text Nix.Package
+         -> Set Text
          -> IO (Map Text Nix.Package)
-getMelpa nthreads melpaDir workDir packages = do
+getMelpa nthreads melpaDir workDir oldPackages packages = do
   Right melpaCommit <- runEitherT $ revision_Git Nothing melpaDir
 
   recipes <- readRecipes melpaDir
@@ -60,7 +62,10 @@ getMelpa nthreads melpaDir workDir packages = do
           = getPackage sem melpaDir melpaCommit workDir name recipe
         | otherwise
           = return Nothing
-  catMaybesMap <$> runConcurrently (M.traverseWithKey getPackage_ recipes)
+      getPackages = M.traverseWithKey getPackage_ recipes
+  newPackages <- catMaybesMap <$> runConcurrently getPackages
+
+  return (oldPackages <> newPackages)
   where
     catMaybesMap = M.fromList . mapMaybe liftMaybe . M.toList
     liftMaybe (x, y) = (,) x <$> y

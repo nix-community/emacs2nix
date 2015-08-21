@@ -5,14 +5,20 @@
 module Main where
 
 import Control.Concurrent (setNumCapabilities)
+import Control.Exception ( SomeException(..), handle )
 import Control.Monad (join, when)
+import qualified Data.Map.Strict as Map
 import Data.Set ( Set )
 import qualified Data.Set as Set
 import Data.Aeson.Encode.Pretty (encodePretty)
+import Data.Aeson.Parser ( json' )
+import Data.Aeson.Types ( parseJSON, parseMaybe )
+import Data.Maybe ( fromMaybe )
 import Data.Text ( Text )
 import qualified Data.Text as T
 import Options.Applicative
 import qualified System.IO.Streams as S
+import qualified System.IO.Streams.Attoparsec as S
 
 import Distribution.Melpa
 
@@ -51,7 +57,11 @@ melpa2nix :: Int  -- ^ number of threads to use
 melpa2nix nthreads melpaDir workDir melpaOut packages = do
   when (nthreads > 0) $ setNumCapabilities nthreads
 
-  melpa <- getMelpa nthreads melpaDir workDir packages
+  oldPackages <- fromMaybe Map.empty <$> handle
+    (\(SomeException _) -> return Nothing)
+    (parseMaybe parseJSON <$> S.withFileAsInput melpaOut (S.parseFromStream json'))
+
+  melpa <- getMelpa nthreads melpaDir workDir oldPackages packages
 
   S.withFileAsOutput melpaOut $ \out -> do
     enc <- S.fromLazyByteString (encodePretty melpa)
