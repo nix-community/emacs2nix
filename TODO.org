@@ -6,8 +6,9 @@
   CLOSED: [2015-05-20 Wed 18:57]
 * DONE Completely separate ELPA and MELPA packages
   CLOSED: [2015-08-21 Fri 12:26]
+* DONE Take an optional list of packages to update on the command line
+  CLOSED: [2015-08-21 Fri 13:11]
 * TODO Re-use existing output
-* TODO Take an optional list of packages to update on the command line
 * TODO Option --update
   Only update packages already listed in the output file
 * TODO Option --new

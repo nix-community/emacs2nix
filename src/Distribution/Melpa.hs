@@ -9,7 +9,7 @@ import Control.Concurrent.Async (Concurrently(..))
 import Control.Concurrent.QSem
 import Control.Error hiding (err)
 import Control.Exception (SomeException(..), bracket, handle)
-import Control.Monad (MonadPlus(..), liftM)
+import Control.Monad ( liftM )
 import Control.Monad.IO.Class
 import Data.Aeson (parseJSON)
 import Data.Aeson.Parser (json')
@@ -18,6 +18,8 @@ import Data.Char (isHexDigit)
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as M
 import Data.Monoid ((<>))
+import Data.Set ( Set )
+import qualified Data.Set as Set
 import Data.Text (Text)
 import qualified Data.Text as T
 import System.Directory (createDirectoryIfMissing, copyFile, doesFileExist)
@@ -43,8 +45,9 @@ readMelpa packagesJson =
   (S.withFileAsInput packagesJson $ \inp ->
        parseMaybe parseJSON <$> S.parseFromStream json' inp)
 
-getMelpa :: Int -> FilePath -> FilePath -> IO (Map Text Nix.Package)
-getMelpa nthreads melpaDir workDir = do
+getMelpa :: Int -> FilePath -> FilePath -> Set Text
+         -> IO (Map Text Nix.Package)
+getMelpa nthreads melpaDir workDir packages = do
   Right melpaCommit <- runEitherT $ revision_Git Nothing melpaDir
 
   recipes <- readRecipes melpaDir
@@ -52,9 +55,14 @@ getMelpa nthreads melpaDir workDir = do
   createDirectoryIfMissing True workDir
 
   sem <- (if nthreads > 0 then pure nthreads else getNumCapabilities) >>= newQSem
-  M.fromList . mapMaybe liftMaybe . M.toList
-    <$> runConcurrently (M.traverseWithKey (getPackage sem melpaDir melpaCommit workDir) recipes)
+  let getPackage_ name recipe
+        | Set.null packages || Set.member name packages
+          = getPackage sem melpaDir melpaCommit workDir name recipe
+        | otherwise
+          = return Nothing
+  catMaybesMap <$> runConcurrently (M.traverseWithKey getPackage_ recipes)
   where
+    catMaybesMap = M.fromList . mapMaybe liftMaybe . M.toList
     liftMaybe (x, y) = (,) x <$> y
 
 getPackage :: QSem -> FilePath -> Text -> FilePath -> Text -> Recipe

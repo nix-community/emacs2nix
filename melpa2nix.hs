@@ -6,7 +6,11 @@ module Main where
 
 import Control.Concurrent (setNumCapabilities)
 import Control.Monad (join, when)
+import Data.Set ( Set )
+import qualified Data.Set as Set
 import Data.Aeson.Encode.Pretty (encodePretty)
+import Data.Text ( Text )
+import qualified Data.Text as T
 import Options.Applicative
 import qualified System.IO.Streams as S
 
@@ -24,6 +28,7 @@ main = join (execParser (info (helper <*> parser) desc))
       <*> melpa
       <*> work
       <*> output
+      <*> packages
       where
         threads = option auto (long "threads" <> short 't' <> metavar "N"
                               <> help "use N threads; default is number of CPUs")
@@ -33,16 +38,20 @@ main = join (execParser (info (helper <*> parser) desc))
                           <> help "path to temporary workspace")
         output = strOption (long "output" <> short 'o' <> metavar "FILE"
                             <> help "dump MELPA data to FILE")
+        packages = Set.fromList . map T.pack
+                   <$> many (strArgument
+                             (metavar "PACKAGE" <> help "only work on PACKAGE"))
 
 melpa2nix :: Int  -- ^ number of threads to use
           -> FilePath  -- ^ path to MELPA repository
           -> FilePath  -- ^ temporary workspace
           -> FilePath  -- ^ dump MELPA recipes here
+          -> Set Text
           -> IO ()
-melpa2nix nthreads melpaDir workDir melpaOut = do
+melpa2nix nthreads melpaDir workDir melpaOut packages = do
   when (nthreads > 0) $ setNumCapabilities nthreads
 
-  melpa <- getMelpa nthreads melpaDir workDir
+  melpa <- getMelpa nthreads melpaDir workDir packages
 
   S.withFileAsOutput melpaOut $ \out -> do
     enc <- S.fromLazyByteString (encodePretty melpa)
