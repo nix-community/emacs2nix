@@ -32,6 +32,7 @@ main = join (execParser (info (helper <*> parser) desc))
       melpa2nix
       <$> (threads <|> pure 0)
       <*> melpa
+      <*> stable
       <*> work
       <*> output
       <*> packages
@@ -40,6 +41,8 @@ main = join (execParser (info (helper <*> parser) desc))
                               <> help "use N threads; default is number of CPUs")
         melpa = strOption (long "melpa" <> metavar "DIR"
                            <> help "path to MELPA repository")
+        stable = switch (long "stable"
+                         <> help "generate packages from MELPA Stable")
         work = strOption (long "work" <> metavar "DIR"
                           <> help "path to temporary workspace")
         output = strOption (long "output" <> short 'o' <> metavar "FILE"
@@ -50,18 +53,19 @@ main = join (execParser (info (helper <*> parser) desc))
 
 melpa2nix :: Int  -- ^ number of threads to use
           -> FilePath  -- ^ path to MELPA repository
+          -> Bool      -- ^ generate packages from MELPA Stable
           -> FilePath  -- ^ temporary workspace
           -> FilePath  -- ^ dump MELPA recipes here
           -> Set Text
           -> IO ()
-melpa2nix nthreads melpaDir workDir melpaOut packages = do
+melpa2nix nthreads melpaDir stable workDir melpaOut packages = do
   when (nthreads > 0) $ setNumCapabilities nthreads
 
   oldPackages <- fromMaybe Map.empty <$> handle
     (\(SomeException _) -> return Nothing)
     (parseMaybe parseJSON <$> S.withFileAsInput melpaOut (S.parseFromStream json'))
 
-  melpa <- getMelpa nthreads melpaDir workDir oldPackages packages
+  melpa <- getMelpa nthreads melpaDir stable workDir oldPackages packages
 
   S.withFileAsOutput melpaOut $ \out -> do
     enc <- S.fromLazyByteString (encodePretty melpa)

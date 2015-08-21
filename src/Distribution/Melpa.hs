@@ -45,11 +45,14 @@ readMelpa packagesJson =
   (S.withFileAsInput packagesJson $ \inp ->
        parseMaybe parseJSON <$> S.parseFromStream json' inp)
 
-getMelpa :: Int -> FilePath -> FilePath
+getMelpa :: Int
+         -> FilePath
+         -> Bool
+         -> FilePath
          -> Map Text Nix.Package
          -> Set Text
          -> IO (Map Text Nix.Package)
-getMelpa nthreads melpaDir workDir oldPackages packages = do
+getMelpa nthreads melpaDir stable workDir oldPackages packages = do
   Right melpaCommit <- runEitherT $ revision_Git Nothing melpaDir
 
   recipes <- readRecipes melpaDir
@@ -59,7 +62,7 @@ getMelpa nthreads melpaDir workDir oldPackages packages = do
   sem <- (if nthreads > 0 then pure nthreads else getNumCapabilities) >>= newQSem
   let getPackage_ name recipe
         | Set.null packages || Set.member name packages
-          = getPackage sem melpaDir melpaCommit workDir name recipe
+          = getPackage sem melpaDir melpaCommit stable workDir name recipe
         | otherwise
           = return Nothing
       getPackages = M.traverseWithKey getPackage_ recipes
@@ -70,16 +73,16 @@ getMelpa nthreads melpaDir workDir oldPackages packages = do
     catMaybesMap = M.fromList . mapMaybe liftMaybe . M.toList
     liftMaybe (x, y) = (,) x <$> y
 
-getPackage :: QSem -> FilePath -> Text -> FilePath -> Text -> Recipe
+getPackage :: QSem -> FilePath -> Text -> Bool -> FilePath -> Text -> Recipe
            -> Concurrently (Maybe Nix.Package)
-getPackage sem melpaDir melpaCommit workDir name recipe
+getPackage sem melpaDir melpaCommit stable workDir name recipe
   = Concurrently $ bracket (waitQSem sem) (\_ -> signalQSem sem) $ \_ -> do
     let packageBuildEl = melpaDir </> "package-build.el"
         recipeFile = melpaDir </> "recipes" </> T.unpack name
         sourceDir = workDir </> T.unpack name
     result <- runEitherT $ do
       recipeHash <- Nix.hash recipeFile
-      version <- getVersion packageBuildEl recipeFile name sourceDir
+      version <- getVersion packageBuildEl stable recipeFile name sourceDir
       fetch0 <- case recipe of
                   Bzr {..} -> do
                     rev <- revision_Bzr sourceDir
@@ -151,13 +154,15 @@ getPackage sem melpaDir melpaCommit workDir name recipe
         return Nothing
       Right pkg -> return (Just pkg)
 
-getVersion :: FilePath -> FilePath -> Text -> FilePath -> EitherT String IO Text
-getVersion packageBuildEl recipeFile packageName sourceDir = do
+getVersion :: FilePath -> Bool -> FilePath -> Text -> FilePath
+           -> EitherT String IO Text
+getVersion packageBuildEl stable recipeFile packageName sourceDir = do
   checkoutEl <- liftIO (getDataFileName "checkout.el")
   let args = [ "--batch"
              , "-l", packageBuildEl
              , "-l", checkoutEl
-             , "-f", "checkout", recipeFile, T.unpack packageName, sourceDir
+             , "-f", if stable then "checkout-stable" else "checkout"
+             , recipeFile, T.unpack packageName, sourceDir
              ]
   runInteractiveProcess "emacs" args Nothing Nothing $ \out -> EitherT $ do
     result <- S.fold (<>) Nothing =<< S.map Just =<< S.decodeUtf8 out
