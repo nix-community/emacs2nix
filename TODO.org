@@ -10,7 +10,8 @@
   CLOSED: [2015-08-21 Fri 13:11]
 * DONE Re-use existing output
   CLOSED: [2015-08-21 Fri 13:45]
-* TODO Remove obsolete modules
+* DONE Remove obsolete modules
+  CLOSED: [2015-08-21 Fri 13:57]
 * TODO Generate packages from MELPA Stable
 * TODO Option --update
   Only update packages already listed in the output file
