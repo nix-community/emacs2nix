@@ -5,3 +5,9 @@
 * TODO Take an optional list of packages to update on the command line
 * DONE Use multiple threads
   CLOSED: [2015-05-20 Wed 18:57]
+* TODO Re-use existing output
+* TODO Option --update
+  Only update packages already listed in the output file
+* TODO Option --new
+  Only generate packages not listed in the output file
+* TODO Completely separate ELPA and MELPA packages
