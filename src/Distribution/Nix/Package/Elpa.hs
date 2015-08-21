@@ -1,25 +1,26 @@
 {-# LANGUAGE DeriveGeneric #-}
 
-module Distribution.Nix.Package where
+module Distribution.Nix.Package.Elpa
+       ( Package(..)
+       ) where
 
 import Data.Aeson ( FromJSON(..), ToJSON(..) )
 import Data.Aeson.Types ( defaultOptions, genericParseJSON, genericToJSON )
-import Data.Text (Text)
+import Data.Text ( Text )
 import GHC.Generics
 
-import Distribution.Nix.Fetch
+import Distribution.Nix.Fetch ( Fetch )
 
-data Package build
+data Package
   = Package
     { version :: !Text
     , fetch :: !Fetch
-    , build :: !build
     , deps :: ![Text]
     }
   deriving Generic
 
-instance FromJSON build => FromJSON (Package build) where
+instance FromJSON Package where
   parseJSON = genericParseJSON defaultOptions
 
-instance ToJSON build => ToJSON (Package build) where
+instance ToJSON Package where
   toJSON = genericToJSON defaultOptions

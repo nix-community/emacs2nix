@@ -30,22 +30,20 @@ import System.IO.Temp (withSystemTempDirectory)
 import Distribution.Melpa.Recipe
 import qualified Distribution.Nix.Fetch as Nix
 import qualified Distribution.Nix.Hash as Nix
-import Distribution.Nix.Package (Package)
-import qualified Distribution.Nix.Package as Nix
-import Distribution.Nix.Package.Melpa (Melpa)
+import qualified Distribution.Nix.Package.Melpa as Recipe ( Recipe(..) )
 import qualified Distribution.Nix.Package.Melpa as Nix
 
 import Paths_emacs2nix (getDataFileName)
 import Util (runInteractiveProcess)
 
-readMelpa :: FilePath -> IO (Maybe (Map Text (Package Melpa)))
+readMelpa :: FilePath -> IO (Maybe (Map Text Nix.Package))
 readMelpa packagesJson =
   handle
   (\(SomeException _) -> return Nothing)
   (S.withFileAsInput packagesJson $ \inp ->
        parseMaybe parseJSON <$> S.parseFromStream json' inp)
 
-getMelpa :: Int -> FilePath -> FilePath -> IO (Map Text (Package Melpa))
+getMelpa :: Int -> FilePath -> FilePath -> IO (Map Text Nix.Package)
 getMelpa nthreads melpaDir workDir = do
   Right melpaCommit <- runEitherT $ revision_Git Nothing melpaDir
 
@@ -60,7 +58,7 @@ getMelpa nthreads melpaDir workDir = do
     liftMaybe (x, y) = (,) x <$> y
 
 getPackage :: QSem -> FilePath -> Text -> FilePath -> Text -> Recipe
-           -> Concurrently (Maybe (Package Melpa))
+           -> Concurrently (Maybe Nix.Package)
 getPackage sem melpaDir melpaCommit workDir name recipe
   = Concurrently $ bracket (waitQSem sem) (\_ -> signalQSem sem) $ \_ -> do
     let packageBuildEl = melpaDir </> "package-build.el"
@@ -104,8 +102,8 @@ getPackage sem melpaDir melpaCommit workDir name recipe
                                    , Nix.cvsModule = cvsModule
                                    , Nix.sha256 = Nothing
                                    }
-                  Darcs {..} -> return (Left "fetcher 'darcs' not supported")
-                  Fossil {..} -> return (Left "fetcher 'fossil' not supported")
+                  Darcs {..} -> left "fetcher 'darcs' not supported"
+                  Fossil {..} -> left "fetcher 'fossil' not supported"
                   Hg {..} -> do
                     rev <- revision_Hg sourceDir
                     return Nix.Hg { Nix.url = url
@@ -129,10 +127,10 @@ getPackage sem melpaDir melpaCommit workDir name recipe
       return Nix.Package { Nix.version = version
                          , Nix.fetch = fetch
                          , Nix.deps = deps
-                         , Nix.build = Nix.Melpa
-                                       { Nix.commit = melpaCommit
-                                       , Nix.sha256 = recipeHash
-                                       }
+                         , Nix.recipe = Nix.Recipe
+                                        { Recipe.commit = melpaCommit
+                                        , Recipe.sha256 = recipeHash
+                                        }
                          }
     case result of
       Left err -> do

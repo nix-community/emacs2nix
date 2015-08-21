@@ -1,20 +1,39 @@
 {-# LANGUAGE DeriveGeneric #-}
 
-module Distribution.Nix.Package.Melpa where
+module Distribution.Nix.Package.Melpa
+       ( Package(..), Recipe(..)
+       ) where
 
 import Data.Aeson ( FromJSON(..), ToJSON(..) )
 import Data.Aeson.Types ( defaultOptions, genericParseJSON, genericToJSON )
 import Data.Text (Text)
 import GHC.Generics
 
-data Melpa
-  = Melpa { commit :: !Text
-          , sha256 :: !Text
-          }
+import Distribution.Nix.Fetch ( Fetch )
+
+data Package
+  = Package
+    { version :: !Text
+    , fetch :: !Fetch
+    , deps :: ![Text]
+    , recipe :: !Recipe
+    }
   deriving Generic
 
-instance FromJSON Melpa where
+instance FromJSON Package where
   parseJSON = genericParseJSON defaultOptions
 
-instance ToJSON Melpa where
+instance ToJSON Package where
+  toJSON = genericToJSON defaultOptions
+
+data Recipe
+  = Recipe { commit :: !Text
+           , sha256 :: !Text
+           }
+  deriving Generic
+
+instance FromJSON Recipe where
+  parseJSON = genericParseJSON defaultOptions
+
+instance ToJSON Recipe where
   toJSON = genericToJSON defaultOptions
