@@ -74,18 +74,20 @@ prefetch _ fetch@(Git {..}) = do
 
 prefetch _ fetch@(Bzr {..}) = do
   let args = [T.unpack url, T.unpack rev]
-  runInteractiveProcess "nix-prefetch-bzr" args Nothing Nothing $ \out -> EitherT $ do
+  env <- addToEnv "PRINT_PATH" "1"
+  runInteractiveProcess "nix-prefetch-bzr" args Nothing (Just env) $ \out -> EitherT $ do
     hashes <- S.lines out >>= S.decodeUtf8 >>= S.toList
     case hashes of
-      (hash:path:_) -> return (Right (T.unpack path, fetch { sha256 = Just hash }))
+      (_:hash:path:_) -> return (Right (T.unpack path, fetch { sha256 = Just hash }))
       _ -> return (Left "unable to prefetch")
 
 prefetch _ fetch@(Hg {..}) = do
   let args = [T.unpack url, T.unpack rev]
-  runInteractiveProcess "nix-prefetch-hg" args Nothing Nothing $ \out -> EitherT $ do
+  env <- addToEnv "PRINT_PATH" "1"
+  runInteractiveProcess "nix-prefetch-hg" args Nothing (Just env) $ \out -> EitherT $ do
     hashes <- S.lines out >>= S.decodeUtf8 >>= S.toList
     case hashes of
-      (hash:path:_) -> return (Right (T.unpack path, fetch { sha256 = Just hash }))
+      (_:hash:path:_) -> return (Right (T.unpack path, fetch { sha256 = Just hash }))
       _ -> return (Left "unable to prefetch")
 
 prefetch name fetch@(CVS {..}) = do
@@ -98,8 +100,9 @@ prefetch name fetch@(CVS {..}) = do
 
 prefetch _ fetch@(SVN {..}) = do
   let args = [T.unpack url, T.unpack rev]
-  runInteractiveProcess "nix-prefetch-svn" args Nothing Nothing $ \out -> EitherT $ do
+  env <- addToEnv "PRINT_PATH" "1"
+  runInteractiveProcess "nix-prefetch-svn" args Nothing (Just env) $ \out -> EitherT $ do
     hashes <- S.lines out >>= S.decodeUtf8 >>= S.toList
     case hashes of
-      (hash:path:_) -> return (Right (T.unpack path, fetch { sha256 = Just hash }))
+      (_:hash:path:_) -> return (Right (T.unpack path, fetch { sha256 = Just hash }))
       _ -> return (Left "unable to prefetch")
