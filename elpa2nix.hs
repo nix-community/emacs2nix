@@ -32,6 +32,7 @@ import Paths_emacs2nix
 
 import qualified Distribution.Elpa.Package as Elpa
 import qualified Distribution.Nix.Fetch as Nix
+import Distribution.Nix.Package (Package)
 import qualified Distribution.Nix.Package as Nix
 
 main :: IO ()
@@ -89,7 +90,7 @@ readArchive path = do
 parseJsonFromStream :: FromJSON a => S.InputStream ByteString -> IO (Maybe a)
 parseJsonFromStream stream = parseMaybe parseJSON <$> S.parseFromStream json' stream
 
-hashPackage :: String -> Text -> Elpa.Package -> Concurrently (Maybe Nix.Package)
+hashPackage :: String -> Text -> Elpa.Package -> Concurrently (Maybe (Package ()))
 hashPackage server name pkg = Concurrently $ handle brokenPkg $ do
   let ver = T.intercalate "." (map (T.pack . show) (Elpa.ver pkg))
       basename
@@ -107,7 +108,8 @@ hashPackage server name pkg = Concurrently $ handle brokenPkg $ do
   return $ Just Nix.Package
     { Nix.version = ver
     , Nix.fetch = fetcher
-    , Nix.build = Nix.ElpaPackage { Nix.deps = maybe [] M.keys (Elpa.deps pkg) }
+    , Nix.deps = maybe [] M.keys (Elpa.deps pkg)
+    , Nix.build = ()
     }
   where
     nameS = T.unpack name
@@ -115,7 +117,7 @@ hashPackage server name pkg = Concurrently $ handle brokenPkg $ do
       putStrLn $ nameS ++ ": encountered exception\n" ++ show e
       return Nothing
 
-writePackages :: FilePath -> Map Text Nix.Package -> IO ()
+writePackages :: FilePath -> Map Text (Package ()) -> IO ()
 writePackages path pkgs =
   S.withFileAsOutput path $ \out -> do
     enc <- S.fromLazyByteString (encodePretty pkgs)

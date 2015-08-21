@@ -1,25 +1,20 @@
 {-# LANGUAGE DeriveGeneric #-}
 
-module Distribution.Nix.Package where
+module Distribution.Nix.Package.Melpa where
 
 import Data.Aeson ( FromJSON(..), ToJSON(..) )
 import Data.Aeson.Types ( defaultOptions, genericParseJSON, genericToJSON )
 import Data.Text (Text)
 import GHC.Generics
 
-import Distribution.Nix.Fetch
-
-data Package build
-  = Package
-    { version :: !Text
-    , fetch :: !Fetch
-    , build :: !build
-    , deps :: ![Text]
-    }
+data Melpa
+  = Melpa { commit :: !Text
+          , sha256 :: !Text
+          }
   deriving Generic
 
-instance FromJSON build => FromJSON (Package build) where
+instance FromJSON Melpa where
   parseJSON = genericParseJSON defaultOptions
 
-instance ToJSON build => ToJSON (Package build) where
+instance ToJSON Melpa where
   toJSON = genericToJSON defaultOptions

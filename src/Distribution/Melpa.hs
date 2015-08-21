@@ -29,19 +29,22 @@ import System.IO.Temp (withSystemTempDirectory)
 
 import Distribution.Melpa.Recipe
 import qualified Distribution.Nix.Fetch as Nix
+import Distribution.Nix.Package (Package)
 import qualified Distribution.Nix.Package as Nix
+import Distribution.Nix.Package.Melpa (Melpa)
+import qualified Distribution.Nix.Package.Melpa as Nix
 
 import Paths_emacs2nix (getDataFileName)
 import Util (runInteractiveProcess)
 
-readMelpa :: FilePath -> IO (Maybe (Map Text Nix.Package))
+readMelpa :: FilePath -> IO (Maybe (Map Text (Package Melpa)))
 readMelpa packagesJson =
   handle
   (\(SomeException _) -> return Nothing)
   (S.withFileAsInput packagesJson $ \inp ->
        parseMaybe parseJSON <$> S.parseFromStream json' inp)
 
-getMelpa :: Int -> FilePath -> FilePath -> IO (Map Text Nix.Package)
+getMelpa :: Int -> FilePath -> FilePath -> IO (Map Text (Package Melpa))
 getMelpa nthreads melpaDir workDir = do
   recipes <- readRecipes melpaDir
 
@@ -53,13 +56,13 @@ getMelpa nthreads melpaDir workDir = do
   where
     liftMaybe (x, y) = (,) x <$> y
 
-getPackage :: QSem -> FilePath -> FilePath -> Text -> Recipe -> Concurrently (Maybe Nix.Package)
+getPackage :: QSem -> FilePath -> FilePath -> Text -> Recipe
+           -> Concurrently (Maybe (Package Melpa))
 getPackage sem melpaDir workDir name recipe
   = Concurrently $ bracket (waitQSem sem) (\_ -> signalQSem sem) $ \_ -> do
     let packageBuildEl = melpaDir </> "package-build.el"
         recipeFile = melpaDir </> "recipes" </> T.unpack name
         sourceDir = workDir </> T.unpack name
-    recipeExp <- S.withFileAsInput recipeFile (\inp -> S.fold (<>) T.empty =<< S.decodeUtf8 inp)
     result <- runEitherT $ do
       version <- getVersion packageBuildEl recipeFile name sourceDir
       fetch0 <- case recipe of
@@ -127,9 +130,10 @@ getPackage sem melpaDir workDir name recipe
       deps <- M.keys <$> getDeps packageBuildEl recipeFile name path
       return Nix.Package { Nix.version = version
                          , Nix.fetch = fetch
-                         , Nix.build = Nix.MelpaPackage
-                                       { Nix.recipe = recipeExp
-                                       , Nix.deps = deps
+                         , Nix.deps = deps
+                         , Nix.build = Nix.Melpa
+                                       { Nix.commit = ""
+                                       , Nix.sha256 = ""
                                        }
                          }
     case result of

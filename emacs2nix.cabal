@@ -25,6 +25,7 @@ library
     Distribution.Melpa.Recipe
     Distribution.Nix.Fetch
     Distribution.Nix.Package
+    Distribution.Nix.Package.Melpa
   other-modules:
     Paths_emacs2nix
     Util
