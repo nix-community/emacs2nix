@@ -24,6 +24,7 @@ library
     Distribution.Melpa
     Distribution.Melpa.Recipe
     Distribution.Nix.Fetch
+    Distribution.Nix.Hash
     Distribution.Nix.Package
     Distribution.Nix.Package.Melpa
   other-modules:

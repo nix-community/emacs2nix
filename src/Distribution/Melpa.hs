@@ -29,6 +29,7 @@ import System.IO.Temp (withSystemTempDirectory)
 
 import Distribution.Melpa.Recipe
 import qualified Distribution.Nix.Fetch as Nix
+import qualified Distribution.Nix.Hash as Nix
 import Distribution.Nix.Package (Package)
 import qualified Distribution.Nix.Package as Nix
 import Distribution.Nix.Package.Melpa (Melpa)
@@ -46,24 +47,27 @@ readMelpa packagesJson =
 
 getMelpa :: Int -> FilePath -> FilePath -> IO (Map Text (Package Melpa))
 getMelpa nthreads melpaDir workDir = do
+  Right melpaCommit <- runEitherT $ revision_Git Nothing melpaDir
+
   recipes <- readRecipes melpaDir
 
   createDirectoryIfMissing True workDir
 
   sem <- (if nthreads > 0 then pure nthreads else getNumCapabilities) >>= newQSem
   M.fromList . mapMaybe liftMaybe . M.toList
-    <$> runConcurrently (M.traverseWithKey (getPackage sem melpaDir workDir) recipes)
+    <$> runConcurrently (M.traverseWithKey (getPackage sem melpaDir melpaCommit workDir) recipes)
   where
     liftMaybe (x, y) = (,) x <$> y
 
-getPackage :: QSem -> FilePath -> FilePath -> Text -> Recipe
+getPackage :: QSem -> FilePath -> Text -> FilePath -> Text -> Recipe
            -> Concurrently (Maybe (Package Melpa))
-getPackage sem melpaDir workDir name recipe
+getPackage sem melpaDir melpaCommit workDir name recipe
   = Concurrently $ bracket (waitQSem sem) (\_ -> signalQSem sem) $ \_ -> do
     let packageBuildEl = melpaDir </> "package-build.el"
         recipeFile = melpaDir </> "recipes" </> T.unpack name
         sourceDir = workDir </> T.unpack name
     result <- runEitherT $ do
+      recipeHash <- Nix.hash recipeFile
       version <- getVersion packageBuildEl recipeFile name sourceDir
       fetch0 <- case recipe of
                   Bzr {..} -> do
@@ -132,8 +136,8 @@ getPackage sem melpaDir workDir name recipe
                          , Nix.fetch = fetch
                          , Nix.deps = deps
                          , Nix.build = Nix.Melpa
-                                       { Nix.commit = ""
-                                       , Nix.sha256 = ""
+                                       { Nix.commit = melpaCommit
+                                       , Nix.sha256 = recipeHash
                                        }
                          }
     case result of
