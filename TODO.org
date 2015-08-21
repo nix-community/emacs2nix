@@ -14,6 +14,8 @@
   CLOSED: [2015-08-21 Fri 13:57]
 * DONE Generate packages from MELPA Stable
   CLOSED: [2015-08-21 Fri 14:16]
+* TODO Use a better error type
+* TODO Don't complain if a package lacks a stable version
 * TODO Option --update
   Only update packages already listed in the output file
 * TODO Option --new
