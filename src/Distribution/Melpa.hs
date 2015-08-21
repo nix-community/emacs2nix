@@ -104,14 +104,8 @@ getPackage sem melpaDir melpaCommit workDir name recipe
                                    , Nix.cvsModule = cvsModule
                                    , Nix.sha256 = Nothing
                                    }
-                  Darcs {..} -> do
-                    let errmsg = name <> ": fetcher 'darcs' not supported"
-                    liftIO (S.write (Just errmsg) =<< S.encodeUtf8 S.stderr)
-                    mzero
-                  Fossil {..} -> do
-                    let errmsg = name <> ": fetcher 'fossil' not supported"
-                    liftIO (S.write (Just errmsg) =<< S.encodeUtf8 S.stderr)
-                    mzero
+                  Darcs {..} -> return (Left "fetcher 'darcs' not supported")
+                  Fossil {..} -> return (Left "fetcher 'fossil' not supported")
                   Hg {..} -> do
                     rev <- revision_Hg sourceDir
                     return Nix.Hg { Nix.url = url
