@@ -5,7 +5,7 @@ description:
   melpa2nix automatically generates Nix expressions for Emacs packages from the
   package recipes provided by MELPA.
   .
-  elpa2nix automaticall generates Nix expressions for Emacs packages from ELPA.
+  elpa2nix automatically generates Nix expressions for Emacs packages from ELPA.
 license:             GPL-3
 license-file:        LICENSE
 author:              Thomas Tuegel
