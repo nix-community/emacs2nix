@@ -8,7 +8,7 @@ import Control.Error
 import Control.Monad.IO.Class
 import Data.Aeson (FromJSON(..), ToJSON(..))
 import Data.Aeson.Types
-  ( Options(..), SumEncoding(..), defaultOptions
+  ( Options(..), defaultOptions, defaultTaggedObject
   , genericParseJSON, genericToJSON )
 import qualified Data.Char as Char
 import qualified Data.Map.Strict as M
@@ -31,7 +31,7 @@ data Fetch = URL { url :: Text, sha256 :: Maybe Text }
 fetchOptions :: Options
 fetchOptions = defaultOptions
                { constructorTagModifier = ("fetch" ++) . map Char.toLower
-               , sumEncoding = ObjectWithSingleField
+               , sumEncoding = defaultTaggedObject
                , omitNothingFields = True
                , fieldLabelModifier = fetchLabelModifier
                }
