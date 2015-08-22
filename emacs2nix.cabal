@@ -25,6 +25,7 @@ library
     Distribution.Melpa.Recipe
     Distribution.Nix.Fetch
     Distribution.Nix.Hash
+    Distribution.Nix.Name
     Distribution.Nix.Package.Elpa
     Distribution.Nix.Package.Melpa
   other-modules:
@@ -44,6 +45,7 @@ library
     , io-streams >= 1.3
     , temporary >= 1.2
     , text >= 1.2
+    , text-regex-replace == 0.1.*
     , transformers >= 0.4
     , unordered-containers >= 0.2
   default-language: Haskell2010

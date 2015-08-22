@@ -62,7 +62,7 @@ elpa2nix threads output server = do
   packages <- M.fromList . mapMaybe liftMaybe . M.toList
               <$> runConcurrently (M.traverseWithKey (hashPackage server) archives)
 
-  writePackages output packages
+  writePackages output (Nix.cleanNames packages)
   where
     liftMaybe (x, y) = (,) x <$> y
 

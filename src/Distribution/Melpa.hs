@@ -68,7 +68,7 @@ getMelpa nthreads melpaDir stable workDir oldPackages packages = do
       getPackages = M.traverseWithKey getPackage_ recipes
   newPackages <- catMaybesMap <$> runConcurrently getPackages
 
-  return (newPackages <> oldPackages)
+  (return . Nix.cleanNames) (newPackages <> oldPackages)
   where
     catMaybesMap = M.fromList . mapMaybe liftMaybe . M.toList
     liftMaybe (x, y) = (,) x <$> y

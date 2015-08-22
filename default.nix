@@ -1,7 +1,7 @@
 { mkDerivation, aeson, aeson-pretty, async, attoparsec, base
 , bytestring, containers, directory, errors, filepath, io-streams
-, optparse-applicative, stdenv, temporary, text, transformers
-, unordered-containers
+, optparse-applicative, stdenv, temporary, text, text-regex-replace
+, transformers, unordered-containers
 }:
 mkDerivation {
   pname = "emacs2nix";
@@ -11,12 +11,12 @@ mkDerivation {
   isExecutable = true;
   libraryHaskellDepends = [
     aeson async attoparsec base bytestring containers directory errors
-    filepath io-streams temporary text transformers
+    filepath io-streams temporary text text-regex-replace transformers
     unordered-containers
   ];
   executableHaskellDepends = [
     aeson aeson-pretty async base bytestring containers directory
-    filepath io-streams optparse-applicative temporary text
+    errors filepath io-streams optparse-applicative temporary text
     unordered-containers
   ];
   description = "Automatically generate Nix expressions for Emacs packages";
