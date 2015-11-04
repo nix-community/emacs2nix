@@ -104,7 +104,7 @@ hashPackage server name pkg = Concurrently $ handle brokenPkg $ do
   let fetch = Nix.URL { Nix.url = T.pack url
                       , Nix.sha256 = Nothing
                       }
-  Right (_, fetcher) <- runEitherT (Nix.prefetch name fetch)
+  Right (_, fetcher) <- runExceptT (Nix.prefetch name fetch)
   return $ Just Nix.Package
     { Nix.version = ver
     , Nix.fetch = fetcher

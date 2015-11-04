@@ -50,12 +50,12 @@ instance ToJSON Fetch where
 addToEnv :: MonadIO m => String -> String -> m [(String, String)]
 addToEnv var val = liftIO $ M.toList . M.insert var val . M.fromList <$> getEnvironment
 
-prefetch :: Text -> Fetch -> EitherT String IO (FilePath, Fetch)
+prefetch :: Text -> Fetch -> ExceptT String IO (FilePath, Fetch)
 
 prefetch _ fetch@(URL {..}) = do
   let args = [T.unpack url]
   env <- addToEnv "PRINT_PATH" "1"
-  runInteractiveProcess "nix-prefetch-url" args Nothing (Just env) $ \out -> EitherT $ do
+  runInteractiveProcess "nix-prefetch-url" args Nothing (Just env) $ \out -> ExceptT $ do
     hashes <- S.lines out >>= S.decodeUtf8 >>= S.toList
     case hashes of
       (hash:path:_) -> return (Right (T.unpack path, fetch { sha256 = Just hash }))
@@ -66,7 +66,7 @@ prefetch _ fetch@(Git {..}) = do
              ++ fromMaybe [] (do name <- branchName
                                  return ["--branch-name", T.unpack name])
   env <- addToEnv "PRINT_PATH" "1"
-  runInteractiveProcess "nix-prefetch-git" args Nothing (Just env) $ \out -> EitherT $ do
+  runInteractiveProcess "nix-prefetch-git" args Nothing (Just env) $ \out -> ExceptT $ do
     hashes <- S.lines out >>= S.decodeUtf8 >>= S.toList
     case hashes of
       (_:_:hash:path:_) -> return (Right (T.unpack path, fetch { sha256 = Just hash }))
@@ -75,7 +75,7 @@ prefetch _ fetch@(Git {..}) = do
 prefetch _ fetch@(Bzr {..}) = do
   let args = [T.unpack url, T.unpack rev]
   env <- addToEnv "PRINT_PATH" "1"
-  runInteractiveProcess "nix-prefetch-bzr" args Nothing (Just env) $ \out -> EitherT $ do
+  runInteractiveProcess "nix-prefetch-bzr" args Nothing (Just env) $ \out -> ExceptT $ do
     hashes <- S.lines out >>= S.decodeUtf8 >>= S.toList
     case hashes of
       (_:hash:path:_) -> return (Right (T.unpack path, fetch { sha256 = Just hash }))
@@ -84,7 +84,7 @@ prefetch _ fetch@(Bzr {..}) = do
 prefetch _ fetch@(Hg {..}) = do
   let args = [T.unpack url, T.unpack rev]
   env <- addToEnv "PRINT_PATH" "1"
-  runInteractiveProcess "nix-prefetch-hg" args Nothing (Just env) $ \out -> EitherT $ do
+  runInteractiveProcess "nix-prefetch-hg" args Nothing (Just env) $ \out -> ExceptT $ do
     hashes <- S.lines out >>= S.decodeUtf8 >>= S.toList
     case hashes of
       (_:hash:path:_) -> return (Right (T.unpack path, fetch { sha256 = Just hash }))
@@ -92,7 +92,7 @@ prefetch _ fetch@(Hg {..}) = do
 
 prefetch name fetch@(CVS {..}) = do
   let args = [T.unpack url, T.unpack (fromMaybe name cvsModule)]
-  runInteractiveProcess "nix-prefetch-cvs" args Nothing Nothing $ \out -> EitherT $ do
+  runInteractiveProcess "nix-prefetch-cvs" args Nothing Nothing $ \out -> ExceptT $ do
     hashes <- S.lines out >>= S.decodeUtf8 >>= S.toList
     case hashes of
       (hash:path:_) -> return (Right (T.unpack path, fetch { sha256 = Just hash }))
@@ -101,7 +101,7 @@ prefetch name fetch@(CVS {..}) = do
 prefetch _ fetch@(SVN {..}) = do
   let args = [T.unpack url, T.unpack rev]
   env <- addToEnv "PRINT_PATH" "1"
-  runInteractiveProcess "nix-prefetch-svn" args Nothing (Just env) $ \out -> EitherT $ do
+  runInteractiveProcess "nix-prefetch-svn" args Nothing (Just env) $ \out -> ExceptT $ do
     hashes <- S.lines out >>= S.decodeUtf8 >>= S.toList
     case hashes of
       (_:hash:path:_) -> return (Right (T.unpack path, fetch { sha256 = Just hash }))

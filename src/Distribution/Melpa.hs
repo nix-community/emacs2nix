@@ -53,7 +53,7 @@ getMelpa :: Int
          -> Set Text
          -> IO (Map Text Nix.Package)
 getMelpa nthreads melpaDir stable workDir oldPackages packages = do
-  Right melpaCommit <- runEitherT $ revision_Git Nothing melpaDir
+  Right melpaCommit <- runExceptT $ revision_Git Nothing melpaDir
 
   recipes <- readRecipes melpaDir
 
@@ -80,7 +80,7 @@ getPackage sem melpaDir melpaCommit stable workDir name recipe
     let packageBuildEl = melpaDir </> "package-build.el"
         recipeFile = melpaDir </> "recipes" </> T.unpack name
         sourceDir = workDir </> T.unpack name
-    result <- runEitherT $ do
+    result <- runExceptT $ do
       recipeHash <- Nix.hash recipeFile
       version <- getVersion packageBuildEl stable recipeFile name sourceDir
       fetch0 <- case recipe of
@@ -118,8 +118,8 @@ getPackage sem melpaDir melpaCommit stable workDir name recipe
                                    , Nix.cvsModule = cvsModule
                                    , Nix.sha256 = Nothing
                                    }
-                  Darcs {..} -> left "fetcher 'darcs' not supported"
-                  Fossil {..} -> left "fetcher 'fossil' not supported"
+                  Darcs {..} -> throwE "fetcher 'darcs' not supported"
+                  Fossil {..} -> throwE "fetcher 'fossil' not supported"
                   Hg {..} -> do
                     rev <- revision_Hg sourceDir
                     return Nix.Hg { Nix.url = url
@@ -155,7 +155,7 @@ getPackage sem melpaDir melpaCommit stable workDir name recipe
       Right pkg -> return (Just pkg)
 
 getVersion :: FilePath -> Bool -> FilePath -> Text -> FilePath
-           -> EitherT String IO Text
+           -> ExceptT String IO Text
 getVersion packageBuildEl stable recipeFile packageName sourceDir = do
   checkoutEl <- liftIO (getDataFileName "checkout.el")
   let args = [ "--batch"
@@ -164,14 +164,14 @@ getVersion packageBuildEl stable recipeFile packageName sourceDir = do
              , "-f", if stable then "checkout-stable" else "checkout"
              , recipeFile, T.unpack packageName, sourceDir
              ]
-  runInteractiveProcess "emacs" args Nothing Nothing $ \out -> EitherT $ do
+  runInteractiveProcess "emacs" args Nothing Nothing $ \out -> ExceptT $ do
     result <- S.fold (<>) Nothing =<< S.map Just =<< S.decodeUtf8 out
     case result of
       Nothing -> return (Left "no version")
       Just ver -> return (Right ver)
 
-getDeps :: FilePath -> FilePath -> Text -> FilePath -> EitherT String IO (Map Text [Integer])
-getDeps packageBuildEl recipeFile packageName sourceDirOrEl = EitherT $ do
+getDeps :: FilePath -> FilePath -> Text -> FilePath -> ExceptT String IO (Map Text [Integer])
+getDeps packageBuildEl recipeFile packageName sourceDirOrEl = ExceptT $ do
   getDepsEl <- getDataFileName "get-deps.el"
   isEl <- doesFileExist sourceDirOrEl
   let withSourceDir act
@@ -188,7 +188,7 @@ getDeps packageBuildEl recipeFile packageName sourceDirOrEl = EitherT $ do
                , "-l", getDepsEl
                , "-f", "get-deps", recipeFile, T.unpack packageName, sourceDir
                ]
-    runEitherT $ runInteractiveProcess "emacs" args Nothing Nothing $ \out -> EitherT $ do
+    runExceptT $ runInteractiveProcess "emacs" args Nothing Nothing $ \out -> ExceptT $ do
       result <- parseEither parseJSON <$> S.parseFromStream json' out
       let anyerr txt = "error parsing dependencies in "
                        <> sourceDir <> ":\n" <> txt
@@ -196,10 +196,10 @@ getDeps packageBuildEl recipeFile packageName sourceDirOrEl = EitherT $ do
         Left err -> return (Left (anyerr err))
         Right deps_ -> return (Right deps_)
 
-revision_Bzr :: FilePath -> EitherT String IO Text
+revision_Bzr :: FilePath -> ExceptT String IO Text
 revision_Bzr tmp = do
   let args = [ "log", "-l1", tmp ]
-  runInteractiveProcess "bzr" args Nothing Nothing $ \out -> EitherT $ do
+  runInteractiveProcess "bzr" args Nothing Nothing $ \out -> ExceptT $ do
     let getRevno = (T.strip <$>) . T.stripPrefix "revno:"
     revnos <- liftM (mapMaybe getRevno)
               $ S.lines out >>= S.decodeUtf8 >>= S.toList
@@ -207,9 +207,9 @@ revision_Bzr tmp = do
       (rev:_) -> return (Right rev)
       _ -> return (Left "could not find revision")
 
-revision_Git :: Maybe Text -> FilePath -> EitherT String IO Text
+revision_Git :: Maybe Text -> FilePath -> ExceptT String IO Text
 revision_Git branch tmp
-  = runInteractiveProcess "git" gitArgs (Just tmp) Nothing $ \out -> EitherT $ do
+  = runInteractiveProcess "git" gitArgs (Just tmp) Nothing $ \out -> ExceptT $ do
     revs <- S.lines out >>= S.decodeUtf8 >>= S.toList
     case revs of
       (rev:_) -> return (Right rev)
@@ -223,9 +223,9 @@ revision_Git branch tmp
     gitArgs = [ "log", "--first-parent", "-n1", "--pretty=format:%H" ]
               ++ maybeToList fullBranch
 
-revision_Hg :: FilePath -> EitherT String IO Text
+revision_Hg :: FilePath -> ExceptT String IO Text
 revision_Hg tmp
-  = runInteractiveProcess "hg" ["tags"] (Just tmp) Nothing $ \out -> EitherT$ do
+  = runInteractiveProcess "hg" ["tags"] (Just tmp) Nothing $ \out -> ExceptT$ do
     lines_ <- S.lines out >>= S.decodeUtf8 >>= S.toList
     let revs = catMaybes (hgRev <$> lines_)
     case revs of
@@ -239,9 +239,9 @@ revision_Hg tmp
           then Nothing
           else return rev
 
-revision_SVN :: FilePath -> EitherT String IO Text
+revision_SVN :: FilePath -> ExceptT String IO Text
 revision_SVN tmp
-  = runInteractiveProcess "svn" ["info"] (Just tmp) Nothing $ \out -> EitherT $ do
+  = runInteractiveProcess "svn" ["info"] (Just tmp) Nothing $ \out -> ExceptT $ do
     lines_ <- S.lines out >>= S.decodeUtf8 >>= S.toList
     let revs = catMaybes (svnRev <$> lines_)
     case revs of
