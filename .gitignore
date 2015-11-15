@@ -2,3 +2,4 @@
 /archive-contents
 *.json
 *.prof
+/result*
