@@ -70,11 +70,10 @@ elpa2nix threads output server = do
 
   writePackages output (Nix.cleanNames packages)
 
-data Errors = DownloadError Int Text
-            | ArchiveParseError Int Text
+data GetPackagesError = GetPackagesError Int Text
   deriving (Show, Typeable)
 
-instance Exception Errors
+instance Exception GetPackagesError
 
 getPackages :: String -> IO (Map Text Elpa.Package)
 getPackages uri = do
@@ -88,7 +87,12 @@ getPackages uri = do
       ExitSuccess -> readArchive path
       ExitFailure code -> do
         message <- S.decodeUtf8 errors >>= S.fold (<>) T.empty
-        throwIO (DownloadError code message)
+        throwIO (GetPackagesError code message)
+
+data ReadArchiveError = PrintArchiveContentsError Int Text
+  deriving (Show, Typeable)
+
+instance Exception ReadArchiveError
 
 readArchive :: FilePath -> IO (Map Text Elpa.Package)
 readArchive path = do
@@ -103,7 +107,7 @@ readArchive path = do
     ExitSuccess -> return pkgs
     ExitFailure code -> do
       message <- S.decodeUtf8 errors >>= S.fold (<>) T.empty
-      throwIO (ArchiveParseError code message)
+      throwIO (PrintArchiveContentsError code message)
 
 parseJsonFromStream :: FromJSON a => S.InputStream ByteString -> IO (Maybe a)
 parseJsonFromStream stream = parseMaybe parseJSON <$> S.parseFromStream json' stream
