@@ -1,4 +1,5 @@
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ViewPatterns #-}
@@ -11,7 +12,7 @@ import Control.Applicative
 import Control.Concurrent (setNumCapabilities)
 import Control.Concurrent.Async (Concurrently(..))
 import Control.Error
-import Control.Exception (SomeException(..), handle)
+import Control.Exception (Exception, SomeException(..), handle, throwIO)
 import Control.Monad (join, when)
 import Data.Aeson (FromJSON(..), json')
 import Data.Aeson.Encode.Pretty (encodePretty)
@@ -21,7 +22,9 @@ import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as M
 import Data.Text (Text)
 import qualified Data.Text as T
+import Data.Typeable (Typeable)
 import Options.Applicative
+import System.Exit (ExitCode(..))
 import System.FilePath ((</>), (<.>))
 import System.IO (hClose)
 import qualified System.IO.Streams as S
@@ -67,15 +70,24 @@ elpa2nix threads output server = do
 
   writePackages output (Nix.cleanNames packages)
 
+data Errors = DownloadError Int Text
+  deriving (Show, Typeable)
+
+instance Exception Errors
+
 getPackages :: String -> IO (Map Text Elpa.Package)
 getPackages uri = do
   let args = [uri </> "archive-contents"]
-  (_, contents, _, pid) <- S.runInteractiveProcess "curl" args Nothing Nothing
+  (_, contents, errors, pid) <- S.runInteractiveProcess "curl" args Nothing Nothing
   withSystemTempFile "elpa2nix-archive-contents-" $ \path h -> do
     tmp <- S.handleToOutputStream h >>= S.atEndOfOutput (hClose h)
     S.connect contents tmp
-    _ <- S.waitForProcess pid
-    readArchive path
+    exit <- S.waitForProcess pid
+    case exit of
+      ExitSuccess -> readArchive path
+      ExitFailure code -> do
+        message <- S.decodeUtf8 errors >>= S.fold (<>) T.empty
+        throwIO (DownloadError code message)
 
 readArchive :: FilePath -> IO (Map Text Elpa.Package)
 readArchive path = do
