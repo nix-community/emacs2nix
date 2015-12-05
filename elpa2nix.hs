@@ -58,13 +58,14 @@ elpa2nix :: Int -> FilePath -> String -> IO ()
 elpa2nix threads output server = do
   when (threads > 0) (setNumCapabilities threads)
 
-  archives <- runConcurrently $ Concurrently (getPackages server)
-  packages <- M.fromList . mapMaybe liftMaybe . M.toList
-              <$> runConcurrently (M.traverseWithKey (hashPackage server) archives)
+  archives <- getPackages server
+  hashedPackages <- runConcurrently (M.traverseWithKey (hashPackage server) archives)
+  let
+    -- remove packages that could not be hashed
+    packages = (M.fromList . mapMaybe liftMaybe . M.toList) hashedPackages
+    liftMaybe (x, y) = (,) x <$> y
 
   writePackages output (Nix.cleanNames packages)
-  where
-    liftMaybe (x, y) = (,) x <$> y
 
 getPackages :: String -> IO (Map Text Elpa.Package)
 getPackages uri = do
