@@ -71,6 +71,7 @@ elpa2nix threads output server = do
   writePackages output (Nix.cleanNames packages)
 
 data Errors = DownloadError Int Text
+            | ArchiveParseError Int Text
   deriving (Show, Typeable)
 
 instance Exception Errors
@@ -92,13 +93,17 @@ getPackages uri = do
 readArchive :: FilePath -> IO (Map Text Elpa.Package)
 readArchive path = do
   load <- getDataFileName "elpa2json.el"
-  (_, out, _, pid) <- S.runInteractiveProcess "emacs"
-                      ["--batch", "--load", load, "--eval", eval]
-                      Nothing Nothing
-  Just pkgs <- parseJsonFromStream out
-  S.waitForProcess pid >> return pkgs
-  where
+  let
+    args = ["--batch", "--load", load, "--eval", eval]
     eval = "(print-archive-contents-as-json " ++ show path ++ ")"
+  (_, out, errors, pid) <- S.runInteractiveProcess "emacs" args Nothing Nothing
+  Just pkgs <- parseJsonFromStream out
+  exit <- S.waitForProcess pid
+  case exit of
+    ExitSuccess -> return pkgs
+    ExitFailure code -> do
+      message <- S.decodeUtf8 errors >>= S.fold (<>) T.empty
+      throwIO (ArchiveParseError code message)
 
 parseJsonFromStream :: FromJSON a => S.InputStream ByteString -> IO (Maybe a)
 parseJsonFromStream stream = parseMaybe parseJSON <$> S.parseFromStream json' stream
