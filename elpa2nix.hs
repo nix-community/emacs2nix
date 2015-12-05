@@ -40,19 +40,19 @@ main = join (execParser (info (helper <*> parser) desc))
   where
     desc = fullDesc <> progDesc "Generate Nix expressions from ELPA"
 
-    parser :: Parser (IO ())
-    parser =
-      elpa2nix
-      <$> (threads <|> pure 0)
-      <*> output
-      <*> server
-      where
-        threads = option auto (long "threads" <> short 't' <> metavar "N"
-                              <> help "use N threads; default is number of CPUs")
-        output = strOption (long "output" <> short 'o' <> metavar "FILE"
-                            <> help "write output to FILE")
-        server = strArgument (metavar "URL"
-                              <> help "get packages from server at URL")
+parser :: Parser (IO ())
+parser =
+  elpa2nix
+  <$> (threads <|> pure 0)
+  <*> output
+  <*> server
+  where
+    threads = option auto (long "threads" <> short 't' <> metavar "N"
+                            <> help "use N threads; default is number of CPUs")
+    output = strOption (long "output" <> short 'o' <> metavar "FILE"
+                        <> help "write output to FILE")
+    server = strArgument (metavar "URL"
+                          <> help "get packages from server at URL")
 
 elpa2nix :: Int -> FilePath -> String -> IO ()
 elpa2nix threads output server = do
