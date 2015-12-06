@@ -66,6 +66,8 @@ elpa2nix threads output server = do
 
   writePackages output (Nix.cleanNames packages)
 
+-- * getPackages
+
 data GetPackagesError = GetPackagesError Int Text
   deriving (Show, Typeable)
 
@@ -85,6 +87,8 @@ getPackages uri = do
         message <- S.decodeUtf8 errors >>= S.fold (<>) T.empty
         throwIO (GetPackagesError code message)
 
+-- * readArchive
+
 data ReadArchiveError = PrintArchiveContentsError Int Text
                       | ParseArchiveError String
   deriving (Show, Typeable)
@@ -93,14 +97,6 @@ instance Exception ReadArchiveError
 
 type InputByteStream = S.InputStream ByteString
 type OutputByteStream = S.OutputStream ByteString
-
-emacs :: [String]
-      -> IO (OutputByteStream, InputByteStream, InputByteStream, S.ProcessHandle)
-emacs args = do
-  load <- getDataFileName "elpa2json.el"
-  let
-    args' = [ "--batch", "--load", load ] ++ args
-  S.runInteractiveProcess "emacs" args' Nothing Nothing
 
 readArchive :: FilePath -> IO (Map Text Elpa.Package)
 readArchive path = do
@@ -120,8 +116,18 @@ readArchive path = do
         Right pkgs -> return pkgs
     ExitFailure code -> throwIO (PrintArchiveContentsError code message)
 
+emacs :: [String]
+      -> IO (OutputByteStream, InputByteStream, InputByteStream, S.ProcessHandle)
+emacs args = do
+  load <- getDataFileName "elpa2json.el"
+  let
+    args' = [ "--batch", "--load", load ] ++ args
+  S.runInteractiveProcess "emacs" args' Nothing Nothing
+
 parseJsonFromStream :: FromJSON a => InputByteStream -> IO (Either String a)
 parseJsonFromStream stream = parseEither parseJSON <$> S.parseFromStream json' stream
+
+-- * hashPackage
 
 data HashPackageError = UnknownDist Text Text
                       | PrefetchError Text String
@@ -154,6 +160,8 @@ hashPackage server name pkg = Concurrently $ do
                          , Nix.fetch = fetcher
                          , Nix.deps = maybe [] M.keys (Elpa.deps pkg)
                          }
+
+-- * writePackages
 
 writePackages :: FilePath -> Map Text Package -> IO ()
 writePackages path pkgs =
