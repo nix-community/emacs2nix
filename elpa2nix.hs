@@ -16,7 +16,7 @@ import Control.Exception (Exception, SomeException(..), handle, throwIO)
 import Control.Monad (join, when)
 import Data.Aeson (FromJSON(..), json')
 import Data.Aeson.Encode.Pretty (encodePretty)
-import Data.Aeson.Types (parseMaybe)
+import Data.Aeson.Types (parseEither)
 import Data.ByteString (ByteString)
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as M
@@ -90,6 +90,7 @@ getPackages uri = do
         throwIO (GetPackagesError code message)
 
 data ReadArchiveError = PrintArchiveContentsError Int Text
+                      | ParseArchiveError String
   deriving (Show, Typeable)
 
 instance Exception ReadArchiveError
@@ -111,16 +112,19 @@ readArchive path = do
     args = ["--eval", eval]
     eval = "(print-archive-contents-as-json " ++ show path ++ ")"
   (_, out, errors, pid) <- emacs args
-  Just pkgs <- parseJsonFromStream out
+  json <- parseJsonFromStream out
   exit <- S.waitForProcess pid
   case exit of
-    ExitSuccess -> return pkgs
+    ExitSuccess ->
+      case json of
+        Left message -> throwIO (ParseArchiveError message)
+        Right pkgs -> return pkgs
     ExitFailure code -> do
       message <- S.decodeUtf8 errors >>= S.fold (<>) T.empty
       throwIO (PrintArchiveContentsError code message)
 
-parseJsonFromStream :: FromJSON a => S.InputStream ByteString -> IO (Maybe a)
-parseJsonFromStream stream = parseMaybe parseJSON <$> S.parseFromStream json' stream
+parseJsonFromStream :: FromJSON a => InputByteStream -> IO (Either String a)
+parseJsonFromStream stream = parseEither parseJSON <$> S.parseFromStream json' stream
 
 hashPackage :: String -> Text -> Elpa.Package -> Concurrently (Maybe Package)
 hashPackage server name pkg = Concurrently $ handle brokenPkg $ do
