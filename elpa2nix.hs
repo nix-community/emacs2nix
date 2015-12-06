@@ -12,7 +12,7 @@ import Control.Applicative
 import Control.Concurrent (setNumCapabilities)
 import Control.Concurrent.Async (Concurrently(..))
 import Control.Error
-import Control.Exception (Exception, throw, throwIO)
+import Control.Exception (Exception, SomeException(..), handle, throw, throwIO)
 import Control.Monad (join, when)
 import Data.Aeson (FromJSON(..), json')
 import Data.Aeson.Encode.Pretty (encodePretty)
@@ -62,7 +62,10 @@ elpa2nix threads output server = do
   when (threads > 0) (setNumCapabilities threads)
 
   archives <- getPackages server
-  packages <- runConcurrently (M.traverseWithKey (hashPackage server) archives)
+  hashedPackages <- runConcurrently (M.traverseWithKey (hashPackage server) archives)
+  let
+    liftMaybe (x, y) = (,) x <$> y
+    packages = (M.fromList . mapMaybe liftMaybe . M.toList) hashedPackages
 
   writePackages output (Nix.cleanNames packages)
 
@@ -135,8 +138,14 @@ data HashPackageError = UnknownDist Text Text
 
 instance Exception HashPackageError
 
-hashPackage :: String -> Text -> Elpa.Package -> Concurrently Package
-hashPackage server name pkg = Concurrently $ do
+nonFatal :: IO a -> Concurrently (Maybe a)
+nonFatal go = Concurrently (handle printException (Just <$> go)) where
+  printException (SomeException e) = do
+    S.encodeUtf8 S.stdout >>= S.write (Just (T.pack (show e)))
+    return Nothing
+
+hashPackage :: String -> Text -> Elpa.Package -> Concurrently (Maybe Package)
+hashPackage server name pkg = nonFatal $ do
   let
     ver = T.intercalate "." (map (T.pack . show) (Elpa.ver pkg))
     basename
