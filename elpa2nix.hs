@@ -94,13 +94,23 @@ data ReadArchiveError = PrintArchiveContentsError Int Text
 
 instance Exception ReadArchiveError
 
-readArchive :: FilePath -> IO (Map Text Elpa.Package)
-readArchive path = do
+type InputByteStream = S.InputStream ByteString
+type OutputByteStream = S.OutputStream ByteString
+
+emacs :: [String]
+      -> IO (OutputByteStream, InputByteStream, InputByteStream, S.ProcessHandle)
+emacs args = do
   load <- getDataFileName "elpa2json.el"
   let
-    args = ["--batch", "--load", load, "--eval", eval]
+    args' = [ "--batch", "--load", load ] ++ args
+  S.runInteractiveProcess "emacs" args' Nothing Nothing
+
+readArchive :: FilePath -> IO (Map Text Elpa.Package)
+readArchive path = do
+  let
+    args = ["--eval", eval]
     eval = "(print-archive-contents-as-json " ++ show path ++ ")"
-  (_, out, errors, pid) <- S.runInteractiveProcess "emacs" args Nothing Nothing
+  (_, out, errors, pid) <- emacs args
   Just pkgs <- parseJsonFromStream out
   exit <- S.waitForProcess pid
   case exit of
