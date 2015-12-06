@@ -12,7 +12,7 @@ import Control.Applicative
 import Control.Concurrent (setNumCapabilities)
 import Control.Concurrent.Async (Concurrently(..))
 import Control.Error
-import Control.Exception (Exception, SomeException(..), handle, throwIO)
+import Control.Exception (Exception, throw, throwIO)
 import Control.Monad (join, when)
 import Data.Aeson (FromJSON(..), json')
 import Data.Aeson.Encode.Pretty (encodePretty)
@@ -62,11 +62,7 @@ elpa2nix threads output server = do
   when (threads > 0) (setNumCapabilities threads)
 
   archives <- getPackages server
-  hashedPackages <- runConcurrently (M.traverseWithKey (hashPackage server) archives)
-  let
-    -- remove packages that could not be hashed
-    packages = (M.fromList . mapMaybe liftMaybe . M.toList) hashedPackages
-    liftMaybe (x, y) = (,) x <$> y
+  packages <- runConcurrently (M.traverseWithKey (hashPackage server) archives)
 
   writePackages output (Nix.cleanNames packages)
 
@@ -127,31 +123,37 @@ readArchive path = do
 parseJsonFromStream :: FromJSON a => InputByteStream -> IO (Either String a)
 parseJsonFromStream stream = parseEither parseJSON <$> S.parseFromStream json' stream
 
-hashPackage :: String -> Text -> Elpa.Package -> Concurrently (Maybe Package)
-hashPackage server name pkg = Concurrently $ handle brokenPkg $ do
-  let ver = T.intercalate "." (map (T.pack . show) (Elpa.ver pkg))
-      basename
-        | null (Elpa.ver pkg) = T.unpack name
-        | otherwise = T.unpack (name <> "-" <> ver)
-      ext = case Elpa.dist pkg of
-              "single" -> "el"
-              "tar" -> "tar"
-              other -> error (nameS ++ ": unrecognized distribution type " ++ T.unpack other)
-      url = server </> basename <.> ext
-  let fetch = Nix.URL { Nix.url = T.pack url
-                      , Nix.sha256 = Nothing
-                      }
-  Right (_, fetcher) <- runExceptT (Nix.prefetch name fetch)
-  return $ Just Nix.Package
-    { Nix.version = ver
-    , Nix.fetch = fetcher
-    , Nix.deps = maybe [] M.keys (Elpa.deps pkg)
-    }
-  where
-    nameS = T.unpack name
-    brokenPkg (SomeException e) = do
-      putStrLn $ nameS ++ ": encountered exception\n" ++ show e
-      return Nothing
+data HashPackageError = UnknownDist Text Text
+                      | PrefetchError Text String
+  deriving (Show, Typeable)
+
+instance Exception HashPackageError
+
+hashPackage :: String -> Text -> Elpa.Package -> Concurrently Package
+hashPackage server name pkg = Concurrently $ do
+  let
+    ver = T.intercalate "." (map (T.pack . show) (Elpa.ver pkg))
+    basename
+      | null (Elpa.ver pkg) = T.unpack name
+      | otherwise = T.unpack (name <> "-" <> ver)
+
+    ext = case Elpa.dist pkg of
+            "single" -> "el"
+            "tar" -> "tar"
+            other -> throw (UnknownDist name other)
+    url = server </> basename <.> ext
+    fetch = Nix.URL { Nix.url = T.pack url
+                    , Nix.sha256 = Nothing
+                    }
+
+  prefetch <- runExceptT (Nix.prefetch name fetch)
+  case prefetch of
+    Left fetchError -> throwIO (PrefetchError name fetchError)
+    Right (_, fetcher) ->
+      pure $ Nix.Package { Nix.version = ver
+                         , Nix.fetch = fetcher
+                         , Nix.deps = maybe [] M.keys (Elpa.deps pkg)
+                         }
 
 writePackages :: FilePath -> Map Text Package -> IO ()
 writePackages path pkgs =
