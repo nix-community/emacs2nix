@@ -112,16 +112,17 @@ readArchive path = do
     args = ["--eval", eval]
     eval = "(print-archive-contents-as-json " ++ show path ++ ")"
   (_, out, errors, pid) <- emacs args
-  json <- parseJsonFromStream out
-  exit <- S.waitForProcess pid
+  let
+    getOutput = Concurrently (parseJsonFromStream out)
+    getErrors = Concurrently (S.decodeUtf8 errors >>= S.fold (<>) T.empty)
+    wait = Concurrently (S.waitForProcess pid)
+  (json, message, exit) <- runConcurrently ((,,) <$> getOutput <*> getErrors <*> wait)
   case exit of
     ExitSuccess ->
       case json of
-        Left message -> throwIO (ParseArchiveError message)
+        Left parseError -> throwIO (ParseArchiveError parseError)
         Right pkgs -> return pkgs
-    ExitFailure code -> do
-      message <- S.decodeUtf8 errors >>= S.fold (<>) T.empty
-      throwIO (PrintArchiveContentsError code message)
+    ExitFailure code -> throwIO (PrintArchiveContentsError code message)
 
 parseJsonFromStream :: FromJSON a => InputByteStream -> IO (Either String a)
 parseJsonFromStream stream = parseEither parseJSON <$> S.parseFromStream json' stream
