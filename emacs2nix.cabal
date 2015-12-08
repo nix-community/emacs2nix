@@ -86,5 +86,6 @@ executable elpa2nix
     , optparse-applicative >= 0.11
     , temporary == 1.2.*
     , text
+    , transformers >= 0.4
   default-language: Haskell2010
   ghc-options: -Wall -threaded -with-rtsopts=-N
