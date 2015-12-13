@@ -9,7 +9,6 @@ import Control.Concurrent.Async (Concurrently(..))
 import Control.Concurrent.QSem
 import Control.Error hiding (err)
 import Control.Exception (SomeException(..), bracket, handle)
-import Control.Monad ( liftM )
 import Control.Monad.IO.Class
 import Data.Aeson (parseJSON)
 import Data.Aeson.Parser (json')
@@ -30,7 +29,9 @@ import qualified System.IO.Streams.Attoparsec as S
 import System.IO.Temp (withSystemTempDirectory)
 
 import Distribution.Melpa.Recipe
+import Distribution.Nix.Fetch (FetchError)
 import qualified Distribution.Nix.Fetch as Nix
+import Distribution.Nix.Hash (HashError)
 import qualified Distribution.Nix.Hash as Nix
 import qualified Distribution.Nix.Package.Melpa as Recipe ( Recipe(..) )
 import qualified Distribution.Nix.Package.Melpa as Nix
@@ -73,6 +74,13 @@ getMelpa nthreads melpaDir stable workDir oldPackages packages = do
     catMaybesMap = M.fromList . mapMaybe liftMaybe . M.toList
     liftMaybe (x, y) = (,) x <$> y
 
+data PackageError = HashRecipePackageError HashError
+                  | FetchPackageError FetchError
+                  | VersionPackageError VersionError
+                  | RevisionPackageError RevisionError
+                  | DepsPackageError DepsError
+  deriving (Show)
+
 getPackage :: QSem -> FilePath -> Text -> Bool -> FilePath -> Text -> Recipe
            -> Concurrently (Maybe Nix.Package)
 getPackage sem melpaDir melpaCommit stable workDir name recipe
@@ -81,65 +89,70 @@ getPackage sem melpaDir melpaCommit stable workDir name recipe
         recipeFile = melpaDir </> "recipes" </> T.unpack name
         sourceDir = workDir </> T.unpack name
     result <- runExceptT $ do
-      recipeHash <- Nix.hash recipeFile
-      version <- getVersion packageBuildEl stable recipeFile name sourceDir
-      fetch0 <- case recipe of
-                  Bzr {..} -> do
-                    rev <- revision_Bzr sourceDir
-                    return Nix.Bzr { Nix.url = url
+      recipeHash <- withExceptT HashRecipePackageError
+                    (Nix.hash recipeFile)
+      version <- withExceptT VersionPackageError
+                 (getVersion packageBuildEl stable recipeFile name sourceDir)
+      fetch0 <- withExceptT RevisionPackageError
+                (case recipe of
+                   Bzr {..} -> do
+                     rev <- revision_Bzr sourceDir
+                     return Nix.Bzr { Nix.url = url
+                                    , Nix.rev = rev
+                                    , Nix.sha256 = Nothing
+                                    }
+                   Git {..} -> do
+                     rev <- revision_Git branch sourceDir
+                     return Nix.Git { Nix.url = url
+                                    , Nix.rev = rev
+                                    , Nix.branchName = branch
+                                    , Nix.sha256 = Nothing
+                                    }
+                   GitHub {..} -> do
+                     rev <- revision_Git branch sourceDir
+                     let url = "git://github.com/" <> repo <> ".git"
+                     return Nix.Git { Nix.url = url
+                                    , Nix.rev = rev
+                                    , Nix.branchName = branch
+                                    , Nix.sha256 = Nothing
+                                    }
+                   GitLab {..} -> do
+                     rev <- revision_Git branch sourceDir
+                     let url = "https://gitlab.com/" <> repo <> ".git"
+                     return Nix.Git { Nix.url = url
+                                    , Nix.rev = rev
+                                    , Nix.branchName = branch
+                                    , Nix.sha256 = Nothing
+                                    }
+                   CVS {..} -> do
+                     return Nix.CVS { Nix.url = url
+                                    , Nix.cvsModule = cvsModule
+                                    , Nix.sha256 = Nothing
+                                    }
+                   Darcs {..} -> throwE (NotImplementedRevisionError "darcs")
+                   Fossil {..} -> throwE (NotImplementedRevisionError "fossil")
+                   Hg {..} -> do
+                     rev <- revision_Hg sourceDir
+                     return Nix.Hg { Nix.url = url
                                    , Nix.rev = rev
                                    , Nix.sha256 = Nothing
                                    }
-                  Git {..} -> do
-                    rev <- revision_Git branch sourceDir
-                    return Nix.Git { Nix.url = url
-                                   , Nix.rev = rev
-                                   , Nix.branchName = branch
-                                   , Nix.sha256 = Nothing
-                                   }
-                  GitHub {..} -> do
-                    rev <- revision_Git branch sourceDir
-                    let url = "git://github.com/" <> repo <> ".git"
-                    return Nix.Git { Nix.url = url
-                                   , Nix.rev = rev
-                                   , Nix.branchName = branch
-                                   , Nix.sha256 = Nothing
-                                   }
-                  GitLab {..} -> do
-                    rev <- revision_Git branch sourceDir
-                    let url = "https://gitlab.com/" <> repo <> ".git"
-                    return Nix.Git { Nix.url = url
-                                   , Nix.rev = rev
-                                   , Nix.branchName = branch
-                                   , Nix.sha256 = Nothing
-                                   }
-                  CVS {..} -> do
-                    return Nix.CVS { Nix.url = url
-                                   , Nix.cvsModule = cvsModule
-                                   , Nix.sha256 = Nothing
-                                   }
-                  Darcs {..} -> throwE "fetcher 'darcs' not supported"
-                  Fossil {..} -> throwE "fetcher 'fossil' not supported"
-                  Hg {..} -> do
-                    rev <- revision_Hg sourceDir
-                    return Nix.Hg { Nix.url = url
-                                  , Nix.rev = rev
-                                  , Nix.sha256 = Nothing
-                                  }
-                  SVN {..} -> do
-                    rev <- revision_SVN sourceDir
-                    return Nix.SVN { Nix.url = url
-                                   , Nix.rev = rev
-                                   , Nix.sha256 = Nothing
-                                   }
-                  Wiki {..} -> do
-                    let url = fromMaybe defaultUrl wikiUrl
-                        defaultUrl = "http://www.emacswiki.org/emacs/download/" <> name <> ".el"
-                    return Nix.URL { Nix.url = url
-                                   , Nix.sha256 = Nothing
-                                   }
-      (path, fetch) <- Nix.prefetch name fetch0
-      deps <- M.keys <$> getDeps packageBuildEl recipeFile name path
+                   SVN {..} -> do
+                     rev <- revision_SVN sourceDir
+                     return Nix.SVN { Nix.url = url
+                                    , Nix.rev = rev
+                                    , Nix.sha256 = Nothing
+                                    }
+                   Wiki {..} -> do
+                     let url = fromMaybe defaultUrl wikiUrl
+                         defaultUrl = "http://www.emacswiki.org/emacs/download/" <> name <> ".el"
+                     return Nix.URL { Nix.url = url
+                                    , Nix.sha256 = Nothing
+                                    })
+      (path, fetch) <- withExceptT FetchPackageError
+                       (Nix.prefetch name fetch0)
+      deps <- withExceptT DepsPackageError
+              (M.keys <$> getDeps packageBuildEl recipeFile name path)
       return Nix.Package { Nix.version = version
                          , Nix.fetch = fetch
                          , Nix.deps = deps
@@ -150,12 +163,17 @@ getPackage sem melpaDir melpaCommit stable workDir name recipe
                          }
     case result of
       Left err -> do
-        hPutStrLn stderr (T.unpack name ++ ": " ++ err)
+        hPutStrLn stderr (T.unpack name ++ ": " ++ show err)
         return Nothing
       Right pkg -> return (Just pkg)
 
+data VersionError = NoVersion
+                  | EmacsVersionError Int Text
+                  | OtherVersionError SomeException
+  deriving (Show)
+
 getVersion :: FilePath -> Bool -> FilePath -> Text -> FilePath
-           -> ExceptT String IO Text
+           -> ExceptT VersionError IO Text
 getVersion packageBuildEl stable recipeFile packageName sourceDir = do
   checkoutEl <- liftIO (getDataFileName "checkout.el")
   let args = [ "--batch"
@@ -164,23 +182,29 @@ getVersion packageBuildEl stable recipeFile packageName sourceDir = do
              , "-f", if stable then "checkout-stable" else "checkout"
              , recipeFile, T.unpack packageName, sourceDir
              ]
-  runInteractiveProcess "emacs" args Nothing Nothing $ \out -> ExceptT $ do
-    result <- S.fold (<>) Nothing =<< S.map Just =<< S.decodeUtf8 out
-    case result of
-      Nothing -> return (Left "no version")
-      Just ver -> return (Right ver)
+  runInteractiveProcess "emacs" args Nothing Nothing OtherVersionError EmacsVersionError
+    $ \out -> do
+      result <- liftIO (S.fold (<>) Nothing =<< S.map Just =<< S.decodeUtf8 out)
+      case result of
+        Nothing -> throwE NoVersion
+        Just ver -> pure ver
 
-getDeps :: FilePath -> FilePath -> Text -> FilePath -> ExceptT String IO (Map Text [Integer])
-getDeps packageBuildEl recipeFile packageName sourceDirOrEl = ExceptT $ do
-  getDepsEl <- getDataFileName "get-deps.el"
-  isEl <- doesFileExist sourceDirOrEl
+data DepsError = ParseDepsError String
+               | EmacsDepsError Int Text
+               | OtherDepsError SomeException
+  deriving (Show)
+
+getDeps :: FilePath -> FilePath -> Text -> FilePath -> ExceptT DepsError IO (Map Text [Integer])
+getDeps packageBuildEl recipeFile packageName sourceDirOrEl = do
+  getDepsEl <- liftIO (getDataFileName "get-deps.el")
+  isEl <- liftIO (doesFileExist sourceDirOrEl)
   let withSourceDir act
-        | isEl = do
+        | isEl = ExceptT $ do
             let tmpl = "melpa2nix-" <> T.unpack packageName
                 elFile = T.unpack packageName <.> "el"
             withSystemTempDirectory tmpl $ \sourceDir -> do
               copyFile sourceDirOrEl (sourceDir </> elFile)
-              act sourceDir
+              runExceptT (act sourceDir)
         | otherwise = act sourceDirOrEl
   withSourceDir $ \sourceDir -> do
     let args = [ "--batch"
@@ -188,32 +212,38 @@ getDeps packageBuildEl recipeFile packageName sourceDirOrEl = ExceptT $ do
                , "-l", getDepsEl
                , "-f", "get-deps", recipeFile, T.unpack packageName, sourceDir
                ]
-    runExceptT $ runInteractiveProcess "emacs" args Nothing Nothing $ \out -> ExceptT $ do
-      result <- parseEither parseJSON <$> S.parseFromStream json' out
-      let anyerr txt = "error parsing dependencies in "
-                       <> sourceDir <> ":\n" <> txt
-      case result of
-        Left err -> return (Left (anyerr err))
-        Right deps_ -> return (Right deps_)
+    runInteractiveProcess "emacs" args Nothing Nothing OtherDepsError EmacsDepsError
+      $ \out -> do
+        result <- liftIO (parseEither parseJSON <$> S.parseFromStream json' out)
+        case result of
+          Left err -> throwE (ParseDepsError err)
+          Right deps_ -> pure deps_
 
-revision_Bzr :: FilePath -> ExceptT String IO Text
+data RevisionError = ParseRevisionError
+                   | RevisionError Int Text
+                   | NotImplementedRevisionError Text
+                   | OtherRevisionError SomeException
+  deriving (Show)
+
+revision_Bzr :: FilePath -> ExceptT RevisionError IO Text
 revision_Bzr tmp = do
   let args = [ "log", "-l1", tmp ]
-  runInteractiveProcess "bzr" args Nothing Nothing $ \out -> ExceptT $ do
-    let getRevno = (T.strip <$>) . T.stripPrefix "revno:"
-    revnos <- liftM (mapMaybe getRevno)
-              $ S.lines out >>= S.decodeUtf8 >>= S.toList
-    case revnos of
-      (rev:_) -> return (Right rev)
-      _ -> return (Left "could not find revision")
+  runInteractiveProcess "bzr" args Nothing Nothing OtherRevisionError RevisionError
+    $ \out -> do
+      let getRevno = (T.strip <$>) . T.stripPrefix "revno:"
+      revnos <- mapMaybe getRevno <$> liftIO (S.lines out >>= S.decodeUtf8 >>= S.toList)
+      case revnos of
+        (rev:_) -> pure rev
+        _ -> throwE ParseRevisionError
 
-revision_Git :: Maybe Text -> FilePath -> ExceptT String IO Text
+revision_Git :: Maybe Text -> FilePath -> ExceptT RevisionError IO Text
 revision_Git branch tmp
-  = runInteractiveProcess "git" gitArgs (Just tmp) Nothing $ \out -> ExceptT $ do
-    revs <- S.lines out >>= S.decodeUtf8 >>= S.toList
-    case revs of
-      (rev:_) -> return (Right rev)
-      _ -> return (Left "could not find revision")
+  = runInteractiveProcess "git" gitArgs (Just tmp) Nothing OtherRevisionError RevisionError
+    $ \out -> do
+      revs <- liftIO (S.lines out >>= S.decodeUtf8 >>= S.toList)
+      case revs of
+        (rev:_) -> pure rev
+        _ -> throwE ParseRevisionError
   where
     fullBranch = do
         branch_ <- branch
@@ -223,14 +253,15 @@ revision_Git branch tmp
     gitArgs = [ "log", "--first-parent", "-n1", "--pretty=format:%H" ]
               ++ maybeToList fullBranch
 
-revision_Hg :: FilePath -> ExceptT String IO Text
+revision_Hg :: FilePath -> ExceptT RevisionError IO Text
 revision_Hg tmp
-  = runInteractiveProcess "hg" ["tags"] (Just tmp) Nothing $ \out -> ExceptT$ do
-    lines_ <- S.lines out >>= S.decodeUtf8 >>= S.toList
-    let revs = catMaybes (hgRev <$> lines_)
-    case revs of
-      (rev:_) -> return (Right rev)
-      _ -> return (Left "could not find revision")
+  = runInteractiveProcess "hg" ["tags"] (Just tmp) Nothing OtherRevisionError RevisionError
+    $ \out -> do
+      lines_ <- liftIO (S.lines out >>= S.decodeUtf8 >>= S.toList)
+      let revs = catMaybes (hgRev <$> lines_)
+      case revs of
+        (rev:_) -> pure rev
+        _ -> throwE ParseRevisionError
   where
     hgRev txt = do
         afterTip <- T.strip <$> T.stripPrefix "tip" txt
@@ -239,13 +270,14 @@ revision_Hg tmp
           then Nothing
           else return rev
 
-revision_SVN :: FilePath -> ExceptT String IO Text
+revision_SVN :: FilePath -> ExceptT RevisionError IO Text
 revision_SVN tmp
-  = runInteractiveProcess "svn" ["info"] (Just tmp) Nothing $ \out -> ExceptT $ do
-    lines_ <- S.lines out >>= S.decodeUtf8 >>= S.toList
-    let revs = catMaybes (svnRev <$> lines_)
-    case revs of
-      (rev:_) -> return (Right rev)
-      _ -> return (Left "could not find revision")
+  = runInteractiveProcess "svn" ["info"] (Just tmp) Nothing OtherRevisionError RevisionError
+    $ \out -> do
+      lines_ <- liftIO (S.lines out >>= S.decodeUtf8 >>= S.toList)
+      let revs = catMaybes (svnRev <$> lines_)
+      case revs of
+        (rev:_) -> pure rev
+        _ -> throwE ParseRevisionError
   where
     svnRev = fmap T.strip . T.stripPrefix "Revision:"

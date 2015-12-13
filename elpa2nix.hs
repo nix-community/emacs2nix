@@ -143,7 +143,7 @@ parseJsonFromStream stream = parseEither parseJSON <$> S.parseFromStream json' s
 -- * hashPackage
 
 data PackageError = UnknownDist Text Text
-                  | PrefetchError Text String
+                  | PrefetchError Text Nix.FetchError
   deriving (Show)
 
 hashPackage :: String -> Text -> Elpa.Package -> Concurrently (Maybe Package)
