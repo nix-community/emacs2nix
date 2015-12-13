@@ -28,9 +28,9 @@ library
     Distribution.Nix.Name
     Distribution.Nix.Package.Elpa
     Distribution.Nix.Package.Melpa
+    Util
   other-modules:
     Paths_emacs2nix
-    Util
   hs-source-dirs: src
   build-depends:
       base >= 4.7 && < 5

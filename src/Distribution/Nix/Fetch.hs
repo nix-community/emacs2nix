@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
@@ -5,7 +6,7 @@
 module Distribution.Nix.Fetch where
 
 import Control.Error
-import Control.Exception (SomeException)
+import Control.Exception
 import Control.Monad.IO.Class
 import Data.Aeson (FromJSON(..), ToJSON(..))
 import Data.Aeson.Types
@@ -16,6 +17,7 @@ import qualified Data.Char as Char
 import qualified Data.Map.Strict as M
 import Data.Text (Text)
 import qualified Data.Text as T
+import Data.Typeable (Typeable)
 import GHC.Generics
 import System.Environment (getEnvironment)
 import qualified System.IO.Streams as S
@@ -49,69 +51,76 @@ instance FromJSON Fetch where
 instance ToJSON Fetch where
   toJSON = genericToJSON fetchOptions
 
-data FetchError = HashParseFetchError
-                | OtherFetchError SomeException
-                | NixPrefetchError Int Text
-  deriving (Show)
+newtype FetchError = FetchError SomeException
+  deriving (Show, Typeable)
 
-runPrefetch :: String -> [String]
-            -> (S.InputStream ByteString -> ExceptT FetchError IO a)
-            -> ExceptT FetchError IO a
-runPrefetch fetcher args go = do
-  env <- liftIO (addToEnv "PRINT_PATH" "1")
-  runInteractiveProcess fetcher args Nothing (Just env) OtherFetchError NixPrefetchError go
+instance Exception FetchError
+
+prefetchHelper :: String -> [String]
+               -> (S.InputStream ByteString -> IO a)
+               -> IO a
+prefetchHelper fetcher args go = mapException FetchError helper
+  where
+    helper = do
+      env <- addToEnv "PRINT_PATH" "1"
+      runInteractiveProcess fetcher args Nothing (Just env) go
 
 addToEnv :: MonadIO m => String -> String -> m [(String, String)]
 addToEnv var val = liftIO $ M.toList . M.insert var val . M.fromList <$> getEnvironment
 
-prefetch :: Text -> Fetch -> ExceptT FetchError IO (FilePath, Fetch)
+data BadPrefetchOutput = BadPrefetchOutput
+  deriving (Show, Typeable)
+
+instance Exception BadPrefetchOutput
+
+prefetch :: Text -> Fetch -> IO (FilePath, Fetch)
 
 prefetch _ fetch@(URL {..}) = do
   let args = [T.unpack url]
-  runPrefetch "nix-prefetch-url" args $ \out -> do
+  prefetchHelper "nix-prefetch-url" args $ \out -> do
     hashes <- liftIO (S.lines out >>= S.decodeUtf8 >>= S.toList)
     case hashes of
       (hash:path:_) -> pure (T.unpack path, fetch { sha256 = Just hash })
-      _ -> throwE HashParseFetchError
+      _ -> throwIO BadPrefetchOutput
 
 prefetch _ fetch@(Git {..}) = do
   let args = ["--url", T.unpack url, "--rev", T.unpack rev]
              ++ fromMaybe [] (do name <- branchName
                                  return ["--branch-name", T.unpack name])
-  runPrefetch "nix-prefetch-git" args $ \out -> do
+  prefetchHelper "nix-prefetch-git" args $ \out -> do
     hashes <- liftIO (S.lines out >>= S.decodeUtf8 >>= S.toList)
     case hashes of
       (_:_:hash:path:_) -> pure (T.unpack path, fetch { sha256 = Just hash })
-      _ -> throwE HashParseFetchError
+      _ -> throwIO BadPrefetchOutput
 
 prefetch _ fetch@(Bzr {..}) = do
   let args = [T.unpack url, T.unpack rev]
-  runPrefetch "nix-prefetch-bzr" args $ \out -> do
+  prefetchHelper "nix-prefetch-bzr" args $ \out -> do
     hashes <- liftIO (S.lines out >>= S.decodeUtf8 >>= S.toList)
     case hashes of
       (_:hash:path:_) -> pure (T.unpack path, fetch { sha256 = Just hash })
-      _ -> throwE HashParseFetchError
+      _ -> throwIO BadPrefetchOutput
 
 prefetch _ fetch@(Hg {..}) = do
   let args = [T.unpack url, T.unpack rev]
-  runPrefetch "nix-prefetch-hg" args $ \out -> do
+  prefetchHelper "nix-prefetch-hg" args $ \out -> do
     hashes <- liftIO (S.lines out >>= S.decodeUtf8 >>= S.toList)
     case hashes of
       (_:hash:path:_) -> pure (T.unpack path, fetch { sha256 = Just hash })
-      _ -> throwE HashParseFetchError
+      _ -> throwIO BadPrefetchOutput
 
 prefetch name fetch@(CVS {..}) = do
   let args = [T.unpack url, T.unpack (fromMaybe name cvsModule)]
-  runPrefetch "nix-prefetch-cvs" args $ \out -> do
+  prefetchHelper "nix-prefetch-cvs" args $ \out -> do
     hashes <- liftIO (S.lines out >>= S.decodeUtf8 >>= S.toList)
     case hashes of
       (hash:path:_) -> pure (T.unpack path, fetch { sha256 = Just hash })
-      _ -> throwE HashParseFetchError
+      _ -> throwIO BadPrefetchOutput
 
 prefetch _ fetch@(SVN {..}) = do
   let args = [T.unpack url, T.unpack rev]
-  runPrefetch "nix-prefetch-svn" args $ \out -> do
+  prefetchHelper "nix-prefetch-svn" args $ \out -> do
     hashes <- liftIO (S.lines out >>= S.decodeUtf8 >>= S.toList)
     case hashes of
       (_:hash:path:_) -> pure (T.unpack path, fetch { sha256 = Just hash })
-      _ -> throwE HashParseFetchError
+      _ -> throwIO BadPrefetchOutput

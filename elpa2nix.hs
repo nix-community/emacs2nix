@@ -1,4 +1,5 @@
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ViewPatterns #-}
@@ -11,9 +12,8 @@ import Control.Applicative
 import Control.Concurrent (setNumCapabilities)
 import Control.Concurrent.Async (Concurrently(..))
 import Control.Error
-import Control.Exception (SomeException(..))
+import Control.Exception
 import Control.Monad (join, when)
-import Control.Monad.Trans.Class (lift)
 import Data.Aeson (FromJSON(..), json')
 import Data.Aeson.Encode.Pretty (encodePretty)
 import Data.Aeson.Types (parseEither)
@@ -22,8 +22,8 @@ import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as M
 import Data.Text (Text)
 import qualified Data.Text as T
+import Data.Typeable (Typeable)
 import Options.Applicative
-import System.Exit (ExitCode(..))
 import System.FilePath ((</>), (<.>))
 import System.IO (hClose)
 import qualified System.IO.Streams as S
@@ -36,6 +36,7 @@ import qualified Distribution.Elpa.Package as Elpa
 import qualified Distribution.Nix.Fetch as Nix
 import Distribution.Nix.Package.Elpa (Package)
 import qualified Distribution.Nix.Package.Elpa as Nix
+import Util
 
 main :: IO ()
 main = join (execParser (info (helper <*> parser) desc))
@@ -56,24 +57,13 @@ parser =
     server = strArgument (metavar "URL"
                           <> help "get packages from server at URL")
 
-showExceptions :: Show e => ExceptT e IO b -> IO (Maybe b)
-showExceptions go = do
-  result <- runExceptT go
-  case result of
-    Right a -> pure (Just a)
-    Left e -> do
-      S.write (Just (T.pack (show e))) =<< S.encodeUtf8 S.stdout
-      pure Nothing
-
-showExceptions_ :: Show e => ExceptT e IO b -> IO ()
-showExceptions_ go = showExceptions go >> pure ()
-
 elpa2nix :: Int -> FilePath -> String -> IO ()
 elpa2nix threads output server = showExceptions_ $ do
-  when (threads > 0) (lift (setNumCapabilities threads))
+  when (threads > 0) (setNumCapabilities threads)
 
   archives <- getPackages server
-  hashedPackages <- (lift . runConcurrently) (M.traverseWithKey (hashPackage server) archives)
+  hashedPackages <- runConcurrently
+                    (M.traverseWithKey (hashPackage server) archives)
   let
     liftMaybe (x, y) = (,) x <$> y
     packages = (M.fromList . mapMaybe liftMaybe . M.toList) hashedPackages
@@ -82,69 +72,58 @@ elpa2nix threads output server = showExceptions_ $ do
 
 -- * Error types
 
-data ArchiveError = DownloadArchiveError Int Text
-                  | ContentsArchiveError Int Text
-                  | ParseArchiveError Text
-                  | OtherArchiveError SomeException
-  deriving (Show)
+newtype ArchiveError = ArchiveError SomeException
+  deriving (Show, Typeable)
+
+instance Exception ArchiveError
 
 -- * getPackages
 
-getPackages :: String -> ExceptT ArchiveError IO (Map Text Elpa.Package)
-getPackages uri = ExceptT $ do
+getPackages :: String -> IO (Map Text Elpa.Package)
+getPackages uri = mapException ArchiveError $ do
   let args = [uri </> "archive-contents"]
-  (_, contents, errors, pid) <- S.runInteractiveProcess "curl" args Nothing Nothing
   withSystemTempFile "elpa2nix-archive-contents-" $ \path h -> do
-    tmp <- S.handleToOutputStream h >>= S.atEndOfOutput (hClose h)
-    S.connect contents tmp
-    let
-      getErrors = Concurrently (S.decodeUtf8 errors >>= S.fold (<>) T.empty)
-      wait = Concurrently (S.waitForProcess pid)
-    (message, exit) <- runConcurrently ((,) <$> getErrors <*> wait)
-    case exit of
-      ExitSuccess -> runExceptT (readArchive path)
-      ExitFailure code -> pure (Left (DownloadArchiveError code message))
+    runInteractiveProcess "curl" args Nothing Nothing $ \out -> do
+      tmp <- S.handleToOutputStream h >>= S.atEndOfOutput (hClose h)
+      S.connect out tmp
+    readArchive path
 
 -- * readArchive
 
 type InputByteStream = S.InputStream ByteString
-type OutputByteStream = S.OutputStream ByteString
 
-readArchive :: FilePath -> ExceptT ArchiveError IO (Map Text Elpa.Package)
-readArchive path = do
+data ParseArchiveError = ParseArchiveError String
+  deriving (Show, Typeable)
+
+instance Exception ParseArchiveError
+
+readArchive :: FilePath -> IO (Map Text Elpa.Package)
+readArchive path = mapException ArchiveError $ do
   let
     args = ["--eval", eval]
     eval = "(print-archive-contents-as-json " ++ show path ++ ")"
-  (_, out, errors, pid) <- lift (emacs args)
-  let
-    getOutput = Concurrently (parseJsonFromStream out)
-    getErrors = Concurrently (S.decodeUtf8 errors >>= S.fold (<>) T.empty)
-    wait = Concurrently (S.waitForProcess pid)
-  (json, message, exit) <- (lift . runConcurrently)
-                           ((,,) <$> getOutput <*> getErrors <*> wait)
-  case exit of
-    ExitSuccess ->
-      case json of
-        Left parseError -> throwE (ParseArchiveError (T.pack parseError))
-        Right pkgs -> pure pkgs
-    ExitFailure code -> throwE (ContentsArchiveError code message)
+  emacs args $ \out -> do
+    result <- parseJsonFromStream out
+    case result of
+      Left parseError -> throwIO (ParseArchiveError parseError)
+      Right pkgs -> pure pkgs
 
-emacs :: [String]
-      -> IO (OutputByteStream, InputByteStream, InputByteStream, S.ProcessHandle)
-emacs args = do
+emacs :: [String] -> (InputByteStream -> IO a) -> IO a
+emacs args go = do
   load <- getDataFileName "elpa2json.el"
   let
     args' = [ "--batch", "--load", load ] ++ args
-  S.runInteractiveProcess "emacs" args' Nothing Nothing
+  runInteractiveProcess "emacs" args' Nothing Nothing go
 
 parseJsonFromStream :: FromJSON a => InputByteStream -> IO (Either String a)
 parseJsonFromStream stream = parseEither parseJSON <$> S.parseFromStream json' stream
 
 -- * hashPackage
 
-data PackageError = UnknownDist Text Text
-                  | PrefetchError Text Nix.FetchError
-  deriving (Show)
+data DistNotImplemented = DistNotImplemented Text
+  deriving (Show, Typeable)
+
+instance Exception DistNotImplemented
 
 hashPackage :: String -> Text -> Elpa.Package -> Concurrently (Maybe Package)
 hashPackage server name pkg = Concurrently $ showExceptions $ do
@@ -154,29 +133,26 @@ hashPackage server name pkg = Concurrently $ showExceptions $ do
       | null (Elpa.ver pkg) = T.unpack name
       | otherwise = T.unpack (name <> "-" <> ver)
 
-  ext <-  case Elpa.dist pkg of
-            "single" -> pure "el"
-            "tar" -> pure "tar"
-            other -> throwE (UnknownDist name other)
+  ext <- case Elpa.dist pkg of
+           "single" -> pure "el"
+           "tar" -> pure "tar"
+           other -> throwIO (DistNotImplemented other)
   let
     url = server </> basename <.> ext
     fetch = Nix.URL { Nix.url = T.pack url
                     , Nix.sha256 = Nothing
                     }
 
-  prefetch <- (lift . runExceptT) (Nix.prefetch name fetch)
-  case prefetch of
-    Left fetchError -> throwE (PrefetchError name fetchError)
-    Right (_, fetcher) ->
-      pure $ Nix.Package { Nix.version = ver
-                         , Nix.fetch = fetcher
-                         , Nix.deps = maybe [] M.keys (Elpa.deps pkg)
-                         }
+  (_, fetcher) <- Nix.prefetch name fetch
+  pure Nix.Package { Nix.version = ver
+                   , Nix.fetch = fetcher
+                   , Nix.deps = maybe [] M.keys (Elpa.deps pkg)
+                   }
 
 -- * writePackages
 
-writePackages :: FilePath -> Map Text Package -> ExceptT ArchiveError IO ()
-writePackages path pkgs = lift $ do
-  S.withFileAsOutput path $ \out -> do
+writePackages :: FilePath -> Map Text Package -> IO ()
+writePackages path pkgs
+  = S.withFileAsOutput path $ \out -> do
     enc <- S.fromLazyByteString (encodePretty pkgs)
     S.connect enc out

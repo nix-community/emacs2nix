@@ -1,27 +1,46 @@
-module Util (runInteractiveProcess) where
+{-# LANGUAGE DeriveDataTypeable #-}
 
-import Control.Error hiding (err)
-import Control.Exception (SomeException(..), handle)
+module Util where
+
+import Control.Concurrent.Async (Concurrently(..))
+import Control.Exception
 import Data.ByteString (ByteString)
 import Data.Monoid ((<>))
 import Data.Text (Text)
 import qualified Data.Text as T
+import Data.Typeable (Typeable)
 import System.Exit (ExitCode(..))
 import System.IO.Streams (InputStream)
 import qualified System.IO.Streams as S
 
+data ProcessFailed
+  = ProcessFailed String [String] (Maybe FilePath) (Maybe [(String, String)]) Int Text
+  deriving (Show, Typeable)
+
+instance Exception ProcessFailed
+
 runInteractiveProcess
   :: String -> [String] -> Maybe FilePath -> Maybe [(String, String)]
-  -> (SomeException -> e) -> (Int -> Text -> e)
-  -> (InputStream ByteString -> ExceptT e IO a)
-  -> ExceptT e IO a
-runInteractiveProcess cmd args cwd env withExc withExit withOutput
-  = ExceptT $ handle
-    (pure . Left . withExc)
-    (do (_, out, err, pid) <- S.runInteractiveProcess cmd args cwd env
-        result <- runExceptT (withOutput out)
-        errmsg <- S.fold (<>) T.empty =<< S.decodeUtf8 err
-        exit <- S.waitForProcess pid
-        case exit of
-          ExitSuccess -> pure result
-          ExitFailure code -> pure (Left (withExit code errmsg)))
+  -> (InputStream ByteString -> IO a)
+  -> IO a
+runInteractiveProcess cmd args cwd env withOutput = do
+  (_, out, err, pid) <- S.runInteractiveProcess cmd args cwd env
+  let
+    getOutput = Concurrently (withOutput out)
+    getErrors = Concurrently (S.fold (<>) T.empty =<< S.decodeUtf8 err)
+    wait = Concurrently (S.waitForProcess pid)
+  (result, errorMessage, exit) <- runConcurrently
+                                  ((,,) <$> getOutput <*> getErrors <*> wait)
+  case exit of
+    ExitSuccess -> pure result
+    ExitFailure code -> throwIO (ProcessFailed cmd args cwd env code errorMessage)
+
+showExceptions :: IO b -> IO (Maybe b)
+showExceptions go = catch (Just <$> go) handler
+  where
+    handler (SomeException e) = do
+      S.write (Just (T.pack (show e))) =<< S.encodeUtf8 S.stdout
+      pure Nothing
+
+showExceptions_ :: IO b -> IO ()
+showExceptions_ go = showExceptions go >> pure ()
