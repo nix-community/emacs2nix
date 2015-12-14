@@ -37,12 +37,19 @@ import qualified Distribution.Nix.Package.Melpa as Nix
 import Paths_emacs2nix (getDataFileName)
 import Util
 
+data ParseMelpaError = ParseMelpaError String
+  deriving (Show, Typeable)
+
+instance Exception ParseMelpaError
+
 readMelpa :: FilePath -> IO (Maybe (Map Text Nix.Package))
 readMelpa packagesJson =
-  handle
-  (\(SomeException _) -> return Nothing)
-  (S.withFileAsInput packagesJson $ \inp ->
-       parseMaybe parseJSON <$> S.parseFromStream json' inp)
+  showExceptions
+  (S.withFileAsInput packagesJson $ \inp -> do
+       result <- parseEither parseJSON <$> S.parseFromStream json' inp
+       case result of
+         Left parseError -> throwIO (ParseMelpaError parseError)
+         Right packages -> pure packages)
 
 data ArchiveError = ArchiveError SomeException
   deriving (Show, Typeable)
