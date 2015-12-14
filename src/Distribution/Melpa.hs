@@ -91,10 +91,15 @@ concurrentlyLimited :: QSem -> IO a -> Concurrently a
 concurrentlyLimited sem go
   = Concurrently (bracket (waitQSem sem) (\_ -> signalQSem sem) (\_ -> go))
 
+data PackageException = PackageException Text SomeException
+  deriving (Show, Typeable)
+
+instance Exception PackageException
+
 getPackage :: QSem -> FilePath -> Text -> Bool -> FilePath -> Text -> Recipe
            -> Concurrently (Maybe Nix.Package)
 getPackage sem melpaDir melpaCommit stable workDir name recipe
-  = concurrentlyLimited sem $ showExceptions $ do
+  = concurrentlyLimited sem $ showExceptions $ mapException (PackageException name) $ do
     let
       packageBuildEl = melpaDir </> "package-build.el"
       recipeFile = melpaDir </> "recipes" </> T.unpack name
