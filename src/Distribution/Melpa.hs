@@ -176,6 +176,14 @@ getFetcher _ sourceDir Hg {..} = do
               , Nix.sha256 = Nothing
               }
 
+getFetcher _ sourceDir Bitbucket {..} = do
+  let url = "https://bitbucket.com/" <> repo
+  rev <- revision_Hg sourceDir
+  pure Nix.Hg { Nix.url = url
+              , Nix.rev = rev
+              , Nix.sha256 = Nothing
+              }
+
 getFetcher _ sourceDir SVN {..} = do
   rev <- revision_SVN sourceDir
   pure Nix.SVN { Nix.url = url

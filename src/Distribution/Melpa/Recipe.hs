@@ -38,6 +38,7 @@ data Recipe = Bzr { url :: Text, commit :: Maybe Text }
             | Darcs { url :: Text }
             | Fossil { url :: Text }
             | Hg { url :: Text, commit :: Maybe Text }
+            | Bitbucket { repo :: Text, commit :: Maybe Text }
             | SVN { url :: Text, commit :: Maybe Text }
             | Wiki { wikiUrl :: Maybe Text }
             deriving (Eq, Generic, Read, Show)
