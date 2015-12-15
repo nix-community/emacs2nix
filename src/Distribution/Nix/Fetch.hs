@@ -84,9 +84,13 @@ prefetch _ fetch@(URL {..}) = do
       _ -> throwIO BadPrefetchOutput
 
 prefetch _ fetch@(Git {..}) = do
-  let args = ["--url", T.unpack url, "--rev", T.unpack rev]
-             ++ fromMaybe [] (do name <- branchName
-                                 return ["--branch-name", T.unpack name])
+  let
+    args = [ "--fetch-submodules"
+           , "--url", T.unpack url, "--rev", T.unpack rev
+           ] ++ fromMaybe [] branch
+    branch = do
+      name <- branchName
+      pure ["--branch-name", T.unpack name]
   prefetchHelper "nix-prefetch-git" args $ \out -> do
     hashes <- liftIO (S.lines out >>= S.decodeUtf8 >>= S.toList)
     case hashes of
