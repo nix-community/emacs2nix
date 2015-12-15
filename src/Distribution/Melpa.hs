@@ -12,7 +12,7 @@ import Control.Exception
 import Control.Monad.IO.Class
 import Data.Aeson (parseJSON)
 import Data.Aeson.Parser (json')
-import Data.Aeson.Types (parseEither, parseMaybe)
+import Data.Aeson.Types (parseEither)
 import Data.Char (isHexDigit)
 import Data.Map.Strict ( Map )
 import qualified Data.Map.Strict as M
