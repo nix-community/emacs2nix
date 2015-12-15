@@ -27,7 +27,7 @@ import Util (runInteractiveProcess)
 data Fetch = URL { url :: Text, sha256 :: Maybe Text }
            | Git { url :: Text, rev :: Text, branchName :: Maybe Text, sha256 :: Maybe Text }
            | Bzr { url :: Text, rev :: Text, sha256 :: Maybe Text }
-           | CVS { url :: Text, cvsModule :: Maybe Text, sha256 :: Maybe Text }
+           | CVS { cvsRoot :: Text, cvsModule :: Maybe Text, sha256 :: Maybe Text }
            | Hg { url :: Text, rev :: Text, sha256 :: Maybe Text }
            | SVN { url :: Text, rev :: Text, sha256 :: Maybe Text }
            deriving Generic
@@ -110,7 +110,7 @@ prefetch _ fetch@(Hg {..}) = do
       _ -> throwIO BadPrefetchOutput
 
 prefetch name fetch@(CVS {..}) = do
-  let args = [T.unpack url, T.unpack (fromMaybe name cvsModule)]
+  let args = [T.unpack cvsRoot, T.unpack (fromMaybe name cvsModule)]
   prefetchHelper "nix-prefetch-cvs" args $ \out -> do
     hashes <- liftIO (S.lines out >>= S.decodeUtf8 >>= S.toList)
     case hashes of

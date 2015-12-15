@@ -164,7 +164,7 @@ getFetcher _ sourceDir GitLab {..} = do
                }
 
 getFetcher _ _ CVS {..} =
-  pure Nix.CVS { Nix.url = url
+  pure Nix.CVS { Nix.cvsRoot = url
                , Nix.cvsModule = cvsModule
                , Nix.sha256 = Nothing
                }
