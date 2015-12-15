@@ -1,5 +1,5 @@
 #!/usr/bin/env nix-shell
-#! nix-shell -p haskellPackages.cabal-install nix-prefetch-scripts subversion mercurial cvs bazaar git
+#!nix-shell -i bash -p haskellPackages.cabal-install nix-prefetch-scripts
 
 # usage: ./melpa-packages.sh PATH_TO_MELPA_CLONE
 

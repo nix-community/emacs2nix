@@ -1,5 +1,5 @@
 #!/usr/bin/env nix-shell
-#! nix-shell -p haskellPackages.cabal-install nix-prefetch-scripts
+#!nix-shell -i bash -p haskellPackages.cabal-install nix-prefetch-scripts
 
 # usage: ./elpa-packages.sh
 
