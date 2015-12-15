@@ -40,9 +40,7 @@ showExceptions :: IO b -> IO (Maybe b)
 showExceptions go = catch (Just <$> go) handler
   where
     handler (SomeException e) = do
-      out <- S.encodeUtf8 =<< S.unlines S.stdout
-      S.write (Just (T.pack (show e))) out
-      S.write (Just "\n") out
+      S.write (Just (T.pack (show e))) =<< S.encodeUtf8 =<< S.unlines S.stdout
       pure Nothing
 
 showExceptions_ :: IO b -> IO ()
