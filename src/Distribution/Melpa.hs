@@ -64,7 +64,7 @@ getMelpa :: Int
          -> Set Text
          -> IO (Map Text Nix.Package)
 getMelpa nthreads melpaDir stable workDir oldPackages packages
-  = mapException ArchiveError getMelpa_go
+  = mapExceptionIO ArchiveError getMelpa_go
   where
     catMaybesMap = M.fromList . mapMaybe liftMaybe . M.toList
     liftMaybe (x, y) = (,) x <$> y
@@ -99,7 +99,7 @@ instance Exception PackageException
 getPackage :: QSem -> FilePath -> Text -> Bool -> FilePath -> Text -> Recipe
            -> Concurrently (Maybe Nix.Package)
 getPackage sem melpaDir melpaCommit stable workDir name recipe
-  = concurrentlyLimited sem $ showExceptions $ mapException (PackageException name) $ do
+  = concurrentlyLimited sem $ showExceptions $ mapExceptionIO (PackageException name) $ do
     let
       packageBuildEl = melpaDir </> "package-build.el"
       recipeFile = melpaDir </> "recipes" </> T.unpack name
@@ -215,7 +215,7 @@ instance Exception NoVersionAvailable
 
 getVersion :: FilePath -> Bool -> FilePath -> Text -> FilePath -> IO Text
 getVersion packageBuildEl stable recipeFile packageName sourceDir
-  = mapException VersionError getVersion_go
+  = mapExceptionIO VersionError getVersion_go
   where
     getVersion_go = do
       checkoutEl <- getDataFileName "checkout.el"
@@ -243,7 +243,7 @@ instance Exception ParseDepsError
 
 getDeps :: FilePath -> FilePath -> Text -> FilePath -> IO (Map Text [Integer])
 getDeps packageBuildEl recipeFile packageName sourceDirOrEl
-  = mapException DepsError getDeps_go
+  = mapExceptionIO DepsError getDeps_go
   where
     getDeps_go = do
       getDepsEl <- getDataFileName "get-deps.el"
@@ -279,7 +279,7 @@ data NoRevisionError = NoRevisionError
 instance Exception NoRevisionError
 
 revision_Bzr :: FilePath -> IO Text
-revision_Bzr tmp = mapException RevisionError $ do
+revision_Bzr tmp = mapExceptionIO RevisionError $ do
   let args = [ "log", "-l1", tmp ]
   runInteractiveProcess "bzr" args Nothing Nothing $ \out -> do
     let getRevno = (T.strip <$>) . T.stripPrefix "revno:"
@@ -289,7 +289,7 @@ revision_Bzr tmp = mapException RevisionError $ do
       _ -> throwIO NoRevisionError
 
 revision_Git :: Maybe Text -> FilePath -> IO Text
-revision_Git branch tmp = mapException RevisionError $ do
+revision_Git branch tmp = mapExceptionIO RevisionError $ do
   runInteractiveProcess "git" gitArgs (Just tmp) Nothing $ \out -> do
     revs <- liftIO (S.lines out >>= S.decodeUtf8 >>= S.toList)
     case revs of
@@ -305,7 +305,7 @@ revision_Git branch tmp = mapException RevisionError $ do
               ++ maybeToList fullBranch
 
 revision_Hg :: FilePath -> IO Text
-revision_Hg tmp = mapException RevisionError $ do
+revision_Hg tmp = mapExceptionIO RevisionError $ do
   runInteractiveProcess "hg" ["tags"] (Just tmp) Nothing $ \out -> do
     lines_ <- liftIO (S.lines out >>= S.decodeUtf8 >>= S.toList)
     let revs = catMaybes (hgRev <$> lines_)
@@ -321,7 +321,7 @@ revision_Hg tmp = mapException RevisionError $ do
           else return rev
 
 revision_SVN :: FilePath -> IO Text
-revision_SVN tmp = mapException RevisionError $ do
+revision_SVN tmp = mapExceptionIO RevisionError $ do
   runInteractiveProcess "svn" ["info"] (Just tmp) Nothing $ \out -> do
     lines_ <- liftIO (S.lines out >>= S.decodeUtf8 >>= S.toList)
     let revs = catMaybes (svnRev <$> lines_)

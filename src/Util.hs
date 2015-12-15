@@ -1,4 +1,5 @@
 {-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module Util where
 
@@ -41,8 +42,12 @@ showExceptions go = catch (Just <$> go) handler
     handler (SomeException e) = do
       out <- S.encodeUtf8 =<< S.unlines S.stdout
       S.write (Just (T.pack (show e))) out
-      S.write Nothing out
+      S.write (Just "\n") out
       pure Nothing
 
 showExceptions_ :: IO b -> IO ()
 showExceptions_ go = showExceptions go >> pure ()
+
+mapExceptionIO :: (Exception e, Exception f) => (e -> f) -> IO a -> IO a
+mapExceptionIO f go = catch go handler where
+  handler e = throwIO (f e)
