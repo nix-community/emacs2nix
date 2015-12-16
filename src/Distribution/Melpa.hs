@@ -218,8 +218,6 @@ getVersion packageBuildEl stable recipeFile packageName sourceDir
         Nothing -> throwIO NoVersion
         Just ver -> pure ver
 
-instance Exception DepsError
-
 data ParseDepsError = ParseDepsError String
   deriving (Show, Typeable)
 
