@@ -13,8 +13,8 @@ import Data.Aeson.Types
   ( Options(..), defaultOptions, defaultTaggedObject
   , genericParseJSON, genericToJSON )
 import Data.ByteString (ByteString)
-import qualified Data.Char as Char
 import qualified Data.Map.Strict as M
+import Data.Monoid
 import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Typeable (Typeable)
@@ -30,11 +30,12 @@ data Fetch = URL { url :: Text, sha256 :: Maybe Text }
            | CVS { cvsRoot :: Text, cvsModule :: Maybe Text, sha256 :: Maybe Text }
            | Hg { url :: Text, rev :: Text, sha256 :: Maybe Text }
            | SVN { url :: Text, rev :: Text, sha256 :: Maybe Text }
+           | FromGitHub { owner :: Text, repo :: Text, rev :: Text, sha256 :: Maybe Text }
            deriving Generic
 
 fetchOptions :: Options
 fetchOptions = defaultOptions
-               { constructorTagModifier = ("fetch" ++) . map Char.toLower
+               { constructorTagModifier = fetchTagModifier
                , sumEncoding = defaultTaggedObject
                , omitNothingFields = True
                , fieldLabelModifier = fetchLabelModifier
@@ -44,6 +45,16 @@ fetchOptions = defaultOptions
       case field of
         "cvsModule" -> "module"
         _ -> field
+    fetchTagModifier tag =
+      case tag of
+        "URL" -> "fetchurl"
+        "Git" -> "fetchgit"
+        "Bzr" -> "fetchbzr"
+        "CVS" -> "fetchcvs"
+        "Hg" -> "fetchhg"
+        "SVN" -> "fetchsvn"
+        "FromGitHub" -> "fetchFromGitHub"
+        _ -> error ("fetchOptions: unknown tag " ++ tag)
 
 instance FromJSON Fetch where
   parseJSON = genericParseJSON fetchOptions
@@ -127,4 +138,15 @@ prefetch _ fetch@(SVN {..}) = do
     hashes <- liftIO (S.lines out >>= S.decodeUtf8 >>= S.toList)
     case hashes of
       (_:hash:path:_) -> pure (T.unpack path, fetch { sha256 = Just hash })
+      _ -> throwIO BadPrefetchOutput
+
+prefetch _ fetch@(FromGitHub {..}) = do
+  let
+    args = ["--url", T.unpack url, "--name", T.unpack name]
+    url = "https://github.com/" <> owner <> "/" <> repo <> "/archive/" <> rev <> ".tar.gz"
+    name = repo <> "-" <> rev <> "-src"
+  prefetchHelper "nix-prefetch-zip" args $ \out -> do
+    hashes <- liftIO (S.lines out >>= S.decodeUtf8 >>= S.toList)
+    case hashes of
+      (hash:path:_) -> pure (T.unpack path, fetch { sha256 = Just hash })
       _ -> throwIO BadPrefetchOutput
