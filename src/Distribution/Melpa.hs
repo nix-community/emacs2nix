@@ -13,7 +13,7 @@ import Control.Monad.IO.Class
 import Data.Aeson (parseJSON)
 import Data.Aeson.Parser (json')
 import Data.Aeson.Types (parseEither)
-import Data.Char (isHexDigit)
+import Data.Char (isDigit, isHexDigit)
 import Data.Map.Strict ( Map )
 import qualified Data.Map.Strict as M
 import Data.Monoid ((<>))
@@ -257,7 +257,7 @@ revision_Bzr :: FilePath -> IO Text
 revision_Bzr tmp = do
   let args = [ "log", "-l1", tmp ]
   runInteractiveProcess "bzr" args Nothing Nothing $ \out -> do
-    let getRevno = (T.strip <$>) . T.stripPrefix "revno:"
+    let getRevno = (T.takeWhile isDigit . T.strip <$>) . T.stripPrefix "revno:"
     revnos <- mapMaybe getRevno <$> liftIO (S.lines out >>= S.decodeUtf8 >>= S.toList)
     case revnos of
       (rev:_) -> pure rev
