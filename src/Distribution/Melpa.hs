@@ -141,12 +141,12 @@ getFetcher _ sourceDir Git {..} = do
 
 getFetcher _ sourceDir GitHub {..} = do
   rev <- revision_Git branch sourceDir
-  let url = "git://github.com/" <> repo <> ".git"
-  pure Nix.Git { Nix.url = url
-               , Nix.rev = rev
-               , Nix.branchName = branch
-               , Nix.sha256 = Nothing
-               }
+  let (owner:rest) = T.splitOn "/" repo
+  pure Nix.FromGitHub { Nix.owner = owner
+                      , Nix.repo = T.concat rest
+                      , Nix.rev = rev
+                      , Nix.sha256 = Nothing
+                      }
 
 getFetcher _ sourceDir GitLab {..} = do
   rev <- revision_Git branch sourceDir
