@@ -31,6 +31,7 @@ data Fetch = URL { url :: Text, sha256 :: Maybe Text }
            | Hg { url :: Text, rev :: Text, sha256 :: Maybe Text }
            | SVN { url :: Text, rev :: Text, sha256 :: Maybe Text }
            | GitHub { owner :: Text, repo :: Text, rev :: Text, sha256 :: Maybe Text }
+           | GitLab { owner :: Text, repo :: Text, rev :: Text, sha256 :: Maybe Text }
            deriving Generic
 
 fetchOptions :: Options
@@ -54,6 +55,7 @@ fetchOptions = defaultOptions
         "Hg" -> "fetchhg"
         "SVN" -> "fetchsvn"
         "GitHub" -> "fetchFromGitHub"
+        "GitLab" -> "fetchFromGitLab"
         _ -> error ("fetchOptions: unknown tag " ++ tag)
 
 instance FromJSON Fetch where
@@ -144,6 +146,18 @@ prefetch _ fetch@(GitHub {..}) = do
   let
     args = ["--url", T.unpack url, "--name", T.unpack name]
     url = "https://github.com/" <> owner <> "/" <> repo <> "/archive/" <> rev <> ".tar.gz"
+    name = repo <> "-" <> rev <> "-src"
+  prefetchHelper "nix-prefetch-zip" args $ \out -> do
+    hashes <- liftIO (S.lines out >>= S.decodeUtf8 >>= S.toList)
+    case hashes of
+      (hash:path:_) -> pure (T.unpack path, fetch { sha256 = Just hash })
+      _ -> throwIO BadPrefetchOutput
+
+prefetch _ fetch@(GitLab {..}) = do
+  let
+    args = ["--url", T.unpack url, "--name", T.unpack name]
+    url = "https://gitlab.com/" <> owner <> "/" <> repo
+          <> "/repository/archive.tar.gz?ref=" <> rev
     name = repo <> "-" <> rev <> "-src"
   prefetchHelper "nix-prefetch-zip" args $ \out -> do
     hashes <- liftIO (S.lines out >>= S.decodeUtf8 >>= S.toList)

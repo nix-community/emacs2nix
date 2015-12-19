@@ -150,12 +150,12 @@ getFetcher _ sourceDir GitHub {..} = do
 
 getFetcher _ sourceDir GitLab {..} = do
   rev <- revision_Git branch sourceDir
-  let url = "https://gitlab.com/" <> repo <> ".git"
-  pure Nix.Git { Nix.url = url
-               , Nix.rev = rev
-               , Nix.branchName = branch
-               , Nix.sha256 = Nothing
-               }
+  let (owner:rest) = T.splitOn "/" repo
+  pure Nix.GitLab { Nix.owner = owner
+                  , Nix.repo = T.concat rest
+                  , Nix.rev = rev
+                  , Nix.sha256 = Nothing
+                  }
 
 getFetcher _ _ CVS {..} =
   pure Nix.CVS { Nix.cvsRoot = url
