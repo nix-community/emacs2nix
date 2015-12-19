@@ -30,7 +30,7 @@ data Fetch = URL { url :: Text, sha256 :: Maybe Text }
            | CVS { cvsRoot :: Text, cvsModule :: Maybe Text, sha256 :: Maybe Text }
            | Hg { url :: Text, rev :: Text, sha256 :: Maybe Text }
            | SVN { url :: Text, rev :: Text, sha256 :: Maybe Text }
-           | FromGitHub { owner :: Text, repo :: Text, rev :: Text, sha256 :: Maybe Text }
+           | GitHub { owner :: Text, repo :: Text, rev :: Text, sha256 :: Maybe Text }
            deriving Generic
 
 fetchOptions :: Options
@@ -53,7 +53,7 @@ fetchOptions = defaultOptions
         "CVS" -> "fetchcvs"
         "Hg" -> "fetchhg"
         "SVN" -> "fetchsvn"
-        "FromGitHub" -> "fetchFromGitHub"
+        "GitHub" -> "fetchFromGitHub"
         _ -> error ("fetchOptions: unknown tag " ++ tag)
 
 instance FromJSON Fetch where
@@ -140,7 +140,7 @@ prefetch _ fetch@(SVN {..}) = do
       (_:hash:path:_) -> pure (T.unpack path, fetch { sha256 = Just hash })
       _ -> throwIO BadPrefetchOutput
 
-prefetch _ fetch@(FromGitHub {..}) = do
+prefetch _ fetch@(GitHub {..}) = do
   let
     args = ["--url", T.unpack url, "--name", T.unpack name]
     url = "https://github.com/" <> owner <> "/" <> repo <> "/archive/" <> rev <> ".tar.gz"
