@@ -12,7 +12,7 @@ import Control.Applicative
 import Control.Exception (bracket)
 import Data.Aeson
 import Data.Aeson.Types
-  ( Options(..), SumEncoding(..), defaultOptions, defaultTaggedObject, parseEither )
+  ( Options(..), SumEncoding(..), defaultTaggedObject, parseEither )
 import qualified Data.Char as Char
 import Data.Map (Map)
 import qualified Data.Map as M
