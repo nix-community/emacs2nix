@@ -216,7 +216,9 @@ getVersion packageBuildEl stable recipeFile packageName sourceDir
       result <- liftIO (S.fold (<>) Nothing =<< S.map Just =<< S.decodeUtf8 out)
       case result of
         Nothing -> throwIO NoVersion
-        Just ver -> pure ver
+        Just ver
+          | ver == "nil" -> throwIO NoVersion
+          | otherwise -> pure ver
 
 data ParseDepsError = ParseDepsError String
   deriving (Show, Typeable)
