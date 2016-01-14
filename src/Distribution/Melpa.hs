@@ -31,6 +31,7 @@ import System.IO.Temp (withSystemTempDirectory)
 import Distribution.Melpa.Recipe
 import qualified Distribution.Nix.Fetch as Nix
 import qualified Distribution.Nix.Hash as Nix
+import qualified Distribution.Nix.Name as Nix
 import qualified Distribution.Nix.Package.Melpa as Recipe ( Recipe(..) )
 import qualified Distribution.Nix.Package.Melpa as Nix
 
@@ -57,7 +58,7 @@ getMelpa :: Int
          -> FilePath
          -> Map Text Nix.Package
          -> Set Text
-         -> IO (Map Text Nix.Package)
+         -> IO [Nix.Package]
 getMelpa nthreads melpaDir stable workDir oldPackages packages
   = do
     melpaCommit <- revision_Git Nothing melpaDir
@@ -75,7 +76,7 @@ getMelpa nthreads melpaDir stable workDir oldPackages packages
         getPackages = M.traverseWithKey getPackage_ recipes
     newPackages <- catMaybesMap <$> runConcurrently getPackages
 
-    (pure . Nix.cleanNames) (newPackages <> oldPackages)
+    (pure . snd . unzip . M.toList) (newPackages <> oldPackages)
 
   where
     catMaybesMap = M.fromList . mapMaybe liftMaybe . M.toList
@@ -103,9 +104,11 @@ getPackage sem melpaDir melpaCommit stable workDir name recipe
     fetch0 <- getFetcher name sourceDir recipe
     (path, fetch) <- Nix.prefetch name fetch0
     deps <- M.keys <$> getDeps packageBuildEl recipeFile name path
-    pure Nix.Package { Nix.version = version
+    pure Nix.Package { Nix.pname = Nix.fromText name
+                     , Nix.ename = name
+                     , Nix.version = version
                      , Nix.fetch = fetch
-                     , Nix.deps = deps
+                     , Nix.deps = map Nix.fromText deps
                      , Nix.recipe = Nix.Recipe
                                     { Recipe.commit = melpaCommit
                                     , Recipe.sha256 = recipeHash

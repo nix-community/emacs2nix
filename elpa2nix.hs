@@ -34,6 +34,7 @@ import Paths_emacs2nix
 
 import qualified Distribution.Elpa.Package as Elpa
 import qualified Distribution.Nix.Fetch as Nix
+import qualified Distribution.Nix.Name as Nix
 import Distribution.Nix.Package.Elpa (Package)
 import qualified Distribution.Nix.Package.Elpa as Nix
 import Util
@@ -66,9 +67,9 @@ elpa2nix threads output server = showExceptions_ $ do
                     (M.traverseWithKey (hashPackage server) archives)
   let
     liftMaybe (x, y) = (,) x <$> y
-    packages = (M.fromList . mapMaybe liftMaybe . M.toList) hashedPackages
+    (_, packages) = (unzip . mapMaybe liftMaybe . M.toList) hashedPackages
 
-  writePackages output (Nix.cleanNames packages)
+  writePackages output packages
 
 -- * Error types
 
@@ -144,14 +145,16 @@ hashPackage server name pkg = Concurrently $ showExceptions $ do
                     }
 
   (_, fetcher) <- Nix.prefetch name fetch
-  pure Nix.Package { Nix.version = ver
+  pure Nix.Package { Nix.pname = Nix.fromText name
+                   , Nix.ename = name
+                   , Nix.version = ver
                    , Nix.fetch = fetcher
-                   , Nix.deps = maybe [] M.keys (Elpa.deps pkg)
+                   , Nix.deps = map Nix.fromText (maybe [] M.keys (Elpa.deps pkg))
                    }
 
 -- * writePackages
 
-writePackages :: FilePath -> Map Text Package -> IO ()
+writePackages :: FilePath -> [Package] -> IO ()
 writePackages path pkgs
   = S.withFileAsOutput path $ \out -> do
     enc <- S.fromLazyByteString (encodePretty pkgs)

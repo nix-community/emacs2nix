@@ -1,25 +1,23 @@
 {-# LANGUAGE DeriveGeneric #-}
 
 module Distribution.Nix.Package.Melpa
-       ( Package(..), Recipe(..)
-       , cleanNames
-       ) where
+       ( Package(..), Recipe(..) ) where
 
 import Data.Aeson ( FromJSON(..), ToJSON(..) )
 import Data.Aeson.Types ( defaultOptions, genericParseJSON, genericToJSON )
-import Data.Map.Strict ( Map )
-import qualified Data.Map.Strict as Map
 import Data.Text (Text)
 import GHC.Generics
 
 import Distribution.Nix.Fetch ( Fetch )
-import Distribution.Nix.Name ( cleanName )
+import Distribution.Nix.Name ( Name )
 
 data Package
   = Package
-    { version :: !Text
+    { pname :: !Name
+    , ename :: !Text
+    , version :: !Text
     , fetch :: !Fetch
-    , deps :: ![Text]
+    , deps :: ![Name]
     , recipe :: !Recipe
     }
   deriving Generic
@@ -41,7 +39,3 @@ instance FromJSON Recipe where
 
 instance ToJSON Recipe where
   toJSON = genericToJSON defaultOptions
-
-cleanNames :: Map Text Package -> Map Text Package
-cleanNames = Map.map (\p -> p { deps = map cleanName (deps p) })
-             . Map.mapKeys cleanName
