@@ -43,5 +43,5 @@ packageIndex pnames
          ]
   where
     attr _pname = ( (dquotes . text) _pname
-                  , callPackage (cat ["./", text _pname])
+                  , callPackage (text (T.append "./" _pname))
                   )
