@@ -105,12 +105,12 @@ getPackage sem melpaDir melpaCommit stable workDir name recipe
     (path, fetch) <- Nix.prefetch name fetch0
     deps <- M.keys <$> getDeps packageBuildEl recipeFile name path
     pure Nix.Package { Nix.pname = Nix.fromText name
-                     , Nix.ename = name
                      , Nix.version = version
                      , Nix.fetch = fetch
                      , Nix.deps = map Nix.fromText deps
                      , Nix.recipe = Nix.Recipe
-                                    { Recipe.commit = melpaCommit
+                                    { Recipe.ename = name
+                                    , Recipe.commit = melpaCommit
                                     , Recipe.sha256 = recipeHash
                                     }
                      }

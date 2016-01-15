@@ -28,6 +28,7 @@ library
     Distribution.Nix.Name
     Distribution.Nix.Package.Elpa
     Distribution.Nix.Package.Melpa
+    Distribution.Nix.Pretty
     Util
   other-modules:
     Paths_emacs2nix

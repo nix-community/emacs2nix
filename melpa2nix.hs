@@ -10,17 +10,19 @@ import Control.Monad (join, when)
 import qualified Data.Map.Strict as Map
 import Data.Set ( Set )
 import qualified Data.Set as Set
-import Data.Aeson.Encode.Pretty (encodePretty)
 import Data.Aeson.Parser ( json' )
 import Data.Aeson.Types ( parseJSON, parseMaybe )
 import Data.Maybe ( fromMaybe )
 import Data.Text ( Text )
 import qualified Data.Text as T
+import qualified Data.Text.Lazy.Encoding as T ( encodeUtf8 )
 import Options.Applicative
 import qualified System.IO.Streams as S
 import qualified System.IO.Streams.Attoparsec as S
 
 import Distribution.Melpa
+import qualified Distribution.Nix.Package.Melpa as Nix
+import Distribution.Nix.Pretty
 
 main :: IO ()
 main = join (execParser (info (helper <*> parser) desc))
@@ -68,5 +70,6 @@ melpa2nix nthreads melpaDir stable workDir melpaOut packages = do
   melpa <- getMelpa nthreads melpaDir stable workDir oldPackages packages
 
   S.withFileAsOutput melpaOut $ \out -> do
-    enc <- S.fromLazyByteString (encodePretty melpa)
+    let lbs = (T.encodeUtf8 . displayT . renderPretty 1 80) (Nix.packageSet melpa)
+    enc <- S.fromLazyByteString lbs
     S.connect enc out

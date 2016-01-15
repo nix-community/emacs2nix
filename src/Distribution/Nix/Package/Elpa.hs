@@ -1,15 +1,18 @@
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards #-}
 
 module Distribution.Nix.Package.Elpa
-       ( Package(..) ) where
+       ( Package(..), packageSet ) where
 
 import Data.Aeson ( FromJSON(..), ToJSON(..) )
 import Data.Aeson.Types ( defaultOptions, genericParseJSON, genericToJSON )
 import Data.Text ( Text )
 import GHC.Generics
 
-import Distribution.Nix.Fetch ( Fetch )
+import Distribution.Nix.Fetch ( Fetch, importFetcher )
 import Distribution.Nix.Name ( Name )
+import Distribution.Nix.Pretty
 
 data Package
   = Package
@@ -21,8 +24,37 @@ data Package
     }
   deriving Generic
 
+instance Pretty Package where
+  pretty (Package {..})
+    = (callPackage . parens' . params imports . elpaBuild)
+      (attrs [ ("pname", (dquotes . pretty) pname)
+             , ("version", (dquotes . text) version)
+             , ("src", pretty fetch)
+             , ("packageRequires", list packageRequires)
+             , ("meta", meta)
+             ])
+    where
+      packageRequires = map pretty deps
+      imports = "lib" : importFetcher fetch : packageRequires
+
+      meta =
+        let
+          homepage = (dquotes . cat)
+                     [ "http://elpa.gnu.org/packages/", text ename, ".html" ]
+          license = "lib.licenses.free";
+        in
+          attrs [("homepage", homepage), ("license", license)]
+
 instance FromJSON Package where
   parseJSON = genericParseJSON defaultOptions
 
 instance ToJSON Package where
   toJSON = genericToJSON defaultOptions
+
+packageSet :: [Package] -> Doc
+packageSet packages
+  = vsep [ "# Automatically generated file, DO NOT EDIT"
+         , params [ "callPackage" ] ((attrs . map attr) packages)
+         ]
+  where
+    attr p = ((dquotes . pretty) (pname p), pretty p)

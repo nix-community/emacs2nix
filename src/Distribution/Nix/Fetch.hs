@@ -22,6 +22,7 @@ import GHC.Generics
 import System.Environment (getEnvironment)
 import qualified System.IO.Streams as S
 
+import Distribution.Nix.Pretty
 import Util (runInteractiveProcess)
 
 data Fetch = URL { url :: Text, sha256 :: Maybe Text }
@@ -33,6 +34,67 @@ data Fetch = URL { url :: Text, sha256 :: Maybe Text }
            | GitHub { owner :: Text, repo :: Text, rev :: Text, sha256 :: Maybe Text }
            | GitLab { owner :: Text, repo :: Text, rev :: Text, sha256 :: Maybe Text }
            deriving Generic
+
+importFetcher :: Fetch -> Doc
+importFetcher (URL {}) = "fetchurl"
+importFetcher (Git {}) = "fetchgit"
+importFetcher (Bzr {}) = "fetchbzr"
+importFetcher (CVS {}) = "fetchcvs"
+importFetcher (Hg {}) = "fetchhg"
+importFetcher (SVN {}) = "fetchsvn"
+importFetcher (GitHub {}) = "fetchFromGitHub"
+importFetcher (GitLab {}) = "fetchFromGitLab"
+
+instance Pretty Fetch where
+  pretty (URL {..}) = (fetchurl . attrs . catMaybes)
+                      [ Just ("url", (dquotes . text) url)
+                      , (,) "sha256" . (dquotes . text) <$> sha256
+                      ]
+
+  pretty (Git {..}) = (fetchgit . attrs . catMaybes)
+                      [ Just ("url", (dquotes . text) url)
+                      , Just ("rev", (dquotes . text) rev)
+                      , (,) "sha256" . (dquotes . text) <$> sha256
+                      , (,) "branchName" . (dquotes . text) <$> branchName
+                      ]
+
+  pretty (Bzr {..}) = (fetchbzr . attrs . catMaybes)
+                      [ Just ("url", (dquotes . text) url)
+                      , Just ("rev", (dquotes . text) rev)
+                      , (,) "sha256" . (dquotes . text) <$> sha256
+                      ]
+
+  pretty (CVS {..}) = (fetchcvs . attrs . catMaybes)
+                      [ Just ("cvsRoot", (dquotes . text) cvsRoot)
+                      , (,) "module" . (dquotes . text) <$> cvsModule
+                      , (,) "sha256" . (dquotes . text) <$> sha256
+                      ]
+
+  pretty (Hg {..}) = (fetchhg . attrs . catMaybes)
+                     [ Just ("url", (dquotes . text) url)
+                     , Just ("rev", (dquotes . text) rev)
+                     , (,) "sha256" . (dquotes . text) <$> sha256
+                     ]
+
+  pretty (SVN {..}) = (fetchsvn . attrs . catMaybes)
+                      [ Just ("url", (dquotes . text) url)
+                      , Just ("rev", (dquotes . text) rev)
+                      , (,) "sha256" . (dquotes . text) <$> sha256
+                      ]
+
+  pretty (GitHub {..}) = (fetchFromGitHub . attrs . catMaybes)
+                         [ Just ("owner", (dquotes . text) owner)
+                         , Just ("repo", (dquotes . text) repo)
+                         , Just ("rev", (dquotes . text) rev)
+                         , (,) "sha256" . (dquotes . text) <$> sha256
+                         ]
+
+  pretty (GitLab {..}) = (fetchFromGitLab . attrs . catMaybes)
+                         [ Just ("owner", (dquotes . text) owner)
+                         , Just ("repo", (dquotes . text) repo)
+                         , Just ("rev", (dquotes . text) rev)
+                         , (,) "sha256" . (dquotes . text) <$> sha256
+                         ]
 
 fetchOptions :: Options
 fetchOptions = defaultOptions

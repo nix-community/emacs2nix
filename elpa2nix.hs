@@ -15,13 +15,13 @@ import Control.Error
 import Control.Exception
 import Control.Monad (join, when)
 import Data.Aeson (FromJSON(..), json')
-import Data.Aeson.Encode.Pretty (encodePretty)
 import Data.Aeson.Types (parseEither)
 import Data.ByteString (ByteString)
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as M
 import Data.Text (Text)
 import qualified Data.Text as T
+import qualified Data.Text.Lazy.Encoding as T (encodeUtf8)
 import Data.Typeable (Typeable)
 import Options.Applicative
 import System.FilePath ((</>), (<.>))
@@ -37,6 +37,7 @@ import qualified Distribution.Nix.Fetch as Nix
 import qualified Distribution.Nix.Name as Nix
 import Distribution.Nix.Package.Elpa (Package)
 import qualified Distribution.Nix.Package.Elpa as Nix
+import Distribution.Nix.Pretty hiding ((</>))
 import Util
 
 main :: IO ()
@@ -155,7 +156,8 @@ hashPackage server name pkg = Concurrently $ showExceptions $ do
 -- * writePackages
 
 writePackages :: FilePath -> [Package] -> IO ()
-writePackages path pkgs
-  = S.withFileAsOutput path $ \out -> do
-    enc <- S.fromLazyByteString (encodePretty pkgs)
+writePackages path pkgs = S.withFileAsOutput path go where
+  go out = do
+    let lbs = (T.encodeUtf8 . displayT . renderPretty 1 80) (Nix.packageSet pkgs)
+    enc <- S.fromLazyByteString lbs
     S.connect enc out

@@ -11,8 +11,13 @@ import Data.Text ( Text )
 import Data.Text.ICU.Replace ( replaceAll )
 import GHC.Generics
 
+import Distribution.Nix.Pretty
+
 newtype Name = Name { fromName :: Text }
   deriving Generic
+
+instance Pretty Name where
+  pretty = text . fromName
 
 instance FromJSON Name where
   parseJSON = (Name <$>) . parseJSON
