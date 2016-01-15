@@ -2,13 +2,14 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ViewPatterns #-}
 
-module Distribution.Melpa (getMelpa) where
+module Distribution.Melpa (updateMelpa) where
 
 import Control.Concurrent (getNumCapabilities)
 import Control.Concurrent.Async (Concurrently(..))
 import Control.Concurrent.QSem
 import Control.Error hiding (err)
 import Control.Exception
+import Control.Monad (when)
 import Control.Monad.IO.Class
 import Data.Aeson (parseJSON)
 import Data.Aeson.Parser (json')
@@ -21,6 +22,7 @@ import Data.Set ( Set )
 import qualified Data.Set as Set
 import Data.Text (Text)
 import qualified Data.Text as T
+import qualified Data.Text.Lazy.Encoding as T (encodeUtf8)
 import Data.Typeable (Typeable)
 import System.Directory (createDirectoryIfMissing, copyFile, doesFileExist)
 import System.FilePath
@@ -34,6 +36,7 @@ import qualified Distribution.Nix.Hash as Nix
 import qualified Distribution.Nix.Name as Nix
 import qualified Distribution.Nix.Package.Melpa as Recipe ( Recipe(..) )
 import qualified Distribution.Nix.Package.Melpa as Nix
+import Distribution.Nix.Pretty hiding ((</>))
 
 import Paths_emacs2nix (getDataFileName)
 import Util
@@ -43,34 +46,45 @@ data ParseMelpaError = ParseMelpaError String
 
 instance Exception ParseMelpaError
 
-getMelpa :: Int
-         -> FilePath
-         -> Bool
-         -> FilePath
-         -> Set Text
-         -> IO [Nix.Package]
-getMelpa nthreads melpaDir stable workDir packages
-  = do
-    melpaCommit <- revision_Git Nothing melpaDir
+updateMelpa :: Int
+            -> FilePath
+            -> Bool
+            -> FilePath
+            -> FilePath
+            -> Set Text
+            -> IO ()
+updateMelpa nthreads melpaDir stable workDir output packages = do
+  melpaCommit <- revision_Git Nothing melpaDir
 
-    recipes <- readRecipes melpaDir
+  recipes <- readRecipes melpaDir
 
-    createDirectoryIfMissing True workDir
+  createDirectoryIfMissing True workDir
 
-    sem <- (if nthreads > 0 then pure nthreads else getNumCapabilities) >>= newQSem
-    let getPackage_ name recipe
-          | Set.null packages || Set.member name packages
-            = getPackage sem melpaDir melpaCommit stable workDir name recipe
-          | otherwise
-            = return Nothing
-        getPackages = M.traverseWithKey getPackage_ recipes
-    pkgs <- catMaybesMap <$> runConcurrently getPackages
+  sem <- (if nthreads > 0 then pure nthreads else getNumCapabilities) >>= newQSem
+  let update pkg@(name, _) = do
+        when (Set.null packages || Set.member name packages)
+          (updatePackage sem melpaDir melpaCommit stable workDir output pkg)
+  runConcurrently (mapM_ update (M.toList recipes))
 
-    (pure . snd . unzip . M.toList) pkgs
+updatePackage :: QSem -> FilePath -> Text -> Bool -> FilePath -> FilePath
+              -> (Text, Recipe) -> Concurrently ()
+updatePackage sem melpaDir melpaCommit stable workDir output (name, recipe)
+  = concurrentlyLimited sem $ do
+    hashed <- getPackage melpaDir melpaCommit stable workDir (name, recipe)
+    case hashed of
+      Nothing -> pure ()
 
-  where
-    catMaybesMap = M.fromList . mapMaybe liftMaybe . M.toList
-    liftMaybe (x, y) = (,) x <$> y
+      Just pkg -> do
+        let dir = output </> (T.unpack . Nix.fromName) (Nix.pname pkg)
+        createDirectoryIfMissing True dir
+        let
+          writePackage out = do
+            let lbs = (T.encodeUtf8 . displayT . renderPretty 1 80)
+                      (pretty pkg)
+            encoded <- S.fromLazyByteString lbs
+            S.connect encoded out
+          file = dir </> "default.nix"
+        S.withFileAsOutput file writePackage
 
 concurrentlyLimited :: QSem -> IO a -> Concurrently a
 concurrentlyLimited sem go
@@ -81,10 +95,10 @@ data PackageException = PackageException Text SomeException
 
 instance Exception PackageException
 
-getPackage :: QSem -> FilePath -> Text -> Bool -> FilePath -> Text -> Recipe
-           -> Concurrently (Maybe Nix.Package)
-getPackage sem melpaDir melpaCommit stable workDir name recipe
-  = concurrentlyLimited sem $ showExceptions $ mapExceptionIO (PackageException name) $ do
+getPackage :: FilePath -> Text -> Bool -> FilePath -> (Text, Recipe)
+           -> IO (Maybe Nix.Package)
+getPackage melpaDir melpaCommit stable workDir (name, recipe)
+  = showExceptions $ mapExceptionIO (PackageException name) $ do
     let
       packageBuildEl = melpaDir </> "package-build.el"
       recipeFile = melpaDir </> "recipes" </> T.unpack name

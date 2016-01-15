@@ -5,6 +5,7 @@
 module Distribution.Nix.Package.Melpa
        ( Package(..), Recipe(..), packageSet ) where
 
+import Data.List ( sort )
 import Data.Text ( Text )
 import GHC.Generics
 
@@ -24,14 +25,17 @@ data Package
 
 instance Pretty Package where
   pretty (Package {..})
-    = (callPackage . parens' . params imports . melpaBuild)
-      (attrs [ ("pname", (dquotes . pretty) pname)
-             , ("version", (dquotes . text) version)
-             , ("src", pretty fetch)
-             , ("recipeFile", pretty recipe)
-             , ("packageRequires", list packageRequires)
-             , ("meta", meta)
-             ])
+    = vsep
+      [ "# DO NOT EDIT: generated automatically"
+      , (params imports . melpaBuild)
+        (attrs [ ("pname", (dquotes . pretty) pname)
+               , ("version", (dquotes . text) version)
+               , ("src", pretty fetch)
+               , ("recipeFile", pretty recipe)
+               , ("packageRequires", list packageRequires)
+               , ("meta", meta)
+               ])
+      ]
     where
       packageRequires = map pretty deps
       imports = "lib" : importFetcher fetch : packageRequires
@@ -62,10 +66,12 @@ instance Pretty Recipe where
       , ("sha256", (dquotes . text) sha256)
       ]
 
-packageSet :: [Package] -> Doc
-packageSet packages
-  = vsep [ "# Automatically generated file, DO NOT EDIT"
-         , params [ "callPackage" ] ((attrs . map attr) packages)
+packageSet :: [Text] -> Doc
+packageSet pnames
+  = vsep [ "# DO NOT EDIT: generated automatically"
+         , params [ "callPackage" ] ((attrs . map attr . sort) pnames)
          ]
   where
-    attr p = ((dquotes . pretty) (pname p), pretty p)
+    attr _pname = ( (dquotes . text) _pname
+                  , callPackage (cat ["./", text _pname])
+                  )
