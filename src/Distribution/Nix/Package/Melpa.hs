@@ -46,7 +46,8 @@ instance Pretty Package where
 
       meta =
         let
-          homepage = (dquotes . cat) [ "http://melpa.org/#/", text (ename recipe) ]
+          homepage = (dquotes . text)
+                     (T.append "http://melpa.org/#/" (ename recipe))
           license = "lib.licenses.free";
         in
           attrs [("homepage", homepage), ("license", license)]
@@ -61,11 +62,12 @@ data Recipe
 instance Pretty Recipe where
   pretty (Recipe {..})
     = (fetchurl . attrs)
-      [ ("url", (dquotes . cat)
-                [ "https://raw.githubusercontent.com/milkypostman/melpa/"
-                , text commit
-                , "/recipes/"
-                , text ename
-                ])
+      [ ("url", (dquotes . text)
+                (T.concat
+                 [ "https://raw.githubusercontent.com/milkypostman/melpa/"
+                 , commit
+                 , "/recipes/"
+                 , ename
+                 ]))
       , ("sha256", (dquotes . text) sha256)
       ]
