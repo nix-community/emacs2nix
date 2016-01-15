@@ -36,7 +36,7 @@ instance Pretty Package where
       ]
     where
       packageRequires = map pretty deps
-      imports = "lib" : importFetcher fetch : packageRequires
+      imports = "lib" : "melpaBuild" : importFetcher fetch : packageRequires
 
       meta =
         let
