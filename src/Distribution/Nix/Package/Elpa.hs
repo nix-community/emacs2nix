@@ -2,10 +2,8 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 
-module Distribution.Nix.Package.Elpa
-       ( Package(..), packageSet ) where
+module Distribution.Nix.Package.Elpa ( Package(..) ) where
 
-import Data.List ( sort )
 import Data.Text ( Text )
 import GHC.Generics
 
@@ -46,13 +44,3 @@ instance Pretty Package where
           license = "lib.licenses.free";
         in
           attrs [("homepage", homepage), ("license", license)]
-
-packageSet :: [Text] -> Doc
-packageSet pnames
-  = vsep [ "# DO NOT EDIT: generated automatically"
-         , params [ "callPackage" ] ((attrs . map attr . sort) pnames)
-         ]
-  where
-    attr _pname = ( (dquotes . text) _pname
-                  , callPackage (cat ["./", text _pname])
-                  )

@@ -4,23 +4,16 @@
 
 module Main where
 
-import Control.Concurrent (setNumCapabilities)
-import Control.Monad (filterM, join, when, unless)
-import Data.List ( isPrefixOf )
+import Control.Concurrent ( setNumCapabilities )
+import Control.Monad ( join, when, unless )
 import Data.Set ( Set )
 import qualified Data.Set as Set
 import Data.Text ( Text )
 import qualified Data.Text as T
-import qualified Data.Text.Lazy.Encoding as T ( encodeUtf8 )
 import Options.Applicative
-import System.Directory
-       ( createDirectoryIfMissing, doesDirectoryExist, getDirectoryContents )
-import System.FilePath ((</>))
-import qualified System.IO.Streams as S
 
 import Distribution.Melpa
-import qualified Distribution.Nix.Package.Melpa as Nix
-import Distribution.Nix.Pretty hiding ((</>))
+import Distribution.Nix.Index
 
 main :: IO ()
 main = join (execParser (info (helper <*> parser) desc))
@@ -70,24 +63,3 @@ melpa2nix nthreads melpaDir stable workDir melpaOut indexOnly packages = do
     (updateMelpa nthreads melpaDir stable workDir melpaOut packages)
 
   updateIndex melpaOut
-
-updateIndex :: FilePath -> IO ()
-updateIndex output = do
-  createDirectoryIfMissing True output
-
-  let
-    packageNamesOnly path
-      | "." `isPrefixOf` path = pure False -- skip special files
-      | otherwise = doesDirectoryExist (output </> path)
-                    -- each packages is a directory
-  contents <- getDirectoryContents output >>= filterM packageNamesOnly
-
-  let
-    pnames = map T.pack contents
-    writeIndex out = do
-      let lbs = (T.encodeUtf8 . displayT . renderPretty 1 80)
-                (pretty (Nix.packageSet pnames))
-      encoded <- S.fromLazyByteString lbs
-      S.connect encoded out
-    file = output </> "default.nix"
-  S.withFileAsOutput file writeIndex

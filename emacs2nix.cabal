@@ -25,6 +25,7 @@ library
     Distribution.Melpa.Recipe
     Distribution.Nix.Fetch
     Distribution.Nix.Hash
+    Distribution.Nix.Index
     Distribution.Nix.Name
     Distribution.Nix.Package.Elpa
     Distribution.Nix.Package.Melpa

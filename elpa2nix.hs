@@ -12,11 +12,10 @@ import Control.Applicative
 import Control.Concurrent (setNumCapabilities)
 import Control.Concurrent.Async (Concurrently(..))
 import Control.Exception
-import Control.Monad (filterM, join, unless, when)
+import Control.Monad (join, unless, when)
 import Data.Aeson (FromJSON(..), json')
 import Data.Aeson.Types (parseEither)
 import Data.ByteString (ByteString)
-import Data.List (isPrefixOf)
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as M
 import Data.Text (Text)
@@ -24,8 +23,7 @@ import qualified Data.Text as T
 import qualified Data.Text.Lazy.Encoding as T (encodeUtf8)
 import Data.Typeable (Typeable)
 import Options.Applicative
-import System.Directory
-       ( createDirectoryIfMissing, doesDirectoryExist, getDirectoryContents )
+import System.Directory ( createDirectoryIfMissing )
 import System.FilePath ((</>), (<.>))
 import System.IO (hClose)
 import qualified System.IO.Streams as S
@@ -36,6 +34,7 @@ import Paths_emacs2nix
 
 import qualified Distribution.Elpa.Package as Elpa
 import qualified Distribution.Nix.Fetch as Nix
+import Distribution.Nix.Index
 import qualified Distribution.Nix.Name as Nix
 import Distribution.Nix.Package.Elpa (Package)
 import qualified Distribution.Nix.Package.Elpa as Nix
@@ -80,27 +79,6 @@ elpa2nix threads output server indexOnly = showExceptions_ $ do
     (mapM_ (updatePackage server output) (M.toList archives))
 
   updateIndex output
-
-updateIndex :: FilePath -> IO ()
-updateIndex output = do
-  createDirectoryIfMissing True output
-
-  let
-    packageNamesOnly path
-      | "." `isPrefixOf` path = pure False -- skip special files
-      | otherwise = doesDirectoryExist (output </> path)
-                    -- each packages is a directory
-  contents <- getDirectoryContents output >>= filterM packageNamesOnly
-
-  let
-    pnames = map T.pack contents
-    writeIndex out = do
-      let lbs = (T.encodeUtf8 . displayT . renderPretty 1 80)
-                (pretty (Nix.packageSet pnames))
-      encoded <- S.fromLazyByteString lbs
-      S.connect encoded out
-    file = output </> "default.nix"
-  S.withFileAsOutput file writeIndex
 
 updatePackage :: String -> FilePath -> (Text, Elpa.Package)
               -> Concurrently ()
