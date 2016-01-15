@@ -26,10 +26,10 @@ fromText = Name
            . replaceAll "@$" "-at"
            . replaceAll "^@$" "at"
 
-           . replaceAll "+" "-plus-"
-           . replaceAll "^+" "plus-"
-           . replaceAll "+$" "-plus"
-           . replaceAll "^+$" "plus"
+           . replaceAll "\\+" "-plus-"
+           . replaceAll "^\\+" "plus-"
+           . replaceAll "\\+$" "-plus"
+           . replaceAll "^\\+$" "plus"
   where
     -- Nix does not allow identifiers to begin with digits
     prefixDigits txt
