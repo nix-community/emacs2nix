@@ -50,14 +50,13 @@ data ParseMelpaError = ParseMelpaError String
 
 instance Exception ParseMelpaError
 
-updateMelpa :: Int
-            -> FilePath
+updateMelpa :: FilePath
             -> Bool
             -> FilePath
             -> FilePath
             -> Set Text
             -> IO ()
-updateMelpa nthreads melpaDir stable workDir output packages = do
+updateMelpa melpaDir stable workDir output packages = do
   melpaCommit <- revision_Git Nothing melpaDir
   let melpa = Melpa {..}
 
@@ -68,10 +67,7 @@ updateMelpa nthreads melpaDir stable workDir output packages = do
 
   createDirectoryIfMissing True workDir
 
-  let getNumThreads
-        | nthreads > 0 = pure nthreads
-        | otherwise = getNumCapabilities
-  sem <- newQSem =<< getNumThreads
+  sem <- newQSem =<< getNumCapabilities
 
   let update pkg
         = Concurrently

@@ -57,9 +57,9 @@ melpa2nix :: Int  -- ^ number of threads to use
           -> Set Text
           -> IO ()
 melpa2nix nthreads melpaDir stable workDir melpaOut indexOnly packages = do
+  -- set number of threads before beginning
   when (nthreads > 0) $ setNumCapabilities nthreads
 
-  unless indexOnly
-    (updateMelpa nthreads melpaDir stable workDir melpaOut packages)
+  unless indexOnly (updateMelpa melpaDir stable workDir melpaOut packages)
 
   updateIndex melpaOut
