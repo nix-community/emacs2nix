@@ -39,7 +39,7 @@ instance Pretty Package where
       meta =
         let
           homepage = (dquotes . cat) [ "http://melpa.org/#/", text (ename recipe) ]
-          license = "stdenv.lib.licenses.free";
+          license = "lib.licenses.free";
         in
           attrs [("homepage", homepage), ("license", license)]
 
