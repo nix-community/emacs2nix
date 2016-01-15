@@ -61,18 +61,23 @@ updateMelpa nthreads melpaDir stable workDir output packages = do
   melpaCommit <- revision_Git Nothing melpaDir
   let melpa = Melpa {..}
 
-  recipes <- readRecipes melpaDir
+  let selectPackages
+        | Set.null packages = id
+        | otherwise = filter (\(name, _) -> Set.member name packages)
+  recipes <- selectPackages . M.toList <$> readRecipes melpaDir
 
   createDirectoryIfMissing True workDir
 
-  sem <- (if nthreads > 0 then pure nthreads else getNumCapabilities) >>= newQSem
-  let update pkg@(name, _)
-        | Set.null packages || Set.member name packages
-          = Concurrently
-            (bracket (waitQSem sem) (\_ -> signalQSem sem)
-             (\_ -> updatePackage melpa stable workDir output pkg))
-        | otherwise = pure ()
-  runConcurrently (traverse_ update (M.toList recipes))
+  let getNumThreads
+        | nthreads > 0 = pure nthreads
+        | otherwise = getNumCapabilities
+  sem <- newQSem =<< getNumThreads
+
+  let update pkg
+        = Concurrently
+          (bracket (waitQSem sem) (\_ -> signalQSem sem)
+            (\_ -> updatePackage melpa stable workDir output pkg))
+  runConcurrently (traverse_ update recipes)
 
 updatePackage :: Melpa -> Bool -> FilePath -> FilePath
               -> (Text, Recipe) -> IO ()
