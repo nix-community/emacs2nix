@@ -9,12 +9,12 @@ import Control.Concurrent.Async (Concurrently(..))
 import Control.Concurrent.QSem
 import Control.Error hiding (err)
 import Control.Exception
-import Control.Monad (when)
 import Control.Monad.IO.Class
 import Data.Aeson (parseJSON)
 import Data.Aeson.Parser (json')
 import Data.Aeson.Types (parseEither)
 import Data.Char (isDigit, isHexDigit)
+import Data.Foldable
 import Data.Map.Strict ( Map )
 import qualified Data.Map.Strict as M
 import Data.Monoid ((<>))
@@ -41,6 +41,10 @@ import Distribution.Nix.Pretty hiding ((</>))
 import Paths_emacs2nix (getDataFileName)
 import Util
 
+data Melpa = Melpa { melpaDir :: FilePath
+                   , melpaCommit :: Text
+                   }
+
 data ParseMelpaError = ParseMelpaError String
   deriving (Show, Typeable)
 
@@ -55,49 +59,48 @@ updateMelpa :: Int
             -> IO ()
 updateMelpa nthreads melpaDir stable workDir output packages = do
   melpaCommit <- revision_Git Nothing melpaDir
+  let melpa = Melpa {..}
 
   recipes <- readRecipes melpaDir
 
   createDirectoryIfMissing True workDir
 
   sem <- (if nthreads > 0 then pure nthreads else getNumCapabilities) >>= newQSem
-  let update pkg@(name, _) = do
-        when (Set.null packages || Set.member name packages)
-          (updatePackage sem melpaDir melpaCommit stable workDir output pkg)
-  runConcurrently (mapM_ update (M.toList recipes))
+  let update pkg@(name, _)
+        | Set.null packages || Set.member name packages
+          = Concurrently
+            (bracket (waitQSem sem) (\_ -> signalQSem sem)
+             (\_ -> updatePackage melpa stable workDir output pkg))
+        | otherwise = pure ()
+  runConcurrently (traverse_ update (M.toList recipes))
 
-updatePackage :: QSem -> FilePath -> Text -> Bool -> FilePath -> FilePath
-              -> (Text, Recipe) -> Concurrently ()
-updatePackage sem melpaDir melpaCommit stable workDir output (name, recipe)
-  = concurrentlyLimited sem $ do
-    hashed <- getPackage melpaDir melpaCommit stable workDir (name, recipe)
-    case hashed of
-      Nothing -> pure ()
+updatePackage :: Melpa -> Bool -> FilePath -> FilePath
+              -> (Text, Recipe) -> IO ()
+updatePackage melpa stable workDir output (name, recipe) = do
+  hashed <- getPackage melpa stable workDir (name, recipe)
+  case hashed of
+    Nothing -> pure ()
 
-      Just pkg -> do
-        let dir = output </> (T.unpack . Nix.fromName) (Nix.pname pkg)
-        createDirectoryIfMissing True dir
-        let
-          writePackage out = do
-            let lbs = (T.encodeUtf8 . displayT . renderPretty 1 80)
-                      (pretty pkg)
-            encoded <- S.fromLazyByteString lbs
-            S.connect encoded out
-          file = dir </> "default.nix"
-        S.withFileAsOutput file writePackage
-
-concurrentlyLimited :: QSem -> IO a -> Concurrently a
-concurrentlyLimited sem go
-  = Concurrently (bracket (waitQSem sem) (\_ -> signalQSem sem) (\_ -> go))
+    Just pkg -> do
+      let dir = output </> (T.unpack . Nix.fromName) (Nix.pname pkg)
+      createDirectoryIfMissing True dir
+      let
+        writePackage out = do
+          let lbs = (T.encodeUtf8 . displayT . renderPretty 1 80)
+                    (pretty pkg)
+          encoded <- S.fromLazyByteString lbs
+          S.connect encoded out
+        file = dir </> "default.nix"
+      S.withFileAsOutput file writePackage
 
 data PackageException = PackageException Text SomeException
   deriving (Show, Typeable)
 
 instance Exception PackageException
 
-getPackage :: FilePath -> Text -> Bool -> FilePath -> (Text, Recipe)
+getPackage :: Melpa -> Bool -> FilePath -> (Text, Recipe)
            -> IO (Maybe Nix.Package)
-getPackage melpaDir melpaCommit stable workDir (name, recipe)
+getPackage (Melpa {..}) stable workDir (name, recipe)
   = showExceptions $ mapExceptionIO (PackageException name) $ do
     let
       packageBuildEl = melpaDir </> "package-build.el"
