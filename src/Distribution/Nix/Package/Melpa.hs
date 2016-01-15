@@ -5,8 +5,6 @@
 module Distribution.Nix.Package.Melpa
        ( Package(..), Recipe(..), packageSet ) where
 
-import Data.Aeson ( FromJSON(..), ToJSON(..) )
-import Data.Aeson.Types ( defaultOptions, genericParseJSON, genericToJSON )
 import Data.Text ( Text )
 import GHC.Generics
 
@@ -45,12 +43,6 @@ instance Pretty Package where
         in
           attrs [("homepage", homepage), ("license", license)]
 
-instance FromJSON Package where
-  parseJSON = genericParseJSON defaultOptions
-
-instance ToJSON Package where
-  toJSON = genericToJSON defaultOptions
-
 data Recipe
   = Recipe { ename :: !Text
            , commit :: !Text
@@ -69,12 +61,6 @@ instance Pretty Recipe where
                 ])
       , ("sha256", (dquotes . text) sha256)
       ]
-
-instance FromJSON Recipe where
-  parseJSON = genericParseJSON defaultOptions
-
-instance ToJSON Recipe where
-  toJSON = genericToJSON defaultOptions
 
 packageSet :: [Package] -> Doc
 packageSet packages

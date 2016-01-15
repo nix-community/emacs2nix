@@ -5,20 +5,14 @@
 module Main where
 
 import Control.Concurrent (setNumCapabilities)
-import Control.Exception ( SomeException(..), handle )
 import Control.Monad (join, when)
-import qualified Data.Map.Strict as Map
 import Data.Set ( Set )
 import qualified Data.Set as Set
-import Data.Aeson.Parser ( json' )
-import Data.Aeson.Types ( parseJSON, parseMaybe )
-import Data.Maybe ( fromMaybe )
 import Data.Text ( Text )
 import qualified Data.Text as T
 import qualified Data.Text.Lazy.Encoding as T ( encodeUtf8 )
 import Options.Applicative
 import qualified System.IO.Streams as S
-import qualified System.IO.Streams.Attoparsec as S
 
 import Distribution.Melpa
 import qualified Distribution.Nix.Package.Melpa as Nix
@@ -63,11 +57,7 @@ melpa2nix :: Int  -- ^ number of threads to use
 melpa2nix nthreads melpaDir stable workDir melpaOut packages = do
   when (nthreads > 0) $ setNumCapabilities nthreads
 
-  oldPackages <- fromMaybe Map.empty <$> handle
-    (\(SomeException _) -> return Nothing)
-    (parseMaybe parseJSON <$> S.withFileAsInput melpaOut (S.parseFromStream json'))
-
-  melpa <- getMelpa nthreads melpaDir stable workDir oldPackages packages
+  melpa <- getMelpa nthreads melpaDir stable workDir packages
 
   S.withFileAsOutput melpaOut $ \out -> do
     let lbs = (T.encodeUtf8 . displayT . renderPretty 1 80) (Nix.packageSet melpa)

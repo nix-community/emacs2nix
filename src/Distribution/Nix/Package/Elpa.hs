@@ -5,8 +5,6 @@
 module Distribution.Nix.Package.Elpa
        ( Package(..), packageSet ) where
 
-import Data.Aeson ( FromJSON(..), ToJSON(..) )
-import Data.Aeson.Types ( defaultOptions, genericParseJSON, genericToJSON )
 import Data.Text ( Text )
 import GHC.Generics
 
@@ -44,12 +42,6 @@ instance Pretty Package where
           license = "lib.licenses.free";
         in
           attrs [("homepage", homepage), ("license", license)]
-
-instance FromJSON Package where
-  parseJSON = genericParseJSON defaultOptions
-
-instance ToJSON Package where
-  toJSON = genericToJSON defaultOptions
 
 packageSet :: [Package] -> Doc
 packageSet packages

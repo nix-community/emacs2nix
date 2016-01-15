@@ -2,7 +2,7 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ViewPatterns #-}
 
-module Distribution.Melpa (getMelpa, readMelpa) where
+module Distribution.Melpa (getMelpa) where
 
 import Control.Concurrent (getNumCapabilities)
 import Control.Concurrent.Async (Concurrently(..))
@@ -43,23 +43,13 @@ data ParseMelpaError = ParseMelpaError String
 
 instance Exception ParseMelpaError
 
-readMelpa :: FilePath -> IO (Maybe (Map Text Nix.Package))
-readMelpa packagesJson =
-  showExceptions
-  (S.withFileAsInput packagesJson $ \inp -> do
-       result <- parseEither parseJSON <$> S.parseFromStream json' inp
-       case result of
-         Left parseError -> throwIO (ParseMelpaError parseError)
-         Right packages -> pure packages)
-
 getMelpa :: Int
          -> FilePath
          -> Bool
          -> FilePath
-         -> Map Text Nix.Package
          -> Set Text
          -> IO [Nix.Package]
-getMelpa nthreads melpaDir stable workDir oldPackages packages
+getMelpa nthreads melpaDir stable workDir packages
   = do
     melpaCommit <- revision_Git Nothing melpaDir
 
@@ -74,9 +64,9 @@ getMelpa nthreads melpaDir stable workDir oldPackages packages
           | otherwise
             = return Nothing
         getPackages = M.traverseWithKey getPackage_ recipes
-    newPackages <- catMaybesMap <$> runConcurrently getPackages
+    pkgs <- catMaybesMap <$> runConcurrently getPackages
 
-    (pure . snd . unzip . M.toList) (newPackages <> oldPackages)
+    (pure . snd . unzip . M.toList) pkgs
 
   where
     catMaybesMap = M.fromList . mapMaybe liftMaybe . M.toList

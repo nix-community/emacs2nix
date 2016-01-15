@@ -1,5 +1,4 @@
 {-# LANGUAGE DeriveDataTypeable #-}
-{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 
@@ -8,17 +7,12 @@ module Distribution.Nix.Fetch where
 import Control.Error
 import Control.Exception
 import Control.Monad.IO.Class
-import Data.Aeson (FromJSON(..), ToJSON(..))
-import Data.Aeson.Types
-  ( Options(..), defaultOptions, defaultTaggedObject
-  , genericParseJSON, genericToJSON )
 import Data.ByteString (ByteString)
 import qualified Data.Map.Strict as M
 import Data.Monoid
 import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Typeable (Typeable)
-import GHC.Generics
 import System.Environment (getEnvironment)
 import qualified System.IO.Streams as S
 
@@ -33,7 +27,6 @@ data Fetch = URL { url :: Text, sha256 :: Maybe Text }
            | SVN { url :: Text, rev :: Text, sha256 :: Maybe Text }
            | GitHub { owner :: Text, repo :: Text, rev :: Text, sha256 :: Maybe Text }
            | GitLab { owner :: Text, repo :: Text, rev :: Text, sha256 :: Maybe Text }
-           deriving Generic
 
 importFetcher :: Fetch -> Doc
 importFetcher (URL {}) = "fetchurl"
@@ -95,36 +88,6 @@ instance Pretty Fetch where
                          , Just ("rev", (dquotes . text) rev)
                          , (,) "sha256" . (dquotes . text) <$> sha256
                          ]
-
-fetchOptions :: Options
-fetchOptions = defaultOptions
-               { constructorTagModifier = fetchTagModifier
-               , sumEncoding = defaultTaggedObject
-               , omitNothingFields = True
-               , fieldLabelModifier = fetchLabelModifier
-               }
-  where
-    fetchLabelModifier field =
-      case field of
-        "cvsModule" -> "module"
-        _ -> field
-    fetchTagModifier tag =
-      case tag of
-        "URL" -> "fetchurl"
-        "Git" -> "fetchgit"
-        "Bzr" -> "fetchbzr"
-        "CVS" -> "fetchcvs"
-        "Hg" -> "fetchhg"
-        "SVN" -> "fetchsvn"
-        "GitHub" -> "fetchFromGitHub"
-        "GitLab" -> "fetchFromGitLab"
-        _ -> error ("fetchOptions: unknown tag " ++ tag)
-
-instance FromJSON Fetch where
-  parseJSON = genericParseJSON fetchOptions
-
-instance ToJSON Fetch where
-  toJSON = genericToJSON fetchOptions
 
 newtype FetchError = FetchError SomeException
   deriving (Show, Typeable)
