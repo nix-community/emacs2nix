@@ -8,7 +8,7 @@ import Data.Text ( Text )
 import qualified Data.Text as T
 import GHC.Generics
 
-import Distribution.Nix.Fetch ( Fetch, importFetcher )
+import Distribution.Nix.Fetch ( Fetch(URL), importFetcher )
 import Distribution.Nix.Name
 import Distribution.Nix.Pretty
 
@@ -38,7 +38,11 @@ instance Pretty Package where
       ]
     where
       packageRequires = map pretty deps
-      imports = "lib" : "melpaBuild" : importFetcher fetch : packageRequires
+      fetchers =
+        case fetch of
+          URL {} -> [ importFetcher fetch ]
+          _ -> [ "fetchurl", importFetcher fetch ]
+      imports = "lib" : "melpaBuild" : (fetchers ++ packageRequires)
 
       meta =
         let
