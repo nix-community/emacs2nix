@@ -8,6 +8,7 @@ import Data.Text ( Text )
 import qualified Data.Text as T
 import GHC.Generics
 
+import Distribution.Nix.Builtin
 import Distribution.Nix.Fetch ( Fetch(URL), importFetcher )
 import Distribution.Nix.Name
 import Distribution.Nix.Pretty
@@ -32,17 +33,19 @@ instance Pretty Package where
                , ("version", (dquotes . text) version)
                , ("src", pretty fetch)
                , ("recipeFile", pretty recipe)
-               , ("packageRequires", list packageRequires)
+               , ("packageRequires", (list . map pretty) deps)
                , ("meta", meta)
                ])
       ]
     where
-      packageRequires = map pretty deps
-      fetchers =
+      importedFetchers =
         case fetch of
           URL {} -> [ importFetcher fetch ]
           _ -> [ "fetchurl", importFetcher fetch ]
-      imports = "lib" : "melpaBuild" : (fetchers ++ packageRequires)
+      importedPackages = (map text . optionalBuiltins . map fromName) deps
+      imports = "lib"
+                : "melpaBuild"
+                : (importedFetchers ++ importedPackages)
 
       meta =
         let

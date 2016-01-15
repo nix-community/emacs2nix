@@ -23,6 +23,7 @@ library
     Distribution.Elpa.Package
     Distribution.Melpa
     Distribution.Melpa.Recipe
+    Distribution.Nix.Builtin
     Distribution.Nix.Fetch
     Distribution.Nix.Hash
     Distribution.Nix.Index

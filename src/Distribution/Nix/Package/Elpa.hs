@@ -8,6 +8,7 @@ import Data.Text ( Text )
 import qualified Data.Text as T
 import GHC.Generics
 
+import Distribution.Nix.Builtin
 import Distribution.Nix.Fetch ( Fetch, importFetcher )
 import Distribution.Nix.Name
 import Distribution.Nix.Pretty
@@ -37,7 +38,11 @@ instance Pretty Package where
       ]
     where
       packageRequires = map pretty deps
-      imports = "lib" : "elpaBuild" : importFetcher fetch : packageRequires
+      importedPackages = (map text . optionalBuiltins . map fromName) deps
+      imports = "lib"
+                : "elpaBuild"
+                : importFetcher fetch
+                : importedPackages
 
       meta =
         let
