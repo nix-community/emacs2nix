@@ -72,4 +72,5 @@ instance Pretty Recipe where
                  , ename
                  ]))
       , ("sha256", (dquotes . text) sha256)
+      , ("name", (dquotes . pretty) (fromText ename))
       ]
