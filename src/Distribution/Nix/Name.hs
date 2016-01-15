@@ -18,9 +18,21 @@ instance Pretty Name where
   pretty = text . fromName
 
 fromText :: Text -> Name
-fromText = Name . prefixNumerals . replaceAll "@" "at"
+fromText = Name
+           . prefixDigits
+
+           . replaceAll "@" "-at-"
+           . replaceAll "^@" "at-"
+           . replaceAll "@$" "-at"
+           . replaceAll "^@$" "at"
+
+           . replaceAll "+" "-plus-"
+           . replaceAll "^+" "plus-"
+           . replaceAll "+$" "-plus"
+           . replaceAll "^+$" "plus"
   where
-    prefixNumerals txt
+    -- Nix does not allow identifiers to begin with digits
+    prefixDigits txt
       | T.null txt = txt
       | isDigit (T.head txt) = T.cons '_' txt
       | otherwise = txt
