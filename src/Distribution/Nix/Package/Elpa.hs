@@ -28,8 +28,7 @@ instance Pretty Package where
     = vsep
       [ "# DO NOT EDIT: generated automatically"
       , (params imports . elpaBuild)
-        (attrs [ ("pname", (dquotes . text)
-                           (T.append "emacs-" (fromName pname)))
+        (attrs [ ("pname", (dquotes . pretty) pname)
                , ("version", (dquotes . text) version)
                , ("src", pretty fetch)
                , ("packageRequires", list packageRequires)
