@@ -5,6 +5,7 @@
 module Distribution.Nix.Package.Melpa ( Package(..), Recipe(..) ) where
 
 import Data.Text ( Text )
+import qualified Data.Text as T
 import GHC.Generics
 
 import Distribution.Nix.Fetch ( Fetch, importFetcher )
@@ -26,7 +27,8 @@ instance Pretty Package where
     = vsep
       [ "# DO NOT EDIT: generated automatically"
       , (params imports . melpaBuild)
-        (attrs [ ("pname", (dquotes . pretty) pname)
+        (attrs [ ("pname", (dquotes . text)
+                           (T.append "emacs-" (fromName pname)))
                , ("version", (dquotes . text) version)
                , ("src", pretty fetch)
                , ("recipeFile", pretty recipe)
