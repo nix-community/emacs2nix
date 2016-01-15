@@ -5,6 +5,7 @@
 module Distribution.Nix.Package.Elpa
        ( Package(..), packageSet ) where
 
+import Data.List ( sort )
 import Data.Text ( Text )
 import GHC.Generics
 
@@ -24,13 +25,16 @@ data Package
 
 instance Pretty Package where
   pretty (Package {..})
-    = (callPackage . parens' . params imports . elpaBuild)
-      (attrs [ ("pname", (dquotes . pretty) pname)
-             , ("version", (dquotes . text) version)
-             , ("src", pretty fetch)
-             , ("packageRequires", list packageRequires)
-             , ("meta", meta)
-             ])
+    = vsep
+      [ "# DO NOT EDIT: generated automatically"
+      , (params imports . elpaBuild)
+        (attrs [ ("pname", (dquotes . pretty) pname)
+               , ("version", (dquotes . text) version)
+               , ("src", pretty fetch)
+               , ("packageRequires", list packageRequires)
+               , ("meta", meta)
+               ])
+      ]
     where
       packageRequires = map pretty deps
       imports = "lib" : "elpaBuild" : importFetcher fetch : packageRequires
@@ -43,10 +47,12 @@ instance Pretty Package where
         in
           attrs [("homepage", homepage), ("license", license)]
 
-packageSet :: [Package] -> Doc
-packageSet packages
-  = vsep [ "# Automatically generated file, DO NOT EDIT"
-         , params [ "callPackage" ] ((attrs . map attr) packages)
+packageSet :: [Text] -> Doc
+packageSet pnames
+  = vsep [ "# DO NOT EDIT: generated automatically"
+         , params [ "callPackage" ] ((attrs . map attr . sort) pnames)
          ]
   where
-    attr p = ((dquotes . pretty) (pname p), pretty p)
+    attr _pname = ( (dquotes . text) _pname
+                  , callPackage (cat ["./", text _pname])
+                  )

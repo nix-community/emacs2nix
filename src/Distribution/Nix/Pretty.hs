@@ -40,7 +40,7 @@ params names body
          ]
 
 callPackage :: Doc -> Doc
-callPackage body = (nest 2 . vsep) [ "callPackage", body, braces empty ]
+callPackage body = "callPackage" <+> body <+> braces empty
 
 elpaBuild :: Doc -> Doc
 elpaBuild = ("elpaBuild" <+>)

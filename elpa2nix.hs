@@ -11,12 +11,12 @@ import Control.Applicative
 #endif
 import Control.Concurrent (setNumCapabilities)
 import Control.Concurrent.Async (Concurrently(..))
-import Control.Error
 import Control.Exception
-import Control.Monad (join, when)
+import Control.Monad (filterM, join, unless, when)
 import Data.Aeson (FromJSON(..), json')
 import Data.Aeson.Types (parseEither)
 import Data.ByteString (ByteString)
+import Data.List (isPrefixOf)
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as M
 import Data.Text (Text)
@@ -24,6 +24,8 @@ import qualified Data.Text as T
 import qualified Data.Text.Lazy.Encoding as T (encodeUtf8)
 import Data.Typeable (Typeable)
 import Options.Applicative
+import System.Directory
+       ( createDirectoryIfMissing, doesDirectoryExist, getDirectoryContents )
 import System.FilePath ((</>), (<.>))
 import System.IO (hClose)
 import qualified System.IO.Streams as S
@@ -51,26 +53,73 @@ parser =
   <$> (threads <|> pure 0)
   <*> output
   <*> server
+  <*> indexOnly
   where
-    threads = option auto (long "threads" <> short 't' <> metavar "N"
-                            <> help "use N threads; default is number of CPUs")
-    output = strOption (long "output" <> short 'o' <> metavar "FILE"
-                        <> help "write output to FILE")
-    server = strArgument (metavar "URL"
-                          <> help "get packages from server at URL")
+    threads = option auto
+              (long "threads" <> short 't'
+               <> metavar "N"
+               <> help "use N threads; default is number of CPUs")
+    output = strOption
+             (long "output" <> short 'o'
+              <> metavar "FILE"
+              <> help "write output to FILE")
+    server = strArgument
+             (metavar "URL"
+              <> help "get packages from server at URL")
+    indexOnly = flag False True
+                (long "index-only"
+                 <> help "don't update packages, only update the index file")
 
-elpa2nix :: Int -> FilePath -> String -> IO ()
-elpa2nix threads output server = showExceptions_ $ do
+elpa2nix :: Int -> FilePath -> String -> Bool -> IO ()
+elpa2nix threads output server indexOnly = showExceptions_ $ do
   when (threads > 0) (setNumCapabilities threads)
 
   archives <- getPackages server
-  hashedPackages <- runConcurrently
-                    (M.traverseWithKey (hashPackage server) archives)
-  let
-    liftMaybe (x, y) = (,) x <$> y
-    (_, packages) = (unzip . mapMaybe liftMaybe . M.toList) hashedPackages
 
-  writePackages output packages
+  (unless indexOnly . runConcurrently)
+    (mapM_ (updatePackage server output) (M.toList archives))
+
+  updateIndex output
+
+updateIndex :: FilePath -> IO ()
+updateIndex output = do
+  createDirectoryIfMissing True output
+
+  let
+    packageNamesOnly path
+      | "." `isPrefixOf` path = pure False -- skip special files
+      | otherwise = doesDirectoryExist (output </> path)
+                    -- each packages is a directory
+  contents <- getDirectoryContents output >>= filterM packageNamesOnly
+
+  let
+    pnames = map T.pack contents
+    writeIndex out = do
+      let lbs = (T.encodeUtf8 . displayT . renderPretty 1 80)
+                (pretty (Nix.packageSet pnames))
+      encoded <- S.fromLazyByteString lbs
+      S.connect encoded out
+    file = output </> "default.nix"
+  S.withFileAsOutput file writeIndex
+
+updatePackage :: String -> FilePath -> (Text, Elpa.Package)
+              -> Concurrently ()
+updatePackage server output elpa = Concurrently $ do
+  hashed <- hashPackage server elpa
+  case hashed of
+    Nothing -> pure ()
+
+    Just pkg -> do
+      let dir = output </> (T.unpack . Nix.fromName) (Nix.pname pkg)
+      createDirectoryIfMissing True dir
+      let
+        writePackage out = do
+          let lbs = (T.encodeUtf8 . displayT . renderPretty 1 80)
+                    (pretty pkg)
+          encoded <- S.fromLazyByteString lbs
+          S.connect encoded out
+        file = dir </> "default.nix"
+      S.withFileAsOutput file writePackage
 
 -- * Error types
 
@@ -127,8 +176,8 @@ data DistNotImplemented = DistNotImplemented Text
 
 instance Exception DistNotImplemented
 
-hashPackage :: String -> Text -> Elpa.Package -> Concurrently (Maybe Package)
-hashPackage server name pkg = Concurrently $ showExceptions $ do
+hashPackage :: String -> (Text, Elpa.Package) -> IO (Maybe Package)
+hashPackage server (name, pkg) = showExceptions $ do
   let
     ver = T.intercalate "." (map (T.pack . show) (Elpa.ver pkg))
     basename
@@ -146,18 +195,10 @@ hashPackage server name pkg = Concurrently $ showExceptions $ do
                     }
 
   (_, fetcher) <- Nix.prefetch name fetch
-  pure Nix.Package { Nix.pname = Nix.fromText name
-                   , Nix.ename = name
-                   , Nix.version = ver
-                   , Nix.fetch = fetcher
-                   , Nix.deps = map Nix.fromText (maybe [] M.keys (Elpa.deps pkg))
-                   }
-
--- * writePackages
-
-writePackages :: FilePath -> [Package] -> IO ()
-writePackages path pkgs = S.withFileAsOutput path go where
-  go out = do
-    let lbs = (T.encodeUtf8 . displayT . renderPretty 1 80) (Nix.packageSet pkgs)
-    enc <- S.fromLazyByteString lbs
-    S.connect enc out
+  pure Nix.Package
+    { Nix.pname = Nix.fromText name
+    , Nix.ename = name
+    , Nix.version = ver
+    , Nix.fetch = fetcher
+    , Nix.deps = map Nix.fromText (maybe [] M.keys (Elpa.deps pkg))
+    }

@@ -1,7 +1,8 @@
 { mkDerivation, aeson, aeson-pretty, async, attoparsec, base
-, bytestring, containers, directory, errors, filepath, io-streams
-, optparse-applicative, stdenv, temporary, text, text-regex-replace
-, transformers, unordered-containers, wl-pprint-text
+, bytestring, containers, directory, errors, filepath, hashable
+, io-streams, optparse-applicative, stdenv, temporary, text
+, text-regex-replace, transformers, unordered-containers
+, wl-pprint-text
 }:
 mkDerivation {
   pname = "emacs2nix";
@@ -11,8 +12,8 @@ mkDerivation {
   isExecutable = true;
   libraryHaskellDepends = [
     aeson async attoparsec base bytestring containers directory errors
-    filepath io-streams temporary text text-regex-replace transformers
-    unordered-containers wl-pprint-text
+    filepath hashable io-streams temporary text text-regex-replace
+    transformers unordered-containers wl-pprint-text
   ];
   executableHaskellDepends = [
     aeson aeson-pretty async base bytestring containers directory
