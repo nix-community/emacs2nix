@@ -31,7 +31,7 @@ attrs pairs = vsep [ "{"
                    , "}"
                    ]
   where
-    attr (key, val) = key <+> equals <+> val <> semi
+    attr (key, val) = nest 2 (key <+> equals <+> val <> semi)
 
 params :: [Doc] -> Doc -> Doc
 params names body
