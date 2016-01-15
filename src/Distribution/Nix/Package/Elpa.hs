@@ -41,8 +41,12 @@ instance Pretty Package where
 
       meta =
         let
-          homepage = (dquotes . cat)
-                     [ "http://elpa.gnu.org/packages/", text ename, ".html" ]
+          homepage = (dquotes . text)
+                     (T.concat
+                      [ "http://elpa.gnu.org/packages/"
+                      , ename
+                      , ".html"
+                      ])
           license = "lib.licenses.free";
         in
           attrs [("homepage", homepage), ("license", license)]
