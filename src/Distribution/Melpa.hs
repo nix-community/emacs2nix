@@ -2,7 +2,7 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ViewPatterns #-}
 
-module Distribution.Melpa (getMelpa, readMelpa) where
+module Distribution.Melpa (updateMelpa) where
 
 import Control.Concurrent (getNumCapabilities)
 import Control.Concurrent.Async (Concurrently(..))
@@ -14,6 +14,7 @@ import Data.Aeson (parseJSON)
 import Data.Aeson.Parser (json')
 import Data.Aeson.Types (parseEither)
 import Data.Char (isDigit, isHexDigit)
+import Data.Foldable
 import Data.Map.Strict ( Map )
 import qualified Data.Map.Strict as M
 import Data.Monoid ((<>))
@@ -21,6 +22,7 @@ import Data.Set ( Set )
 import qualified Data.Set as Set
 import Data.Text (Text)
 import qualified Data.Text as T
+import qualified Data.Text.Lazy.Encoding as T (encodeUtf8)
 import Data.Typeable (Typeable)
 import System.Directory (createDirectoryIfMissing, copyFile, doesFileExist)
 import System.FilePath
@@ -31,69 +33,76 @@ import System.IO.Temp (withSystemTempDirectory)
 import Distribution.Melpa.Recipe
 import qualified Distribution.Nix.Fetch as Nix
 import qualified Distribution.Nix.Hash as Nix
+import qualified Distribution.Nix.Name as Nix
 import qualified Distribution.Nix.Package.Melpa as Recipe ( Recipe(..) )
 import qualified Distribution.Nix.Package.Melpa as Nix
+import Distribution.Nix.Pretty hiding ((</>))
 
 import Paths_emacs2nix (getDataFileName)
 import Util
+
+data Melpa = Melpa { melpaDir :: FilePath
+                   , melpaCommit :: Text
+                   }
 
 data ParseMelpaError = ParseMelpaError String
   deriving (Show, Typeable)
 
 instance Exception ParseMelpaError
 
-readMelpa :: FilePath -> IO (Maybe (Map Text Nix.Package))
-readMelpa packagesJson =
-  showExceptions
-  (S.withFileAsInput packagesJson $ \inp -> do
-       result <- parseEither parseJSON <$> S.parseFromStream json' inp
-       case result of
-         Left parseError -> throwIO (ParseMelpaError parseError)
-         Right packages -> pure packages)
+updateMelpa :: FilePath
+            -> Bool
+            -> FilePath
+            -> FilePath
+            -> Set Text
+            -> IO ()
+updateMelpa melpaDir stable workDir output packages = do
+  melpaCommit <- revision_Git Nothing melpaDir
+  let melpa = Melpa {..}
 
-getMelpa :: Int
-         -> FilePath
-         -> Bool
-         -> FilePath
-         -> Map Text Nix.Package
-         -> Set Text
-         -> IO (Map Text Nix.Package)
-getMelpa nthreads melpaDir stable workDir oldPackages packages
-  = do
-    melpaCommit <- revision_Git Nothing melpaDir
+  let selectPackages
+        | Set.null packages = id
+        | otherwise = filter (\(name, _) -> Set.member name packages)
+  recipes <- selectPackages . M.toList <$> readRecipes melpaDir
 
-    recipes <- readRecipes melpaDir
+  createDirectoryIfMissing True workDir
 
-    createDirectoryIfMissing True workDir
+  sem <- newQSem =<< getNumCapabilities
 
-    sem <- (if nthreads > 0 then pure nthreads else getNumCapabilities) >>= newQSem
-    let getPackage_ name recipe
-          | Set.null packages || Set.member name packages
-            = getPackage sem melpaDir melpaCommit stable workDir name recipe
-          | otherwise
-            = return Nothing
-        getPackages = M.traverseWithKey getPackage_ recipes
-    newPackages <- catMaybesMap <$> runConcurrently getPackages
+  let update pkg
+        = Concurrently
+          (bracket (waitQSem sem) (\_ -> signalQSem sem)
+            (\_ -> updatePackage melpa stable workDir output pkg))
+  runConcurrently (traverse_ update recipes)
 
-    (pure . Nix.cleanNames) (newPackages <> oldPackages)
+updatePackage :: Melpa -> Bool -> FilePath -> FilePath
+              -> (Text, Recipe) -> IO ()
+updatePackage melpa stable workDir output (name, recipe) = do
+  hashed <- getPackage melpa stable workDir (name, recipe)
+  case hashed of
+    Nothing -> pure ()
 
-  where
-    catMaybesMap = M.fromList . mapMaybe liftMaybe . M.toList
-    liftMaybe (x, y) = (,) x <$> y
-
-concurrentlyLimited :: QSem -> IO a -> Concurrently a
-concurrentlyLimited sem go
-  = Concurrently (bracket (waitQSem sem) (\_ -> signalQSem sem) (\_ -> go))
+    Just pkg -> do
+      let dir = output </> (T.unpack . Nix.fromName) (Nix.pname pkg)
+      createDirectoryIfMissing True dir
+      let
+        writePackage out = do
+          let lbs = (T.encodeUtf8 . displayT . renderPretty 1 80)
+                    (pretty pkg)
+          encoded <- S.fromLazyByteString lbs
+          S.connect encoded out
+        file = dir </> "default.nix"
+      S.withFileAsOutput file writePackage
 
 data PackageException = PackageException Text SomeException
   deriving (Show, Typeable)
 
 instance Exception PackageException
 
-getPackage :: QSem -> FilePath -> Text -> Bool -> FilePath -> Text -> Recipe
-           -> Concurrently (Maybe Nix.Package)
-getPackage sem melpaDir melpaCommit stable workDir name recipe
-  = concurrentlyLimited sem $ showExceptions $ mapExceptionIO (PackageException name) $ do
+getPackage :: Melpa -> Bool -> FilePath -> (Text, Recipe)
+           -> IO (Maybe Nix.Package)
+getPackage (Melpa {..}) stable workDir (name, recipe)
+  = showExceptions $ mapExceptionIO (PackageException name) $ do
     let
       packageBuildEl = melpaDir </> "package-build.el"
       recipeFile = melpaDir </> "recipes" </> T.unpack name
@@ -103,11 +112,13 @@ getPackage sem melpaDir melpaCommit stable workDir name recipe
     fetch0 <- getFetcher name sourceDir recipe
     (path, fetch) <- Nix.prefetch name fetch0
     deps <- M.keys <$> getDeps packageBuildEl recipeFile name path
-    pure Nix.Package { Nix.version = version
+    pure Nix.Package { Nix.pname = Nix.fromText name
+                     , Nix.version = version
                      , Nix.fetch = fetch
-                     , Nix.deps = deps
+                     , Nix.deps = map Nix.fromText deps
                      , Nix.recipe = Nix.Recipe
-                                    { Recipe.commit = melpaCommit
+                                    { Recipe.ename = name
+                                    , Recipe.commit = melpaCommit
                                     , Recipe.sha256 = recipeHash
                                     }
                      }

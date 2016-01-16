@@ -3,3 +3,5 @@
 *.json
 *.prof
 /result*
+/elpa-packages.nix
+/melpa-packages.nix

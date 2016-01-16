@@ -1,34 +1,56 @@
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards #-}
 
-module Distribution.Nix.Package.Elpa
-       ( Package(..)
-       , cleanNames
-       ) where
+module Distribution.Nix.Package.Elpa ( Package(..) ) where
 
-import Data.Aeson ( FromJSON(..), ToJSON(..) )
-import Data.Aeson.Types ( defaultOptions, genericParseJSON, genericToJSON )
-import Data.Map.Strict ( Map )
-import qualified Data.Map.Strict as Map
 import Data.Text ( Text )
+import qualified Data.Text as T
 import GHC.Generics
 
-import Distribution.Nix.Fetch ( Fetch )
-import Distribution.Nix.Name ( cleanName )
+import Distribution.Nix.Builtin
+import Distribution.Nix.Fetch ( Fetch, importFetcher )
+import Distribution.Nix.Name
+import Distribution.Nix.Pretty
 
 data Package
   = Package
-    { version :: !Text
+    { pname :: !Name
+    , ename :: !Text
+    , version :: !Text
     , fetch :: !Fetch
-    , deps :: ![Text]
+    , deps :: ![Name]
     }
   deriving Generic
 
-instance FromJSON Package where
-  parseJSON = genericParseJSON defaultOptions
+instance Pretty Package where
+  pretty (Package {..})
+    = vsep
+      [ "# DO NOT EDIT: generated automatically"
+      , (params imports . elpaBuild)
+        (attrs [ ("pname", (dquotes . pretty) pname)
+               , ("version", (dquotes . text) version)
+               , ("src", pretty fetch)
+               , ("packageRequires", list packageRequires)
+               , ("meta", meta)
+               ])
+      ]
+    where
+      packageRequires = map pretty deps
+      importedPackages = (map text . optionalBuiltins . map fromName) deps
+      imports = "lib"
+                : "elpaBuild"
+                : importFetcher fetch
+                : importedPackages
 
-instance ToJSON Package where
-  toJSON = genericToJSON defaultOptions
-
-cleanNames :: Map Text Package -> Map Text Package
-cleanNames = Map.map (\p -> p { deps = map cleanName (deps p) })
-             . Map.mapKeys cleanName
+      meta =
+        let
+          homepage = (dquotes . text)
+                     (T.concat
+                      [ "http://elpa.gnu.org/packages/"
+                      , ename
+                      , ".html"
+                      ])
+          license = "lib.licenses.free";
+        in
+          attrs [("homepage", homepage), ("license", license)]

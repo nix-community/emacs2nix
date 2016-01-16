@@ -1,47 +1,76 @@
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards #-}
 
-module Distribution.Nix.Package.Melpa
-       ( Package(..), Recipe(..)
-       , cleanNames
-       ) where
+module Distribution.Nix.Package.Melpa ( Package(..), Recipe(..) ) where
 
-import Data.Aeson ( FromJSON(..), ToJSON(..) )
-import Data.Aeson.Types ( defaultOptions, genericParseJSON, genericToJSON )
-import Data.Map.Strict ( Map )
-import qualified Data.Map.Strict as Map
-import Data.Text (Text)
+import Data.Text ( Text )
+import qualified Data.Text as T
 import GHC.Generics
 
-import Distribution.Nix.Fetch ( Fetch )
-import Distribution.Nix.Name ( cleanName )
+import Distribution.Nix.Builtin
+import Distribution.Nix.Fetch ( Fetch(URL), importFetcher )
+import Distribution.Nix.Name
+import Distribution.Nix.Pretty
 
 data Package
   = Package
-    { version :: !Text
+    { pname :: !Name
+    , version :: !Text
     , fetch :: !Fetch
-    , deps :: ![Text]
+    , deps :: ![Name]
     , recipe :: !Recipe
     }
   deriving Generic
 
-instance FromJSON Package where
-  parseJSON = genericParseJSON defaultOptions
+instance Pretty Package where
+  pretty (Package {..})
+    = vsep
+      [ "# DO NOT EDIT: generated automatically"
+      , (params imports . melpaBuild)
+        (attrs [ ("pname", (dquotes . pretty) pname)
+               , ("version", (dquotes . text) version)
+               , ("src", pretty fetch)
+               , ("recipeFile", pretty recipe)
+               , ("packageRequires", (list . map pretty) deps)
+               , ("meta", meta)
+               ])
+      ]
+    where
+      importedFetchers =
+        case fetch of
+          URL {} -> [ importFetcher fetch ]
+          _ -> [ "fetchurl", importFetcher fetch ]
+      importedPackages = (map text . optionalBuiltins . map fromName) deps
+      imports = "lib"
+                : "melpaBuild"
+                : (importedFetchers ++ importedPackages)
 
-instance ToJSON Package where
-  toJSON = genericToJSON defaultOptions
+      meta =
+        let
+          homepage = (dquotes . text)
+                     (T.append "http://melpa.org/#/" (ename recipe))
+          license = "lib.licenses.free";
+        in
+          attrs [("homepage", homepage), ("license", license)]
 
 data Recipe
-  = Recipe { commit :: !Text
+  = Recipe { ename :: !Text
+           , commit :: !Text
            , sha256 :: !Text
            }
   deriving Generic
 
-instance FromJSON Recipe where
-  parseJSON = genericParseJSON defaultOptions
-
-instance ToJSON Recipe where
-  toJSON = genericToJSON defaultOptions
-
-cleanNames :: Map Text Package -> Map Text Package
-cleanNames = Map.map (\p -> p { deps = map cleanName (deps p) })
-             . Map.mapKeys cleanName
+instance Pretty Recipe where
+  pretty (Recipe {..})
+    = (fetchurl . attrs)
+      [ ("url", (dquotes . text)
+                (T.concat
+                 [ "https://raw.githubusercontent.com/milkypostman/melpa/"
+                 , commit
+                 , "/recipes/"
+                 , ename
+                 ]))
+      , ("sha256", (dquotes . text) sha256)
+      , ("name", (dquotes . pretty) (fromText ename))
+      ]
