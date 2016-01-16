@@ -12,17 +12,18 @@ import Control.Applicative
 import Control.Concurrent (setNumCapabilities)
 import Control.Concurrent.Async (Concurrently(..))
 import Control.Exception
-import Control.Monad (join, when)
+import Control.Monad (join, unless, when)
 import Data.Aeson (FromJSON(..), json')
 import Data.Aeson.Types (parseEither)
 import Data.ByteString (ByteString)
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as M
-import Data.Maybe (catMaybes)
 import Data.Text (Text)
 import qualified Data.Text as T
+import qualified Data.Text.Lazy.Encoding as T (encodeUtf8)
 import Data.Typeable (Typeable)
 import Options.Applicative
+import System.Directory ( createDirectoryIfMissing )
 import System.FilePath ((</>), (<.>))
 import System.IO (hClose)
 import qualified System.IO.Streams as S
@@ -34,7 +35,6 @@ import Paths_emacs2nix
 import qualified Distribution.Elpa.Package as Elpa
 import qualified Distribution.Nix.Fetch as Nix
 import Distribution.Nix.Index
-import Distribution.Nix.Name ( Name )
 import qualified Distribution.Nix.Name as Nix
 import Distribution.Nix.Package.Elpa (Package)
 import qualified Distribution.Nix.Package.Elpa as Nix
@@ -52,6 +52,7 @@ parser =
   <$> (threads <|> pure 0)
   <*> output
   <*> server
+  <*> indexOnly
   where
     threads = option auto
               (long "threads" <> short 't'
@@ -64,23 +65,39 @@ parser =
     server = strArgument
              (metavar "URL"
               <> help "get packages from server at URL")
+    indexOnly = flag False True
+                (long "index-only"
+                 <> help "don't update packages, only update the index file")
 
-elpa2nix :: Int -> FilePath -> String -> IO ()
-elpa2nix threads output server = showExceptions_ $ do
+elpa2nix :: Int -> FilePath -> String -> Bool -> IO ()
+elpa2nix threads output server indexOnly = showExceptions_ $ do
   when (threads > 0) (setNumCapabilities threads)
 
   archives <- getPackages server
 
-  packages <- catMaybes <$> runConcurrently
-              (traverse (updatePackage server) (M.toList archives))
+  (unless indexOnly . runConcurrently)
+    (mapM_ (updatePackage server output) (M.toList archives))
 
-  updateIndex packages output
+  updateIndex output
 
-updatePackage :: String -> (Text, Elpa.Package) -> Concurrently (Maybe (Name, Doc))
-updatePackage server elpa = Concurrently $ do
+updatePackage :: String -> FilePath -> (Text, Elpa.Package)
+              -> Concurrently ()
+updatePackage server output elpa = Concurrently $ do
   hashed <- hashPackage server elpa
-  let rendered pkg = (Nix.pname pkg, pretty pkg)
-  pure (rendered <$> hashed)
+  case hashed of
+    Nothing -> pure ()
+
+    Just pkg -> do
+      let dir = output </> (T.unpack . Nix.fromName) (Nix.pname pkg)
+      createDirectoryIfMissing True dir
+      let
+        writePackage out = do
+          let lbs = (T.encodeUtf8 . displayT . renderPretty 1 80)
+                    (pretty pkg)
+          encoded <- S.fromLazyByteString lbs
+          S.connect encoded out
+        file = dir </> "default.nix"
+      S.withFileAsOutput file writePackage
 
 -- * Error types
 

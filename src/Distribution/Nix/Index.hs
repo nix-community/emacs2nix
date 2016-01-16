@@ -2,29 +2,46 @@
 
 module Distribution.Nix.Index (updateIndex) where
 
-import Data.List ( sortOn )
+import Control.Monad ( filterM )
+import Data.List ( isPrefixOf, sort )
+import Data.Text ( Text )
+import qualified Data.Text as T
 import qualified Data.Text.Lazy.Encoding as T (encodeUtf8)
+import System.Directory
+       ( createDirectoryIfMissing, doesDirectoryExist, getDirectoryContents )
+import System.FilePath ((</>))
 import qualified System.IO.Streams as S
 
-import Distribution.Nix.Name ( Name )
 import Distribution.Nix.Pretty hiding ((</>))
 
-updateIndex :: [(Name, Doc)]  -- ^ packages
-            -> FilePath  -- ^ output path
+updateIndex :: FilePath  -- ^ output directory
             -> IO ()
-updateIndex packages path = do
+updateIndex output = do
+  createDirectoryIfMissing True output
+
   let
+    packageNamesOnly path
+      | "." `isPrefixOf` path = pure False -- skip special files
+      | otherwise = doesDirectoryExist (output </> path)
+                    -- each packages is a directory
+  contents <- getDirectoryContents output >>= filterM packageNamesOnly
+
+  let
+    pnames = map T.pack contents
     writeIndex out = do
       let lbs = (T.encodeUtf8 . displayT . renderPretty 1 80)
-                (packageIndex packages)
+                (pretty (packageIndex pnames))
       encoded <- S.fromLazyByteString lbs
       S.connect encoded out
-  S.withFileAsOutput path writeIndex
+    file = output </> "default.nix"
+  S.withFileAsOutput file writeIndex
 
-packageIndex :: [(Name, Doc)] -> Doc
-packageIndex packages
+packageIndex :: [Text] -> Doc
+packageIndex pnames
   = vsep [ "# DO NOT EDIT: generated automatically"
-         , params [ "callPackage" ] ((attrs . map attr . sortOn fst) packages)
+         , params [ "callPackage" ] ((attrs . map attr . sort) pnames)
          ]
   where
-    attr (name, expr) = (pretty name, callPackage expr)
+    attr _pname = ( (dquotes . text) _pname
+                  , callPackage (text (T.append "./" _pname))
+                  )

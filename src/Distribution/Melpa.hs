@@ -14,6 +14,7 @@ import Data.Aeson (parseJSON)
 import Data.Aeson.Parser (json')
 import Data.Aeson.Types (parseEither)
 import Data.Char (isDigit, isHexDigit)
+import Data.Foldable
 import Data.Map.Strict ( Map )
 import qualified Data.Map.Strict as M
 import Data.Monoid ((<>))
@@ -21,6 +22,7 @@ import Data.Set ( Set )
 import qualified Data.Set as Set
 import Data.Text (Text)
 import qualified Data.Text as T
+import qualified Data.Text.Lazy.Encoding as T (encodeUtf8)
 import Data.Typeable (Typeable)
 import System.Directory (createDirectoryIfMissing, copyFile, doesFileExist)
 import System.FilePath
@@ -31,7 +33,6 @@ import System.IO.Temp (withSystemTempDirectory)
 import Distribution.Melpa.Recipe
 import qualified Distribution.Nix.Fetch as Nix
 import qualified Distribution.Nix.Hash as Nix
-import Distribution.Nix.Name ( Name )
 import qualified Distribution.Nix.Name as Nix
 import qualified Distribution.Nix.Package.Melpa as Recipe ( Recipe(..) )
 import qualified Distribution.Nix.Package.Melpa as Nix
@@ -52,9 +53,10 @@ instance Exception ParseMelpaError
 updateMelpa :: FilePath
             -> Bool
             -> FilePath
+            -> FilePath
             -> Set Text
-            -> IO [(Name, Doc)]
-updateMelpa melpaDir stable workDir packages = do
+            -> IO ()
+updateMelpa melpaDir stable workDir output packages = do
   melpaCommit <- revision_Git Nothing melpaDir
   let melpa = Melpa {..}
 
@@ -70,14 +72,27 @@ updateMelpa melpaDir stable workDir packages = do
   let update pkg
         = Concurrently
           (bracket (waitQSem sem) (\_ -> signalQSem sem)
-            (\_ -> updatePackage melpa stable workDir pkg))
-  catMaybes <$> runConcurrently (traverse update recipes)
+            (\_ -> updatePackage melpa stable workDir output pkg))
+  runConcurrently (traverse_ update recipes)
 
-updatePackage :: Melpa -> Bool -> FilePath -> (Text, Recipe) -> IO (Maybe (Name, Doc))
-updatePackage melpa stable workDir (name, recipe) = do
+updatePackage :: Melpa -> Bool -> FilePath -> FilePath
+              -> (Text, Recipe) -> IO ()
+updatePackage melpa stable workDir output (name, recipe) = do
   hashed <- getPackage melpa stable workDir (name, recipe)
-  let rendered pkg = (Nix.pname pkg, pretty pkg)
-  pure (rendered <$> hashed)
+  case hashed of
+    Nothing -> pure ()
+
+    Just pkg -> do
+      let dir = output </> (T.unpack . Nix.fromName) (Nix.pname pkg)
+      createDirectoryIfMissing True dir
+      let
+        writePackage out = do
+          let lbs = (T.encodeUtf8 . displayT . renderPretty 1 80)
+                    (pretty pkg)
+          encoded <- S.fromLazyByteString lbs
+          S.connect encoded out
+        file = dir </> "default.nix"
+      S.withFileAsOutput file writePackage
 
 data PackageException = PackageException Text SomeException
   deriving (Show, Typeable)

@@ -13,7 +13,6 @@ import Data.Text.ICU.Replace ( replaceAll )
 import Distribution.Nix.Pretty
 
 newtype Name = Name { fromName :: Text }
-  deriving (Eq, Ord)
 
 instance Pretty Name where
   pretty = text . fromName

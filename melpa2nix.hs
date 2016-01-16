@@ -5,7 +5,7 @@
 module Main where
 
 import Control.Concurrent ( setNumCapabilities )
-import Control.Monad ( join, when )
+import Control.Monad ( join, when, unless )
 import Data.Set ( Set )
 import qualified Data.Set as Set
 import Data.Text ( Text )
@@ -28,6 +28,7 @@ parser =
   <*> stable
   <*> work
   <*> output
+  <*> indexOnly
   <*> packages
   where
     threads = option auto (long "threads" <> short 't' <> metavar "N"
@@ -40,6 +41,9 @@ parser =
                       <> help "path to temporary workspace")
     output = strOption (long "output" <> short 'o' <> metavar "FILE"
                         <> help "dump MELPA data to FILE")
+    indexOnly = flag False True
+                (long "index-only"
+                  <> help "don't update packages, only update the index file")
     packages = Set.fromList . map T.pack
                 <$> many (strArgument
                           (metavar "PACKAGE" <> help "only work on PACKAGE"))
@@ -49,12 +53,13 @@ melpa2nix :: Int  -- ^ number of threads to use
           -> Bool      -- ^ generate packages from MELPA Stable
           -> FilePath  -- ^ temporary workspace
           -> FilePath  -- ^ dump MELPA recipes here
+          -> Bool  -- ^ only generate the index
           -> Set Text
           -> IO ()
-melpa2nix nthreads melpaDir stable workDir melpaOut packages = do
+melpa2nix nthreads melpaDir stable workDir melpaOut indexOnly packages = do
   -- set number of threads before beginning
   when (nthreads > 0) $ setNumCapabilities nthreads
 
-  melpa <- updateMelpa melpaDir stable workDir packages
+  unless indexOnly (updateMelpa melpaDir stable workDir melpaOut packages)
 
-  updateIndex melpa melpaOut
+  updateIndex melpaOut
