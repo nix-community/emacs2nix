@@ -13,10 +13,10 @@ import Data.Monoid
 import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Typeable (Typeable)
+import Nix.Types
 import System.Environment (getEnvironment)
 import qualified System.IO.Streams as S
 
-import Distribution.Nix.Pretty
 import Util (runInteractiveProcess)
 
 data Fetch = URL { url :: Text, sha256 :: Maybe Text }
@@ -28,7 +28,7 @@ data Fetch = URL { url :: Text, sha256 :: Maybe Text }
            | GitHub { owner :: Text, repo :: Text, rev :: Text, sha256 :: Maybe Text }
            | GitLab { owner :: Text, repo :: Text, rev :: Text, sha256 :: Maybe Text }
 
-importFetcher :: Fetch -> Doc
+importFetcher :: Fetch -> Text
 importFetcher (URL {}) = "fetchurl"
 importFetcher (Git {}) = "fetchgit"
 importFetcher (Bzr {}) = "fetchbzr"
@@ -38,56 +38,49 @@ importFetcher (SVN {}) = "fetchsvn"
 importFetcher (GitHub {}) = "fetchFromGitHub"
 importFetcher (GitLab {}) = "fetchFromGitLab"
 
-instance Pretty Fetch where
-  pretty (URL {..}) = (fetchurl . attrs . catMaybes)
-                      [ Just ("url", (dquotes . text) url)
-                      , (,) "sha256" . (dquotes . text) <$> sha256
+fetchExpr :: Fetch -> NExpr
+fetchExpr (URL {..}) = (mkApp (mkSym "fetchurl") . mkNonRecSet . catMaybes)
+                       [ Just ("url" `bindTo` mkStr DoubleQuoted url)
+                       , bindTo "sha256" . mkStr DoubleQuoted <$> sha256
+                       ]
+fetchExpr (Git {..}) = (mkApp (mkSym "fetchgit") . mkNonRecSet . catMaybes)
+                       [ Just ("url" `bindTo` mkStr DoubleQuoted url)
+                       , Just ("rev" `bindTo` mkStr DoubleQuoted rev)
+                       , bindTo "branchName" . mkStr DoubleQuoted <$> branchName
+                       , bindTo "sha256" . mkStr DoubleQuoted <$> sha256
+                       ]
+fetchExpr (Bzr {..}) = (mkApp (mkSym "fetchbzr") . mkNonRecSet . catMaybes)
+                       [ Just ("url" `bindTo` mkStr DoubleQuoted url)
+                       , Just ("rev" `bindTo` mkStr DoubleQuoted rev)
+                       , bindTo "sha256" . mkStr DoubleQuoted <$> sha256
+                       ]
+fetchExpr (CVS {..}) = (mkApp (mkSym "fetchcvs") . mkNonRecSet . catMaybes)
+                       [ Just ("cvsRoot" `bindTo` mkStr DoubleQuoted cvsRoot)
+                       , bindTo "module" . mkStr DoubleQuoted <$> cvsModule
+                       , bindTo "sha256" . mkStr DoubleQuoted <$> sha256
+                       ]
+fetchExpr (Hg {..}) = (mkApp (mkSym "fetchhg") . mkNonRecSet . catMaybes)
+                      [ Just ("url" `bindTo` mkStr DoubleQuoted url)
+                      , Just ("rev" `bindTo` mkStr DoubleQuoted rev)
+                      , bindTo "sha256" . mkStr DoubleQuoted <$> sha256
                       ]
-
-  pretty (Git {..}) = (fetchgit . attrs . catMaybes)
-                      [ Just ("url", (dquotes . text) url)
-                      , Just ("rev", (dquotes . text) rev)
-                      , (,) "sha256" . (dquotes . text) <$> sha256
-                      , (,) "branchName" . (dquotes . text) <$> branchName
-                      ]
-
-  pretty (Bzr {..}) = (fetchbzr . attrs . catMaybes)
-                      [ Just ("url", (dquotes . text) url)
-                      , Just ("rev", (dquotes . text) rev)
-                      , (,) "sha256" . (dquotes . text) <$> sha256
-                      ]
-
-  pretty (CVS {..}) = (fetchcvs . attrs . catMaybes)
-                      [ Just ("cvsRoot", (dquotes . text) cvsRoot)
-                      , (,) "module" . (dquotes . text) <$> cvsModule
-                      , (,) "sha256" . (dquotes . text) <$> sha256
-                      ]
-
-  pretty (Hg {..}) = (fetchhg . attrs . catMaybes)
-                     [ Just ("url", (dquotes . text) url)
-                     , Just ("rev", (dquotes . text) rev)
-                     , (,) "sha256" . (dquotes . text) <$> sha256
-                     ]
-
-  pretty (SVN {..}) = (fetchsvn . attrs . catMaybes)
-                      [ Just ("url", (dquotes . text) url)
-                      , Just ("rev", (dquotes . text) rev)
-                      , (,) "sha256" . (dquotes . text) <$> sha256
-                      ]
-
-  pretty (GitHub {..}) = (fetchFromGitHub . attrs . catMaybes)
-                         [ Just ("owner", (dquotes . text) owner)
-                         , Just ("repo", (dquotes . text) repo)
-                         , Just ("rev", (dquotes . text) rev)
-                         , (,) "sha256" . (dquotes . text) <$> sha256
-                         ]
-
-  pretty (GitLab {..}) = (fetchFromGitLab . attrs . catMaybes)
-                         [ Just ("owner", (dquotes . text) owner)
-                         , Just ("repo", (dquotes . text) repo)
-                         , Just ("rev", (dquotes . text) rev)
-                         , (,) "sha256" . (dquotes . text) <$> sha256
-                         ]
+fetchExpr (SVN {..}) = (mkApp (mkSym "fetchsvn") . mkNonRecSet . catMaybes)
+                       [ Just ("url" `bindTo` mkStr DoubleQuoted url)
+                       , Just ("rev" `bindTo` mkStr DoubleQuoted rev)
+                       , bindTo "sha256" . mkStr DoubleQuoted <$> sha256
+                       ]
+fetchExpr (GitHub {..}) = (mkApp (mkSym "fetchFromGitHub") . mkNonRecSet . catMaybes)
+                          [ Just ("owner" `bindTo` mkStr DoubleQuoted owner)
+                          , Just ("repo" `bindTo` mkStr DoubleQuoted repo)
+                          , Just ("rev" `bindTo` mkStr DoubleQuoted rev)
+                          , bindTo "sha256" . mkStr DoubleQuoted <$> sha256
+                          ]
+fetchExpr (GitLab {..}) = (mkApp (mkSym "fetchFromGitLab") . mkNonRecSet . catMaybes)
+                          [ Just ("owner" `bindTo` mkStr DoubleQuoted owner)
+                          , Just ("repo" `bindTo` mkStr DoubleQuoted repo)
+                          , Just ("rev" `bindTo` mkStr DoubleQuoted rev)
+                          , bindTo "sha256" . mkStr DoubleQuoted <$> sha256
+                          ]
 
 newtype FetchError = FetchError SomeException
   deriving (Show, Typeable)

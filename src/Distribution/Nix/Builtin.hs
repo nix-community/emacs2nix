@@ -4,15 +4,13 @@ module Distribution.Nix.Builtin (optionalBuiltins) where
 
 import qualified Data.Set as S
 import Data.Text (Text)
-import qualified Data.Text as T
+import Nix.Types
 
-optionalBuiltins :: [Text] -> [Text]
-optionalBuiltins = map makeOptional
+optionalBuiltins :: Text -> (Text, Maybe NExpr)
+optionalBuiltins dep
+  | S.member dep builtin = (dep, Just (mkSym "null"))
+  | otherwise = (dep, Nothing)
   where
-    makeOptional dep
-      | S.member dep builtin = T.append dep " ? null"
-      | otherwise = dep
-
     builtin = S.fromList
               [ "allout", "allout-widgets"
               , "ansi-color"

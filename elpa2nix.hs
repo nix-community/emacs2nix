@@ -12,18 +12,18 @@ import Control.Applicative
 import Control.Concurrent (setNumCapabilities)
 import Control.Concurrent.Async (Concurrently(..))
 import Control.Exception
-import Control.Monad (join, unless, when)
+import Control.Monad (join, when)
 import Data.Aeson (FromJSON(..), json')
 import Data.Aeson.Types (parseEither)
 import Data.ByteString (ByteString)
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as M
+import Data.Maybe ( catMaybes )
 import Data.Text (Text)
 import qualified Data.Text as T
-import qualified Data.Text.Lazy.Encoding as T (encodeUtf8)
 import Data.Typeable (Typeable)
+import Nix.Types ( NExpr )
 import Options.Applicative
-import System.Directory ( createDirectoryIfMissing )
 import System.FilePath ((</>), (<.>))
 import System.IO (hClose)
 import qualified System.IO.Streams as S
@@ -35,10 +35,10 @@ import Paths_emacs2nix
 import qualified Distribution.Elpa.Package as Elpa
 import qualified Distribution.Nix.Fetch as Nix
 import Distribution.Nix.Index
+import Distribution.Nix.Name ( Name )
 import qualified Distribution.Nix.Name as Nix
 import Distribution.Nix.Package.Elpa (Package)
 import qualified Distribution.Nix.Package.Elpa as Nix
-import Distribution.Nix.Pretty hiding ((</>))
 import Util
 
 main :: IO ()
@@ -75,29 +75,19 @@ elpa2nix threads output server indexOnly = showExceptions_ $ do
 
   archives <- getPackages server
 
-  (unless indexOnly . runConcurrently)
-    (mapM_ (updatePackage server output) (M.toList archives))
+  updated <- if indexOnly
+             then pure []
+             else runConcurrently (traverse (updatePackage server) (M.toList archives))
 
-  updateIndex output
+  updateIndex output (catMaybes updated)
 
-updatePackage :: String -> FilePath -> (Text, Elpa.Package)
-              -> Concurrently ()
-updatePackage server output elpa = Concurrently $ do
+updatePackage :: String -> (Text, Elpa.Package)
+              -> Concurrently (Maybe (Name, NExpr))
+updatePackage server elpa = Concurrently $ do
   hashed <- hashPackage server elpa
-  case hashed of
-    Nothing -> pure ()
-
-    Just pkg -> do
-      let dir = output </> (T.unpack . Nix.fromName) (Nix.pname pkg)
-      createDirectoryIfMissing True dir
-      let
-        writePackage out = do
-          let lbs = (T.encodeUtf8 . displayT . renderPretty 1 80)
-                    (pretty pkg)
-          encoded <- S.fromLazyByteString lbs
-          S.connect encoded out
-        file = dir </> "default.nix"
-      S.withFileAsOutput file writePackage
+  pure (toExpression <$> hashed)
+  where
+    toExpression pkg = (Nix.pname pkg, Nix.expression pkg)
 
 -- * Error types
 

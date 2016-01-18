@@ -1,17 +1,16 @@
-{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 
-module Distribution.Nix.Package.Elpa ( Package(..) ) where
+module Distribution.Nix.Package.Elpa ( Package(..), expression ) where
 
+import Data.Fix
 import Data.Text ( Text )
 import qualified Data.Text as T
-import GHC.Generics
+import Nix.Types
 
 import Distribution.Nix.Builtin
-import Distribution.Nix.Fetch ( Fetch, importFetcher )
+import Distribution.Nix.Fetch ( Fetch, fetchExpr, importFetcher )
 import Distribution.Nix.Name
-import Distribution.Nix.Pretty
 
 data Package
   = Package
@@ -21,36 +20,30 @@ data Package
     , fetch :: !Fetch
     , deps :: ![Name]
     }
-  deriving Generic
 
-instance Pretty Package where
-  pretty (Package {..})
-    = vsep
-      [ "# DO NOT EDIT: generated automatically"
-      , (params imports . elpaBuild)
-        (attrs [ ("pname", (dquotes . pretty) pname)
-               , ("version", (dquotes . text) version)
-               , ("src", pretty fetch)
-               , ("packageRequires", list packageRequires)
-               , ("meta", meta)
-               ])
-      ]
+expression :: Package -> NExpr
+expression (Package {..}) = (mkSym "callPackage") `mkApp` drv `mkApp` emptySet where
+  drv = mkFunction args body
+  emptySet = mkNonRecSet []
+  requires = map fromName deps
+  args = (mkFixedParamSet . map optionalBuiltins)
+         ("lib" : "elpaBuild" : importFetcher fetch : requires)
+  body = (mkApp (mkSym "elpaBuild") . mkNonRecSet)
+         [ "pname" `bindTo` mkStr DoubleQuoted (fromName pname)
+         , "version" `bindTo` mkStr DoubleQuoted version
+         , "src" `bindTo` fetchExpr fetch
+         , "packageRequires" `bindTo` mkList (map mkSym requires)
+         , "meta" `bindTo` meta
+         ]
     where
-      packageRequires = map pretty deps
-      importedPackages = (map text . optionalBuiltins . map fromName) deps
-      imports = "lib"
-                : "elpaBuild"
-                : importFetcher fetch
-                : importedPackages
-
-      meta =
-        let
-          homepage = (dquotes . text)
-                     (T.concat
-                      [ "http://elpa.gnu.org/packages/"
-                      , ename
-                      , ".html"
-                      ])
-          license = "lib.licenses.free";
-        in
-          attrs [("homepage", homepage), ("license", license)]
+      meta = mkNonRecSet
+             [ "homepage" `bindTo` mkStr DoubleQuoted homepage
+             , "license" `bindTo` license
+             ]
+        where
+          homepage = T.concat
+                     [ "http://elpa.gnu.org/packages/"
+                     , ename
+                     , ".html"
+                     ]
+          license = Fix (NSelect (mkSym "lib") [StaticKey "licenses", StaticKey "free"] Nothing)

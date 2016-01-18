@@ -10,12 +10,8 @@ import Data.Text ( Text )
 import qualified Data.Text as T
 import Data.Text.ICU.Replace ( replaceAll )
 
-import Distribution.Nix.Pretty
-
 newtype Name = Name { fromName :: Text }
-
-instance Pretty Name where
-  pretty = text . fromName
+  deriving (Eq, Ord)
 
 fromText :: Text -> Name
 fromText = Name
