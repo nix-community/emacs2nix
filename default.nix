@@ -1,6 +1,6 @@
 { mkDerivation, aeson, aeson-pretty, async, attoparsec, base
 , bytestring, containers, directory, errors, filepath, hashable
-, io-streams, optparse-applicative, stdenv, temporary, text
+, hnix, io-streams, optparse-applicative, stdenv, temporary, text
 , text-regex-replace, transformers, unordered-containers
 , wl-pprint-text
 }:
@@ -12,7 +12,7 @@ mkDerivation {
   isExecutable = true;
   libraryHaskellDepends = [
     aeson async attoparsec base bytestring containers directory errors
-    filepath hashable io-streams temporary text text-regex-replace
+    filepath hashable hnix io-streams temporary text text-regex-replace
     transformers unordered-containers wl-pprint-text
   ];
   executableHaskellDepends = [
