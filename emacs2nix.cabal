@@ -39,6 +39,7 @@ library
   build-depends:
       base >= 4.7 && < 5
     , aeson >= 0.8
+    , ansi-wl-pprint >= 0.6
     , async >= 2.0
     , attoparsec >= 0.13
     , bytestring >= 0.10

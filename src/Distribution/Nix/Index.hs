@@ -5,10 +5,14 @@ module Distribution.Nix.Index (updateIndex) where
 import Control.Exception
 import Data.Fix
 import qualified Data.Map as M
-import qualified Data.Text.Lazy.Encoding as T (encodeUtf8)
+import Data.Text ( Text )
+import qualified Data.Text as T
 import Nix.Parser ( Result(..), parseNixFile )
+import Nix.Pretty ( prettyNix )
 import Nix.Types
+import System.IO.Streams ( OutputStream )
 import qualified System.IO.Streams as S
+import Text.PrettyPrint.ANSI.Leijen
 
 import Distribution.Nix.Exception
 import Distribution.Nix.Name ( Name, fromName, fromText )
@@ -29,7 +33,8 @@ updateIndex output updated = do
     die = throwIO (InvalidIndex output)
 
     writeIndex index out = do
-      pure ()
+      let rendered = renderPretty 1 80 (prettyNix index)
+      displayStream rendered =<< S.encodeUtf8 out
 
 getFunctionBody :: NExpr -> Maybe NExpr
 getFunctionBody (Fix (NAbs _ body)) = Just body
@@ -52,3 +57,13 @@ packageIndex packages = mkFunction args body where
                              (mkApp
                               (mkApp (mkSym "callPackage") expr)
                               (mkNonRecSet []))
+
+displayStream :: SimpleDoc -> OutputStream Text -> IO ()
+displayStream sdoc out = display sdoc where
+  display SFail = throwIO PrettyFailed
+  display SEmpty = return ()
+  display (SChar c sdoc') = S.write (Just (T.singleton c)) out >> display sdoc'
+  display (SText _ t sdoc') = S.write (Just (T.pack t)) out >> display sdoc'
+  display (SLine i sdoc') = S.write (Just (T.cons '\n' (indentation i))) out >> display sdoc'
+  display (SSGR _ sdoc') = display sdoc'
+  indentation i = T.replicate i (T.singleton ' ')
