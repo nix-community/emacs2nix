@@ -10,6 +10,7 @@ import qualified Data.Text as T
 import Nix.Parser ( Result(..), parseNixFile )
 import Nix.Pretty ( prettyNix )
 import Nix.Types
+import System.Directory ( doesFileExist )
 import System.IO.Streams ( OutputStream )
 import qualified System.IO.Streams as S
 import Text.PrettyPrint.ANSI.Leijen
@@ -21,16 +22,21 @@ updateIndex :: FilePath  -- ^ output file
             -> [(Name, NExpr)]
             -> IO ()
 updateIndex output updated = do
-  result <- parseNixFile output
-  existing <- case result of
-    Failure _ -> die
-    Success parsed -> maybe die pure (getFunctionBody parsed >>= getPackages)
+  existing <- parseOutputOrDefault =<< doesFileExist output
   let
     packages = M.toList (M.union (M.fromList updated) (M.fromList existing))
     index = packageIndex packages
   S.withFileAsOutput output (writeIndex index)
   where
     die = throwIO (InvalidIndex output)
+
+    parseOutputOrDefault exists
+      | exists = do
+          result <- parseNixFile output
+          case result of
+            Failure _ -> die
+            Success parsed -> maybe die pure (getFunctionBody parsed >>= getPackages)
+      | otherwise = pure []
 
     writeIndex index out = do
       let rendered = renderPretty 1 80 (prettyNix index)

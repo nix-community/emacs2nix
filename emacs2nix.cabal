@@ -93,6 +93,7 @@ executable elpa2nix
     , emacs2nix
     , errors
     , filepath
+    , hnix
     , io-streams
     , optparse-applicative >= 0.11
     , temporary == 1.2.*
