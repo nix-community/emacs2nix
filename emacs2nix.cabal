@@ -31,7 +31,6 @@ library
     Distribution.Nix.Name
     Distribution.Nix.Package.Elpa
     Distribution.Nix.Package.Melpa
-    Distribution.Nix.Pretty
     Util
   other-modules:
     Paths_emacs2nix
@@ -56,7 +55,6 @@ library
     , text-regex-replace == 0.1.*
     , transformers >= 0.4
     , unordered-containers >= 0.2
-    , wl-pprint-text >= 1.1
   default-language: Haskell2010
   ghc-options: -Wall
 
@@ -65,7 +63,6 @@ executable melpa2nix
   build-depends:
       base
     , aeson
-    , aeson-pretty >= 0.7.2 && < 1
     , containers
     , directory
     , filepath
@@ -74,7 +71,6 @@ executable melpa2nix
     , optparse-applicative >= 0.11
     , text
     , unordered-containers
-    , wl-pprint-text
   default-language: Haskell2010
   ghc-options: -Wall -threaded
 
@@ -85,7 +81,6 @@ executable elpa2nix
   build-depends:
       base
     , aeson
-    , aeson-pretty >= 0.7.2 && < 1
     , async
     , bytestring
     , containers
@@ -99,6 +94,5 @@ executable elpa2nix
     , temporary == 1.2.*
     , text
     , transformers >= 0.4
-    , wl-pprint-text
   default-language: Haskell2010
   ghc-options: -Wall -threaded -with-rtsopts=-N

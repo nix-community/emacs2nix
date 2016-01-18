@@ -17,7 +17,6 @@ import Nix.Types
 import System.Environment (getEnvironment)
 import qualified System.IO.Streams as S
 
-import Distribution.Nix.Pretty
 import Util (runInteractiveProcess)
 
 data Fetch = URL { url :: Text, sha256 :: Maybe Text }
@@ -82,57 +81,6 @@ fetchExpr (GitLab {..}) = (mkApp (mkSym "fetchFromGitLab") . mkNonRecSet . catMa
                           , Just ("rev" `bindTo` mkStr DoubleQuoted rev)
                           , bindTo "sha256" . mkStr DoubleQuoted <$> sha256
                           ]
-
-instance Pretty Fetch where
-  pretty (URL {..}) = (fetchurl . attrs . catMaybes)
-                      [ Just ("url", (dquotes . text) url)
-                      , (,) "sha256" . (dquotes . text) <$> sha256
-                      ]
-
-  pretty (Git {..}) = (fetchgit . attrs . catMaybes)
-                      [ Just ("url", (dquotes . text) url)
-                      , Just ("rev", (dquotes . text) rev)
-                      , (,) "sha256" . (dquotes . text) <$> sha256
-                      , (,) "branchName" . (dquotes . text) <$> branchName
-                      ]
-
-  pretty (Bzr {..}) = (fetchbzr . attrs . catMaybes)
-                      [ Just ("url", (dquotes . text) url)
-                      , Just ("rev", (dquotes . text) rev)
-                      , (,) "sha256" . (dquotes . text) <$> sha256
-                      ]
-
-  pretty (CVS {..}) = (fetchcvs . attrs . catMaybes)
-                      [ Just ("cvsRoot", (dquotes . text) cvsRoot)
-                      , (,) "module" . (dquotes . text) <$> cvsModule
-                      , (,) "sha256" . (dquotes . text) <$> sha256
-                      ]
-
-  pretty (Hg {..}) = (fetchhg . attrs . catMaybes)
-                     [ Just ("url", (dquotes . text) url)
-                     , Just ("rev", (dquotes . text) rev)
-                     , (,) "sha256" . (dquotes . text) <$> sha256
-                     ]
-
-  pretty (SVN {..}) = (fetchsvn . attrs . catMaybes)
-                      [ Just ("url", (dquotes . text) url)
-                      , Just ("rev", (dquotes . text) rev)
-                      , (,) "sha256" . (dquotes . text) <$> sha256
-                      ]
-
-  pretty (GitHub {..}) = (fetchFromGitHub . attrs . catMaybes)
-                         [ Just ("owner", (dquotes . text) owner)
-                         , Just ("repo", (dquotes . text) repo)
-                         , Just ("rev", (dquotes . text) rev)
-                         , (,) "sha256" . (dquotes . text) <$> sha256
-                         ]
-
-  pretty (GitLab {..}) = (fetchFromGitLab . attrs . catMaybes)
-                         [ Just ("owner", (dquotes . text) owner)
-                         , Just ("repo", (dquotes . text) repo)
-                         , Just ("rev", (dquotes . text) rev)
-                         , (,) "sha256" . (dquotes . text) <$> sha256
-                         ]
 
 newtype FetchError = FetchError SomeException
   deriving (Show, Typeable)
