@@ -53,10 +53,7 @@ packageIndex :: [(Name, NExpr)] -> NExpr
 packageIndex packages = mkFunction args body where
   args = mkFixedParamSet [("callPackage", Nothing)]
   body = (mkNonRecSet . map bindPackage) packages
-  bindPackage (name, expr) = bindTo (fromName name)
-                             (mkApp
-                              (mkApp (mkSym "callPackage") expr)
-                              (mkNonRecSet []))
+  bindPackage (name, expr) = bindTo (fromName name) expr
 
 displayStream :: SimpleDoc -> OutputStream Text -> IO ()
 displayStream sdoc out = display sdoc where

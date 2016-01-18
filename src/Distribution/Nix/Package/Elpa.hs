@@ -22,7 +22,9 @@ data Package
     }
 
 expression :: Package -> NExpr
-expression (Package {..}) = mkFunction args body where
+expression (Package {..}) = (mkSym "callPackage") `mkApp` drv `mkApp` emptySet where
+  drv = mkFunction args body
+  emptySet = mkNonRecSet []
   requires = map fromName deps
   args = (mkFixedParamSet . map optionalBuiltins)
          ("lib" : "elpaBuild" : importFetcher fetch : requires)
