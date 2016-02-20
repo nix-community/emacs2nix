@@ -22,7 +22,8 @@ import qualified Data.Set as Set
 import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Typeable (Typeable)
-import System.Directory (createDirectoryIfMissing, copyFile, doesFileExist)
+import System.Directory
+       ( createDirectoryIfMissing, copyFile, doesFileExist )
 import System.FilePath
 import qualified System.IO.Streams as S
 import qualified System.IO.Streams.Attoparsec as S
