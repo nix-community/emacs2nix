@@ -1,11 +1,12 @@
 {-# LANGUAGE DeriveGeneric #-}
 
-module Distribution.Elpa.Package where
+module Distribution.Elpa where
 
-import Data.Aeson (FromJSON(..), ToJSON(..))
-import Data.Aeson.Types (defaultOptions, genericParseJSON, genericToJSON)
-import Data.Map.Strict (Map)
-import Data.Text (Text)
+import Data.Aeson ( FromJSON(..), ToJSON(..) )
+import Data.Aeson.Types
+       ( defaultOptions, genericParseJSON, genericToJSON )
+import Data.Map.Strict ( Map )
+import Data.Text ( Text )
 import GHC.Generics
 
 data Package =

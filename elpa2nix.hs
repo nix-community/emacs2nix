@@ -9,35 +9,35 @@ module Main (main) where
 #if __GLASGOW_HASKELL__ < 710
 import Control.Applicative
 #endif
-import Control.Concurrent (setNumCapabilities)
-import Control.Concurrent.Async (Concurrently(..))
+import Control.Concurrent ( setNumCapabilities )
+import Control.Concurrent.Async ( Concurrently(..) )
 import Control.Exception
-import Control.Monad (join, when)
-import Data.Aeson (FromJSON(..), json')
-import Data.Aeson.Types (parseEither)
-import Data.ByteString (ByteString)
-import Data.Map.Strict (Map)
+import Control.Monad ( join, when )
+import Data.Aeson ( FromJSON(..), json' )
+import Data.Aeson.Types ( parseEither )
+import Data.ByteString ( ByteString )
+import Data.Map.Strict ( Map )
 import qualified Data.Map.Strict as M
 import Data.Maybe ( catMaybes )
-import Data.Text (Text)
+import Data.Text ( Text )
 import qualified Data.Text as T
-import Data.Typeable (Typeable)
+import Data.Typeable ( Typeable )
 import Nix.Types ( NExpr )
 import Options.Applicative
 import System.FilePath ((</>), (<.>))
-import System.IO (hClose)
+import System.IO ( hClose )
 import qualified System.IO.Streams as S
 import qualified System.IO.Streams.Attoparsec as S
-import System.IO.Temp (withSystemTempFile)
+import System.IO.Temp ( withSystemTempFile )
 
 import Paths_emacs2nix
 
-import qualified Distribution.Elpa.Package as Elpa
+import qualified Distribution.Elpa as Elpa
 import qualified Distribution.Nix.Fetch as Nix
 import Distribution.Nix.Index
 import Distribution.Nix.Name ( Name )
 import qualified Distribution.Nix.Name as Nix
-import Distribution.Nix.Package.Elpa (Package)
+import Distribution.Nix.Package.Elpa ( Package )
 import qualified Distribution.Nix.Package.Elpa as Nix
 import Util
 

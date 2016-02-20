@@ -20,7 +20,7 @@ data-files: *.el, *.sh
 
 library
   exposed-modules:
-    Distribution.Elpa.Package
+    Distribution.Elpa
     Distribution.Melpa
     Distribution.Melpa.Recipe
     Distribution.Nix.Builtin
