@@ -22,6 +22,6 @@ in
 lib.addBuildTools
   (haskellPackages.callPackage ./. {})
   [
-    cabal-install nix-prefetch-scripts git subversion cvs mercurial
+    nix-prefetch-scripts git subversion cvs mercurial
     bazaar darcs fossil
   ]
