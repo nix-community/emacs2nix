@@ -1,4 +1,3 @@
-{-# LANGUAGE CPP #-}
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
@@ -6,9 +5,6 @@
 
 module Main (main) where
 
-#if __GLASGOW_HASKELL__ < 710
-import Control.Applicative
-#endif
 import Control.Concurrent ( setNumCapabilities )
 import Control.Concurrent.Async ( Concurrently(..) )
 import Control.Exception
@@ -24,7 +20,7 @@ import qualified Data.Text as T
 import Data.Typeable ( Typeable )
 import Nix.Types ( NExpr )
 import Options.Applicative
-import System.FilePath ((</>), (<.>))
+import System.FilePath ( (</>), (<.>) )
 import System.IO ( hClose )
 import qualified System.IO.Streams as S
 import qualified System.IO.Streams.Attoparsec as S

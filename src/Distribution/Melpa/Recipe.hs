@@ -1,4 +1,3 @@
-{-# LANGUAGE CPP #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -6,22 +5,15 @@
 
 module Distribution.Melpa.Recipe where
 
-#if __GLASGOW_HASKELL__ < 710
-import Control.Applicative
-#endif
-import Control.Exception (bracket)
+import Control.Exception ( bracket )
 import Data.Aeson
 import Data.Aeson.Types
   ( Options(..), SumEncoding(..), defaultTaggedObject, parseEither )
 import qualified Data.Char as Char
 import Data.Map (Map)
 import qualified Data.Map as M
-#if __GLASGOW_HASKELL__ < 710
-import Data.Monoid
-#else
-import Data.Monoid ((<>))
-#endif
-import Data.Text (Text)
+import Data.Monoid ( (<>) )
+import Data.Text ( Text )
 import qualified Data.Text as T
 import GHC.Generics
 import System.FilePath
