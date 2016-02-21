@@ -6,7 +6,6 @@ module Main where
 
 import Control.Concurrent ( setNumCapabilities )
 import Control.Monad ( join, when )
-import qualified Data.Map.Strict as M
 import Data.Set ( Set )
 import qualified Data.Set as Set
 import Data.Text ( Text )
@@ -14,8 +13,6 @@ import qualified Data.Text as T
 import Options.Applicative
 
 import Distribution.Melpa
-import Distribution.Nix.Index
-import qualified Distribution.Nix.Package.Melpa as Nix
 
 main :: IO ()
 main = join (execParser (info (helper <*> parser) desc))
@@ -62,14 +59,4 @@ melpa2nix nthreads melpaDir stable workDir melpaOut indexOnly packages = do
   -- set number of threads before beginning
   when (nthreads > 0) $ setNumCapabilities nthreads
 
-  updated <- if indexOnly
-             then pure []
-             else updateMelpa melpaDir stable workDir packages
-
-  existing <- readIndex melpaOut
-
-  let
-    toExpression pkg = (Nix.pname pkg, Nix.expression pkg)
-    packages = M.union (M.fromList (map toExpression updated)) existing
-
-  writeIndex melpaOut packages
+  updateMelpa melpaDir stable workDir melpaOut indexOnly packages

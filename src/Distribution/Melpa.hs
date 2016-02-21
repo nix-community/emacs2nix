@@ -32,6 +32,7 @@ import System.IO.Temp ( withSystemTempDirectory )
 import Distribution.Melpa.Recipe
 import qualified Distribution.Nix.Fetch as Nix
 import qualified Distribution.Nix.Hash as Nix
+import Distribution.Nix.Index
 import qualified Distribution.Nix.Name as Nix
 import qualified Distribution.Nix.Package.Melpa as Recipe ( Recipe(..) )
 import qualified Distribution.Nix.Package.Melpa as Nix
@@ -50,18 +51,20 @@ instance Exception ParseMelpaError
 
 updateMelpa :: FilePath
             -> Bool
-            -> FilePath
+            -> FilePath  -- ^ temporary workspace
+            -> FilePath  -- ^ dump MELPA recipes here
+            -> Bool  -- ^ only generate the index
             -> Set Text
-            -> IO [Nix.Package]
-updateMelpa melpaDir stable workDir packages = do
+            -> IO ()
+updateMelpa melpaDir stable workDir melpaOut indexOnly packages = do
   melpaCommit <- revision_Git Nothing melpaDir
   let melpa = Melpa {..}
 
-  let selectPackages
-        | Set.null packages = id
-        | otherwise = filter (\(name, _) -> Set.member name packages)
   recipes <- readRecipes melpaDir
-  let selected = selectPackages (M.toList recipes)
+
+  let
+    isSelected name = Set.null packages || Set.member name packages
+    selected = M.filterWithKey (\k _ -> isSelected k) recipes
 
   createDirectoryIfMissing True workDir
 
@@ -71,7 +74,23 @@ updateMelpa melpaDir stable workDir packages = do
         = Concurrently
           (bracket (waitQSem sem) (\_ -> signalQSem sem)
             (\_ -> getPackage melpa stable workDir pkg))
-  catMaybes <$> runConcurrently (traverse update selected)
+      toExpression pkg = (Nix.pname pkg, Nix.expression pkg)
+  updates <- if indexOnly
+             then pure M.empty
+             else M.fromList . map toExpression . catMaybes
+                  <$> runConcurrently (traverse update (M.toList selected))
+
+  existing <- readIndex melpaOut
+
+  let
+    recipeDeleted (Nix.fromName -> name)
+      = M.notMember name recipes && isSelected name
+    updated
+      = M.union
+        updates
+        (M.filterWithKey (\k _ -> not (recipeDeleted k)) existing)
+
+  writeIndex melpaOut updated
 
 data PackageException = PackageException Text SomeException
   deriving (Show, Typeable)
