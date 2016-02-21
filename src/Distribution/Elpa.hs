@@ -1,16 +1,14 @@
 {-# LANGUAGE DeriveGeneric #-}
 
-module Distribution.Elpa where
+module Distribution.Elpa ( Elpa(..) ) where
 
 import Data.Aeson ( FromJSON(..), ToJSON(..) )
-import Data.Aeson.Types
-       ( defaultOptions, genericParseJSON, genericToJSON )
 import Data.Map.Strict ( Map )
 import Data.Text ( Text )
 import GHC.Generics
 
-data Package =
-  Package
+data Elpa =
+  Elpa
   { ver :: [Integer]
   , deps :: Maybe (Map Text [Integer])
   , dist :: Text -- TODO: replace with an enumeration
@@ -18,8 +16,5 @@ data Package =
   }
   deriving (Eq, Generic, Read, Show)
 
-instance FromJSON Package where
-  parseJSON = genericParseJSON defaultOptions
-
-instance ToJSON Package where
-  toJSON = genericToJSON defaultOptions
+instance FromJSON Elpa
+instance ToJSON Elpa

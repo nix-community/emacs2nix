@@ -28,6 +28,7 @@ import System.IO.Temp ( withSystemTempFile )
 
 import Paths_emacs2nix
 
+import Distribution.Elpa ( Elpa )
 import qualified Distribution.Elpa as Elpa
 import qualified Distribution.Nix.Fetch as Nix
 import Distribution.Nix.Index
@@ -77,7 +78,7 @@ elpa2nix threads output server indexOnly = showExceptions_ $ do
 
   updateIndex output (catMaybes updated)
 
-updatePackage :: String -> (Text, Elpa.Package)
+updatePackage :: String -> (Text, Elpa)
               -> Concurrently (Maybe (Name, NExpr))
 updatePackage server elpa = Concurrently $ do
   hashed <- hashPackage server elpa
@@ -94,7 +95,7 @@ instance Exception ArchiveError
 
 -- * getPackages
 
-getPackages :: String -> IO (Map Text Elpa.Package)
+getPackages :: String -> IO (Map Text Elpa)
 getPackages uri = mapException ArchiveError $ do
   let args = [uri </> "archive-contents"]
   withSystemTempFile "elpa2nix-archive-contents-" $ \path h -> do
@@ -112,7 +113,7 @@ data ParseArchiveError = ParseArchiveError String
 
 instance Exception ParseArchiveError
 
-readArchive :: FilePath -> IO (Map Text Elpa.Package)
+readArchive :: FilePath -> IO (Map Text Elpa)
 readArchive path = mapException ArchiveError $ do
   let
     args = ["--eval", eval]
@@ -140,7 +141,7 @@ data DistNotImplemented = DistNotImplemented Text
 
 instance Exception DistNotImplemented
 
-hashPackage :: String -> (Text, Elpa.Package) -> IO (Maybe Package)
+hashPackage :: String -> (Text, Elpa) -> IO (Maybe Package)
 hashPackage server (name, pkg) = showExceptions $ do
   let
     ver = T.intercalate "." (map (T.pack . show) (Elpa.ver pkg))
