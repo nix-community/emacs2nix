@@ -6,6 +6,7 @@ module Main where
 
 import Control.Concurrent ( setNumCapabilities )
 import Control.Monad ( join, when )
+import qualified Data.Map.Strict as M
 import Data.Set ( Set )
 import qualified Data.Set as Set
 import Data.Text ( Text )
@@ -65,6 +66,10 @@ melpa2nix nthreads melpaDir stable workDir melpaOut indexOnly packages = do
              then pure []
              else updateMelpa melpaDir stable workDir packages
 
-  let toExpression pkg = (Nix.pname pkg, Nix.expression pkg)
+  existing <- readIndex melpaOut
 
-  updateIndex melpaOut (map toExpression updated)
+  let
+    toExpression pkg = (Nix.pname pkg, Nix.expression pkg)
+    packages = M.union (M.fromList (map toExpression updated)) existing
+
+  writeIndex melpaOut packages

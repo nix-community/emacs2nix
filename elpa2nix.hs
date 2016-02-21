@@ -76,7 +76,11 @@ elpa2nix threads output server indexOnly = showExceptions_ $ do
              then pure []
              else runConcurrently (traverse (updatePackage server) (M.toList archives))
 
-  updateIndex output (catMaybes updated)
+  existing <- readIndex output
+
+  let packages = M.union (M.fromList (catMaybes updated)) existing
+
+  writeIndex output packages
 
 updatePackage :: String -> (Text, Elpa)
               -> Concurrently (Maybe (Name, NExpr))

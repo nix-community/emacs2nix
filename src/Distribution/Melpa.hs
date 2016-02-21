@@ -2,32 +2,32 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ViewPatterns #-}
 
-module Distribution.Melpa (updateMelpa) where
+module Distribution.Melpa ( updateMelpa ) where
 
-import Control.Concurrent (getNumCapabilities)
-import Control.Concurrent.Async (Concurrently(..))
+import Control.Concurrent ( getNumCapabilities )
+import Control.Concurrent.Async ( Concurrently(..) )
 import Control.Concurrent.QSem
-import Control.Error hiding (err)
+import Control.Error hiding ( err )
 import Control.Exception
 import Control.Monad.IO.Class
-import Data.Aeson (parseJSON)
-import Data.Aeson.Parser (json')
-import Data.Aeson.Types (parseEither)
-import Data.Char (isDigit, isHexDigit)
+import Data.Aeson ( parseJSON )
+import Data.Aeson.Parser ( json' )
+import Data.Aeson.Types ( parseEither )
+import Data.Char ( isDigit, isHexDigit )
 import Data.Map.Strict ( Map )
 import qualified Data.Map.Strict as M
-import Data.Monoid ((<>))
+import Data.Monoid ( (<>) )
 import Data.Set ( Set )
 import qualified Data.Set as Set
-import Data.Text (Text)
+import Data.Text ( Text )
 import qualified Data.Text as T
-import Data.Typeable (Typeable)
+import Data.Typeable ( Typeable )
 import System.Directory
        ( createDirectoryIfMissing, copyFile, doesFileExist )
 import System.FilePath
 import qualified System.IO.Streams as S
 import qualified System.IO.Streams.Attoparsec as S
-import System.IO.Temp (withSystemTempDirectory)
+import System.IO.Temp ( withSystemTempDirectory )
 
 import Distribution.Melpa.Recipe
 import qualified Distribution.Nix.Fetch as Nix
@@ -36,7 +36,7 @@ import qualified Distribution.Nix.Name as Nix
 import qualified Distribution.Nix.Package.Melpa as Recipe ( Recipe(..) )
 import qualified Distribution.Nix.Package.Melpa as Nix
 
-import Paths_emacs2nix (getDataFileName)
+import Paths_emacs2nix ( getDataFileName )
 import Util
 
 data Melpa = Melpa { melpaDir :: FilePath
@@ -60,7 +60,8 @@ updateMelpa melpaDir stable workDir packages = do
   let selectPackages
         | Set.null packages = id
         | otherwise = filter (\(name, _) -> Set.member name packages)
-  recipes <- selectPackages . M.toList <$> readRecipes melpaDir
+  recipes <- readRecipes melpaDir
+  let selected = selectPackages (M.toList recipes)
 
   createDirectoryIfMissing True workDir
 
@@ -70,7 +71,7 @@ updateMelpa melpaDir stable workDir packages = do
         = Concurrently
           (bracket (waitQSem sem) (\_ -> signalQSem sem)
             (\_ -> getPackage melpa stable workDir pkg))
-  catMaybes <$> runConcurrently (traverse update recipes)
+  catMaybes <$> runConcurrently (traverse update selected)
 
 data PackageException = PackageException Text SomeException
   deriving (Show, Typeable)
