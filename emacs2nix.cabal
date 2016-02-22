@@ -1,6 +1,6 @@
 name:                emacs2nix
 version:             0.1.0.0
-synopsis:            Automatically generate Nix expressions for Emacs packages
+synopsis:            Generate Nix expressions for Emacs packages
 description:
   melpa2nix automatically generates Nix expressions for Emacs packages from the
   package recipes provided by MELPA.
@@ -10,7 +10,7 @@ license:             GPL-3
 license-file:        LICENSE
 author:              Thomas Tuegel
 maintainer:          ttuegel@gmail.com
-copyright:           2015 Thomas Tuegel
+copyright:           (C) 2016 Thomas Tuegel
 category:            Distribution
 build-type:          Simple
 extra-source-files:  ChangeLog.md
