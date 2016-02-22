@@ -17,3 +17,5 @@
 * TODO Generate readable errors
 * TODO Don't complain if a package lacks a stable version
 * TODO Avoid changing recipe revision every time
+* TODO Get package descriptions
+* TODO Get package licenses
