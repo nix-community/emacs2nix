@@ -14,10 +14,6 @@
   CLOSED: [2015-08-21 Fri 13:57]
 * DONE Generate packages from MELPA Stable
   CLOSED: [2015-08-21 Fri 14:16]
-* TODO Fix SVN fetcher
-* TODO Use a better error type
+* TODO Generate readable errors
 * TODO Don't complain if a package lacks a stable version
-* TODO Option --update
-  Only update packages already listed in the output file
-* TODO Option --new
-  Only generate packages not listed in the output file
+* TODO Avoid changing recipe revision every time
