@@ -11,7 +11,7 @@ mkDerivation {
     base bytestring HUnit QuickCheck test-framework
     test-framework-hunit test-framework-quickcheck2 text utf8-string
   ];
-  homepage = "http://github.com/lpsmith/blaze-builder";
+  homepage = "https://github.com/lpsmith/blaze-builder";
   description = "Efficient buffered output";
   license = stdenv.lib.licenses.bsd3;
 }

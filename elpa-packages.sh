@@ -3,4 +3,4 @@
 
 # usage: ./elpa-packages.sh -o PATH
 
-cabal run elpa2nix -- http://elpa.gnu.org/packages/ "$@"
+cabal run elpa2nix -- https://elpa.gnu.org/packages/ "$@"

@@ -68,7 +68,7 @@ expression (Package {..}) = (mkSym "callPackage") `mkApp` drv `mkApp` emptySet w
              , "license" `bindTo` license
              ]
         where
-          homepage = T.append "http://melpa.org/#/" (ename recipe)
+          homepage = T.append "https://melpa.org/#/" (ename recipe)
           license = Fix (NSelect (mkSym "lib") [StaticKey "licenses", StaticKey "free"] Nothing)
       fetchRecipe = (mkApp (mkSym "fetchurl") . mkNonRecSet)
                     [ "url" `bindTo` mkStr DoubleQuoted
