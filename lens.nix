@@ -26,7 +26,7 @@ mkDerivation {
     test-framework-quickcheck2 test-framework-th text transformers
     unordered-containers vector
   ];
-  homepage = "http://github.com/ekmett/lens/";
+  homepage = "https://github.com/ekmett/lens/";
   description = "Lenses, Folds and Traversals";
   license = stdenv.lib.licenses.bsd3;
 }

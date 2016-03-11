@@ -217,7 +217,7 @@ getFetcher _ sourceDir SVN {..} = do
 getFetcher name _ Wiki {..} = do
   let
     url = fromMaybe defaultUrl wikiUrl
-    defaultUrl = "http://www.emacswiki.org/emacs/download/" <> name <> ".el"
+    defaultUrl = "https://www.emacswiki.org/emacs/download/" <> name <> ".el"
   pure Nix.URL { Nix.url = url
                , Nix.sha256 = Nothing
                }

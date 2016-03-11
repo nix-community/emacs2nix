@@ -62,7 +62,7 @@ expression (Package {..}) = (mkSym "callPackage") `mkApp` drv `mkApp` emptySet w
              ]
         where
           homepage = T.concat
-                     [ "http://elpa.gnu.org/packages/"
+                     [ "https://elpa.gnu.org/packages/"
                      , ename
                      , ".html"
                      ]
