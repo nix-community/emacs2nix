@@ -5,3 +5,5 @@
 /result*
 /elpa-packages.nix
 /melpa-packages.nix
+/.shell.drv
+.result*
