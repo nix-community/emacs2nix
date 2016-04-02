@@ -1,9 +1,5 @@
 /dist/
-/archive-contents
-*.json
+/Setup
 *.prof
-/result*
-/elpa-packages.nix
-/melpa-packages.nix
 /.shell.drv
-.result*
+/.result*
