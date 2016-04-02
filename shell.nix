@@ -8,7 +8,9 @@ let
       distributive = lib.dontCheck super.distributive;
       fail = lib.dontHaddock super.fail;
       hnix = self.callPackage ./hnix {};
-      kan-extensions = lib.doJailbreak (self.callPackage ./kan-extensions.nix {});
+      kan-extensions =
+        lib.doJailbreak
+        (self.callPackage ./kan-extensions.nix {});
       lens = lib.dontCheck (lib.doJailbreak (self.callPackage ./lens.nix {}));
       parsers = lib.doJailbreak super.parsers;
       reducers = lib.doJailbreak super.reducers;
