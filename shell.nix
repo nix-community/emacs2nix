@@ -1,32 +1,29 @@
 with (import <nixpkgs> {});
 let
   inherit (pkgs.haskell) lib;
-  haskellPackages = pkgs.haskell.packages.ghc801.override {
+  haskellPackages = pkgs.haskell.packages.ghc7103.override {
     overrides = self: super: {
-      aeson = self.callPackage ./aeson.nix {};
+      aeson = self.aeson_0_11_1_4;
+      bifunctors = lib.dontHaddock self.bifunctors_5_2_1;
       comonad = lib.doJailbreak (lib.dontCheck super.comonad);
       distributive = lib.dontCheck super.distributive;
       fail = lib.dontHaddock super.fail;
       hnix = self.callPackage ./hnix {};
-      kan-extensions =
-        lib.doJailbreak
-        (self.callPackage ./kan-extensions.nix {});
-      lens = lib.dontCheck (lib.doJailbreak (self.callPackage ./lens.nix {}));
+      kan-extensions = self.kan-extensions_5_0_1;
+      lens = self.lens_4_13_2_1;
       parsers = lib.doJailbreak super.parsers;
       reducers = lib.doJailbreak super.reducers;
       semigroupoids = lib.dontCheck super.semigroupoids;
-      transformers-compat =
-        lib.doJailbreak
-        (self.callPackage ./transformers-compat.nix {});
+      transformers-compat = self.transformers-compat_0_5_1_4;
       trifecta = lib.doJailbreak (lib.dontCheck super.trifecta);
-      unordered-containers =
-        lib.doJailbreak super.unordered-containers;
+      unordered-containers = lib.doJailbreak super.unordered-containers;
     };
   };
 in
 lib.addBuildTools
   (haskellPackages.callPackage ./. {})
   [
-    nix-prefetch-scripts git subversion cvs mercurial
-    bazaar darcs fossil
+    emacs cabal-install
+    nix nix-prefetch-scripts
+    bazaar cvs curl darcs fossil git mercurial subversion
   ]
