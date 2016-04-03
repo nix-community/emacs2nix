@@ -26,7 +26,7 @@ module Distribution.Nix.Package.Elpa ( Package(..), expression ) where
 import Data.Fix
 import Data.Text ( Text )
 import qualified Data.Text as T
-import Nix.Types
+import Nix.Expr
 
 import Distribution.Nix.Builtin
 import Distribution.Nix.Fetch ( Fetch, fetchExpr, importFetcher )
@@ -46,18 +46,18 @@ expression (Package {..}) = (mkSym "callPackage") `mkApp` drv `mkApp` emptySet w
   drv = mkFunction args body
   emptySet = mkNonRecSet []
   requires = map fromName deps
-  args = (mkFixedParamSet . map optionalBuiltins)
+  args = (mkParamset . map optionalBuiltins)
          ("lib" : "elpaBuild" : importFetcher fetch : requires)
   body = (mkApp (mkSym "elpaBuild") . mkNonRecSet)
-         [ "pname" `bindTo` mkStr DoubleQuoted (fromName pname)
-         , "version" `bindTo` mkStr DoubleQuoted version
+         [ "pname" `bindTo` mkStr (fromName pname)
+         , "version" `bindTo` mkStr version
          , "src" `bindTo` fetchExpr fetch
          , "packageRequires" `bindTo` mkList (map mkSym requires)
          , "meta" `bindTo` meta
          ]
     where
       meta = mkNonRecSet
-             [ "homepage" `bindTo` mkStr DoubleQuoted homepage
+             [ "homepage" `bindTo` mkStr homepage
              , "license" `bindTo` license
              ]
         where

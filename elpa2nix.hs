@@ -38,7 +38,7 @@ import Data.Maybe ( catMaybes )
 import Data.Text ( Text )
 import qualified Data.Text as T
 import Data.Typeable ( Typeable )
-import Nix.Types ( NExpr )
+import Nix.Expr ( NExpr )
 import Options.Applicative
 import System.FilePath ( (</>), (<.>) )
 import System.IO ( hClose )

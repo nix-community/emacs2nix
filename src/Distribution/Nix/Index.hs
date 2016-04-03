@@ -31,7 +31,7 @@ import Data.Text ( Text )
 import qualified Data.Text as T
 import Nix.Parser ( Result(..), parseNixFile )
 import Nix.Pretty ( prettyNix )
-import Nix.Types
+import Nix.Expr
 import System.Directory ( doesFileExist )
 import System.IO.Streams ( OutputStream )
 import qualified System.IO.Streams as S
@@ -70,7 +70,7 @@ getFunctionBody (Fix (NAbs _ body)) = Just body
 getFunctionBody _ = Nothing
 
 getPackages :: NExpr -> Maybe (Map Name NExpr)
-getPackages (Fix (NSet NonRec bindings)) =
+getPackages (Fix (NSet bindings)) =
   let
     getPackage (NamedVar [StaticKey name] expr) = Just (fromText name, expr)
     getPackage _ = Nothing
@@ -80,7 +80,7 @@ getPackages _ = Nothing
 
 packageIndex :: Map Name NExpr -> NExpr
 packageIndex (M.toList -> packages) = mkFunction args body where
-  args = mkFixedParamSet [("callPackage", Nothing)]
+  args = mkParamset [("callPackage", Nothing)]
   body = (mkNonRecSet . map bindPackage) packages
   bindPackage (name, expr) = bindTo (fromName name) expr
 

@@ -33,7 +33,7 @@ import Data.Monoid
 import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Typeable (Typeable)
-import Nix.Types
+import Nix.Expr
 import System.Environment (getEnvironment)
 import qualified System.IO.Streams as S
 
@@ -60,46 +60,46 @@ importFetcher (GitLab {}) = "fetchFromGitLab"
 
 fetchExpr :: Fetch -> NExpr
 fetchExpr (URL {..}) = (mkApp (mkSym "fetchurl") . mkNonRecSet . catMaybes)
-                       [ Just ("url" `bindTo` mkStr DoubleQuoted url)
-                       , bindTo "sha256" . mkStr DoubleQuoted <$> sha256
+                       [ Just ("url" `bindTo` mkStr url)
+                       , bindTo "sha256" . mkStr <$> sha256
                        ]
 fetchExpr (Git {..}) = (mkApp (mkSym "fetchgit") . mkNonRecSet . catMaybes)
-                       [ Just ("url" `bindTo` mkStr DoubleQuoted url)
-                       , Just ("rev" `bindTo` mkStr DoubleQuoted rev)
-                       , bindTo "branchName" . mkStr DoubleQuoted <$> branchName
-                       , bindTo "sha256" . mkStr DoubleQuoted <$> sha256
+                       [ Just ("url" `bindTo` mkStr url)
+                       , Just ("rev" `bindTo` mkStr rev)
+                       , bindTo "branchName" . mkStr <$> branchName
+                       , bindTo "sha256" . mkStr <$> sha256
                        ]
 fetchExpr (Bzr {..}) = (mkApp (mkSym "fetchbzr") . mkNonRecSet . catMaybes)
-                       [ Just ("url" `bindTo` mkStr DoubleQuoted url)
-                       , Just ("rev" `bindTo` mkStr DoubleQuoted rev)
-                       , bindTo "sha256" . mkStr DoubleQuoted <$> sha256
+                       [ Just ("url" `bindTo` mkStr url)
+                       , Just ("rev" `bindTo` mkStr rev)
+                       , bindTo "sha256" . mkStr <$> sha256
                        ]
 fetchExpr (CVS {..}) = (mkApp (mkSym "fetchcvs") . mkNonRecSet . catMaybes)
-                       [ Just ("cvsRoot" `bindTo` mkStr DoubleQuoted cvsRoot)
-                       , bindTo "module" . mkStr DoubleQuoted <$> cvsModule
-                       , bindTo "sha256" . mkStr DoubleQuoted <$> sha256
+                       [ Just ("cvsRoot" `bindTo` mkStr cvsRoot)
+                       , bindTo "module" . mkStr <$> cvsModule
+                       , bindTo "sha256" . mkStr <$> sha256
                        ]
 fetchExpr (Hg {..}) = (mkApp (mkSym "fetchhg") . mkNonRecSet . catMaybes)
-                      [ Just ("url" `bindTo` mkStr DoubleQuoted url)
-                      , Just ("rev" `bindTo` mkStr DoubleQuoted rev)
-                      , bindTo "sha256" . mkStr DoubleQuoted <$> sha256
+                      [ Just ("url" `bindTo` mkStr url)
+                      , Just ("rev" `bindTo` mkStr rev)
+                      , bindTo "sha256" . mkStr <$> sha256
                       ]
 fetchExpr (SVN {..}) = (mkApp (mkSym "fetchsvn") . mkNonRecSet . catMaybes)
-                       [ Just ("url" `bindTo` mkStr DoubleQuoted url)
-                       , Just ("rev" `bindTo` mkStr DoubleQuoted rev)
-                       , bindTo "sha256" . mkStr DoubleQuoted <$> sha256
+                       [ Just ("url" `bindTo` mkStr url)
+                       , Just ("rev" `bindTo` mkStr rev)
+                       , bindTo "sha256" . mkStr <$> sha256
                        ]
 fetchExpr (GitHub {..}) = (mkApp (mkSym "fetchFromGitHub") . mkNonRecSet . catMaybes)
-                          [ Just ("owner" `bindTo` mkStr DoubleQuoted owner)
-                          , Just ("repo" `bindTo` mkStr DoubleQuoted repo)
-                          , Just ("rev" `bindTo` mkStr DoubleQuoted rev)
-                          , bindTo "sha256" . mkStr DoubleQuoted <$> sha256
+                          [ Just ("owner" `bindTo` mkStr owner)
+                          , Just ("repo" `bindTo` mkStr repo)
+                          , Just ("rev" `bindTo` mkStr rev)
+                          , bindTo "sha256" . mkStr <$> sha256
                           ]
 fetchExpr (GitLab {..}) = (mkApp (mkSym "fetchFromGitLab") . mkNonRecSet . catMaybes)
-                          [ Just ("owner" `bindTo` mkStr DoubleQuoted owner)
-                          , Just ("repo" `bindTo` mkStr DoubleQuoted repo)
-                          , Just ("rev" `bindTo` mkStr DoubleQuoted rev)
-                          , bindTo "sha256" . mkStr DoubleQuoted <$> sha256
+                          [ Just ("owner" `bindTo` mkStr owner)
+                          , Just ("repo" `bindTo` mkStr repo)
+                          , Just ("rev" `bindTo` mkStr rev)
+                          , bindTo "sha256" . mkStr <$> sha256
                           ]
 
 newtype FetchError = FetchError SomeException

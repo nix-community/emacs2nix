@@ -24,7 +24,7 @@ module Distribution.Nix.Builtin (optionalBuiltins) where
 
 import qualified Data.Set as S
 import Data.Text (Text)
-import Nix.Types
+import Nix.Expr
 
 optionalBuiltins :: Text -> (Text, Maybe NExpr)
 optionalBuiltins dep

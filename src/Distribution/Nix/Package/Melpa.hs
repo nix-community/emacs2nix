@@ -26,7 +26,7 @@ module Distribution.Nix.Package.Melpa ( Package(..), Recipe(..), expression ) wh
 import Data.Fix
 import Data.Text ( Text )
 import qualified Data.Text as T
-import Nix.Types
+import Nix.Expr
 
 import Distribution.Nix.Builtin
 import Distribution.Nix.Fetch ( Fetch, fetchExpr, importFetcher )
@@ -52,11 +52,11 @@ expression (Package {..}) = (mkSym "callPackage") `mkApp` drv `mkApp` emptySet w
   drv = mkFunction args body
   emptySet = mkNonRecSet []
   requires = map fromName deps
-  args = (mkFixedParamSet . map optionalBuiltins)
+  args = (mkParamset . map optionalBuiltins)
          ("lib" : "melpaBuild" : "fetchurl" : importFetcher fetch : requires)
   body = (mkApp (mkSym "melpaBuild") . mkNonRecSet)
-         [ "pname" `bindTo` mkStr DoubleQuoted (fromName pname)
-         , "version" `bindTo` mkStr DoubleQuoted version
+         [ "pname" `bindTo` mkStr (fromName pname)
+         , "version" `bindTo` mkStr version
          , "src" `bindTo` fetchExpr fetch
          , "recipeFile" `bindTo` fetchRecipe
          , "packageRequires" `bindTo` mkList (map mkSym requires)
@@ -64,20 +64,20 @@ expression (Package {..}) = (mkSym "callPackage") `mkApp` drv `mkApp` emptySet w
          ]
     where
       meta = mkNonRecSet
-             [ "homepage" `bindTo` mkStr DoubleQuoted homepage
+             [ "homepage" `bindTo` mkStr homepage
              , "license" `bindTo` license
              ]
         where
           homepage = T.append "https://melpa.org/#/" (ename recipe)
           license = Fix (NSelect (mkSym "lib") [StaticKey "licenses", StaticKey "free"] Nothing)
       fetchRecipe = (mkApp (mkSym "fetchurl") . mkNonRecSet)
-                    [ "url" `bindTo` mkStr DoubleQuoted
+                    [ "url" `bindTo` mkStr
                       (T.concat
                        [ "https://raw.githubusercontent.com/milkypostman/melpa/"
                        , commit recipe
                        , "/recipes/"
                        , ename recipe
                        ])
-                    , "sha256" `bindTo` mkStr DoubleQuoted (sha256 recipe)
-                    , "name" `bindTo` mkStr DoubleQuoted (fromName (fromText (ename recipe)))
+                    , "sha256" `bindTo` mkStr (sha256 recipe)
+                    , "name" `bindTo` mkStr (fromName (fromText (ename recipe)))
                     ]
