@@ -55,10 +55,9 @@ runInteractiveProcess cmd args cwd env withOutput
       getOutput = Concurrently (withOutput out)
       getErrors = Concurrently (S.fold (<>) T.empty =<< S.decodeUtf8 err)
       wait = Concurrently (S.waitForProcess pid)
-    (result, errorMessage, exit) <- runConcurrently
-                                    ((,,) <$> getOutput <*> getErrors <*> wait)
+    (errorMessage, exit) <- runConcurrently ((,) <$> getErrors <*> wait)
     case exit of
-      ExitSuccess -> pure result
+      ExitSuccess -> runConcurrently getOutput
       ExitFailure code -> throwIO (Died code errorMessage)
 
 showExceptions :: IO b -> IO (Maybe b)
