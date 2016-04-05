@@ -1,8 +1,16 @@
-with (import <nixpkgs> {});
+{ nixpkgs ? import <nixpkgs> {}, profiling ? false }:
+
+with nixpkgs;
+
 let
   inherit (pkgs.haskell) lib;
   haskellPackages = pkgs.haskell.packages.ghc7103.override {
     overrides = self: super: {
+
+      mkDerivation = args: super.mkDerivation (args // {
+        enableLibraryProfiling = profiling;
+      });
+
       aeson = self.aeson_0_11_1_4;
       bifunctors = lib.dontHaddock self.bifunctors_5_2_1;
       comonad = lib.doJailbreak (lib.dontCheck super.comonad);
