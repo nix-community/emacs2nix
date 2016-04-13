@@ -11,8 +11,6 @@ let
         enableLibraryProfiling = profiling;
       });
 
-      aeson = self.aeson_0_11_1_4;
-      bifunctors = lib.dontHaddock self.bifunctors_5_2_1;
       comonad = lib.doJailbreak (lib.dontCheck super.comonad);
       distributive = lib.dontCheck super.distributive;
       fail = lib.dontHaddock super.fail;
@@ -22,7 +20,6 @@ let
       parsers = lib.doJailbreak super.parsers;
       reducers = lib.doJailbreak super.reducers;
       semigroupoids = lib.dontCheck super.semigroupoids;
-      transformers-compat = self.transformers-compat_0_5_1_4;
       trifecta = lib.doJailbreak (lib.dontCheck super.trifecta);
       unordered-containers = lib.doJailbreak super.unordered-containers;
     };
