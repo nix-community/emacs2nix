@@ -162,7 +162,7 @@ prefetch _ fetch@(Hg {..}) = do
   prefetchHelper "nix-prefetch-hg" args $ \out -> do
     hashes <- liftIO (S.lines out >>= S.decodeUtf8 >>= S.toList)
     case hashes of
-      (_:hash:path:_) -> pure (T.unpack path, fetch { sha256 = Just hash })
+      (hash:path:_) -> pure (T.unpack path, fetch { sha256 = Just hash })
       _ -> throwIO BadPrefetchOutput
 
 prefetch name fetch@(CVS {..}) = do
