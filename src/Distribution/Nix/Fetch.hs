@@ -113,12 +113,12 @@ prefetchHelper :: String -> [String]
 prefetchHelper fetcher args go = mapException FetchError helper
   where
     helper = do
-      env <- (   addToEnv "PRINT_PATH" "1"
-              >> addToEnv "SSL_CERT_FILE" "/etc/ssl/certs/ca-certificates.crt")
+      env <- addToEnv [("PRINT_PATH",    "1"),
+                       ("SSL_CERT_FILE", "/etc/ssl/certs/ca-certificates.crt")]
       runInteractiveProcess fetcher args Nothing (Just env) go
 
-addToEnv :: MonadIO m => String -> String -> m [(String, String)]
-addToEnv var val = liftIO $ M.toList . M.insert var val . M.fromList <$> getEnvironment
+addToEnv :: [(String, String)] -> IO [(String, String)]
+addToEnv env = (++ env) <$> getEnvironment
 
 data BadPrefetchOutput = BadPrefetchOutput
   deriving (Show, Typeable)
