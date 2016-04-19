@@ -33,6 +33,7 @@ import Data.Typeable (Typeable)
 import System.Exit (ExitCode(..))
 import System.IO.Streams (InputStream)
 import qualified System.IO.Streams as S
+import Debug.Trace
 
 data Died = Died Int Text
   deriving (Show, Typeable)
@@ -44,6 +45,14 @@ data ProcessFailed = ProcessFailed String [String] SomeException
 
 instance Exception ProcessFailed
 
+data ProcessingFailed = ProcessingFailed Text Text SomeException
+  deriving (Show, Typeable)
+
+instance Exception ProcessingFailed
+
+slurp :: InputStream ByteString -> IO Text
+slurp stream = S.fold (<>) T.empty =<< S.decodeUtf8 stream
+
 runInteractiveProcess
   :: String -> [String] -> Maybe FilePath -> Maybe [(String, String)]
   -> (InputStream ByteString -> IO a)
@@ -52,14 +61,25 @@ runInteractiveProcess cmd args cwd env withOutput
   = mapExceptionIO (ProcessFailed cmd args) $ do
     (_, out, err, pid) <- S.runInteractiveProcess cmd args cwd env
     let
-      getOutput = Concurrently (withOutput out)
-      getErrors = Concurrently (S.fold (<>) T.empty =<< S.decodeUtf8 err)
+      getOutput =
+        Concurrently
+         (catch
+          (fmap Right $ withOutput out)
+          (\e -> (fmap (Left . ((,) e)) (slurp out))))
+          ---- Maybe catch exceptions that might occur by just slurping the input stream
+          ---- couldn't get this to type (Ambigous exception type)
+          -- (\e -> catch
+          --        (fmap (Left . ((,) e)) (slurp out))
+          --        -- (Left (e, slurp out))
+          --        (\ei -> pure $ Left (e, T.pack $ "INPUT ERROR " ++ show ei))))
+      getErrors = Concurrently $ slurp err
       wait = Concurrently (S.waitForProcess pid)
-    (result, errorMessage, exit) <- runConcurrently
-                                    ((,,) <$> getOutput <*> getErrors <*> wait)
-    case exit of
-      ExitSuccess -> pure result
-      ExitFailure code -> throwIO (Died code errorMessage)
+    (output, errorMessage, exit) <- runConcurrently ((,,) <$> getOutput <*> getErrors <*> wait)
+    case (exit, output) of
+      (ExitSuccess, Right v) -> pure v
+      (ExitSuccess, Left (ex, leftover)) -> throwIO $ ProcessingFailed leftover errorMessage ex
+      (ExitFailure code, Left info) -> throwIO $ trace (show info) $ Died code errorMessage
+      (ExitFailure code, Right v) -> throwIO $ Died code "WTF successful parse of error'd program"
 
 showExceptions :: IO b -> IO (Maybe b)
 showExceptions go = catch (Just <$> go) handler
