@@ -1,5 +1,5 @@
 #!/usr/bin/env nix-shell
-#!nix-shell --pure -i bash -A env
+#!nix-shell -i bash -A env
 
 # usage: ./elpa-packages.sh -o PATH
 
