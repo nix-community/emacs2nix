@@ -117,8 +117,7 @@ prefetchHelper :: String -> [String]
 prefetchHelper fetcher args go = mapException FetchError helper
   where
     helper = do
-      env <- addToEnv [("PRINT_PATH",    "1"),
-                       ("SSL_CERT_FILE", "/etc/ssl/certs/ca-certificates.crt")]
+      env <- addToEnv [("PRINT_PATH", "1")]
       runInteractiveProcess fetcher args Nothing (Just env) go
 
 addToEnv :: [(String, String)] -> IO [(String, String)]
