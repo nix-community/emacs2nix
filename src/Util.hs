@@ -79,7 +79,9 @@ runInteractiveProcess cmd args cwd env withOutput
       (ExitSuccess, Right v) -> pure v
       (ExitSuccess, Left (ex, leftover)) -> throwIO $ ProcessingFailed leftover errorMessage ex
       (ExitFailure code, Left info) -> throwIO $ trace (show info) $ Died code errorMessage
-      (ExitFailure code, Right v) -> throwIO $ Died code "WTF successful parse of error'd program"
+      (ExitFailure code, Right _) ->
+          throwIO $ Died code "the improbable happened: successfully parsed \
+                              \output from failed process"
 
 showExceptions :: IO b -> IO (Maybe b)
 showExceptions go = catch (Just <$> go) handler
