@@ -24,7 +24,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 module Main where
 
-import Control.Concurrent ( setNumCapabilities )
+import Control.Concurrent ( getNumCapabilities, setNumCapabilities )
 import Control.Monad ( join, when )
 import Data.Set ( Set )
 import qualified Data.Set as Set
@@ -77,6 +77,8 @@ melpa2nix :: Int  -- ^ number of threads to use
           -> IO ()
 melpa2nix nthreads melpaDir stable workDir melpaOut indexOnly packages = do
   -- set number of threads before beginning
-  when (nthreads > 0) $ setNumCapabilities nthreads
+  if nthreads > 0
+     then setNumCapabilities nthreads
+     else getNumCapabilities >>= setNumCapabilities . (* 4)
 
   updateMelpa melpaDir stable workDir melpaOut indexOnly packages
