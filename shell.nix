@@ -11,13 +11,10 @@ let
         enableLibraryProfiling = profiling;
       });
 
-      aeson = self.aeson_0_11_1_4;
       comonad = lib.doJailbreak (lib.dontCheck super.comonad);
       distributive = lib.dontCheck super.distributive;
       fail = lib.dontHaddock super.fail;
       hnix = self.callPackage ./hnix {};
-      kan-extensions = self.kan-extensions_5_0_1;
-      lens = self.lens_4_13_2_1;
       parsers = lib.doJailbreak super.parsers;
       reducers = lib.doJailbreak super.reducers;
       semigroupoids = lib.dontCheck super.semigroupoids;
