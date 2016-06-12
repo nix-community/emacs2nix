@@ -30,7 +30,7 @@ lib.addBuildTools
   (filterCabalSource
    (haskellPackages.callPackage ./. {})
    (path: type:
-        type != "directory" || !(lib.elem (baseNameOf path) omitDirs)))
+        type != "directory" || !(stdenv.lib.elem (baseNameOf path) omitDirs)))
 [
   emacs cabal-install
   nix nix-prefetch-scripts

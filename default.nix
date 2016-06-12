@@ -2,7 +2,7 @@
 , bytestring, containers, data-fix, directory, errors, filepath
 , hashable, hnix, io-streams, optparse-applicative, stdenv
 , temporary, text, text-regex-replace, transformers
-, unordered-containers
+, unordered-containers, cacert
 }:
 mkDerivation {
   pname = "emacs2nix";
@@ -20,6 +20,9 @@ mkDerivation {
     hnix io-streams optparse-applicative temporary text transformers
     unordered-containers
   ];
+  shellHook = ''
+    export SSL_CERT_FILE="${cacert}/etc/ssl/certs/ca-bundle.crt"
+  '';
   description = "Automatically generate Nix expressions for Emacs packages";
   license = stdenv.lib.licenses.gpl3;
 }
