@@ -11,13 +11,10 @@ let
         enableLibraryProfiling = profiling;
       });
 
-      aeson = self.aeson_0_11_1_4;
       comonad = lib.doJailbreak (lib.dontCheck super.comonad);
       distributive = lib.dontCheck super.distributive;
       fail = lib.dontHaddock super.fail;
       hnix = self.callPackage ./hnix {};
-      kan-extensions = self.kan-extensions_5_0_1;
-      lens = self.lens_4_13_2_1;
       parsers = lib.doJailbreak super.parsers;
       reducers = lib.doJailbreak super.reducers;
       semigroupoids = lib.dontCheck super.semigroupoids;
@@ -26,14 +23,20 @@ let
     };
   };
   omitDirs = [ ".git" "dist" "nixpkgs" "hnix" ];
-  filterCabalSource = drv: pred:
+  filterCabalSource = pred: drv:
     lib.overrideCabal drv (args: args // { src = builtins.filterSource pred args.src; });
+  addCertPath = drv:
+    lib.overrideCabal drv (args: args // {
+      shellHook = ''
+        export SSL_CERT_FILE="${cacert}/etc/ssl/certs/ca-bundle.crt"
+      '';
+    });
 in
 lib.addBuildTools
   (filterCabalSource
-   (haskellPackages.callPackage ./. {})
-   (path: type:
-        type != "directory" || !(lib.elem (baseNameOf path) omitDirs)))
+    (path: type:
+        type != "directory" || !(stdenv.lib.elem (baseNameOf path) omitDirs))
+    (addCertPath (haskellPackages.callPackage ./. {})))
 [
   emacs cabal-install
   nix nix-prefetch-scripts

@@ -2,7 +2,7 @@
 , bytestring, containers, data-fix, directory, errors, filepath
 , hashable, hnix, io-streams, optparse-applicative, stdenv
 , temporary, text, text-regex-replace, transformers
-, unordered-containers
+, unordered-containers, cacert
 }:
 mkDerivation {
   pname = "emacs2nix";
