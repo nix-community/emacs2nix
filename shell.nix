@@ -23,14 +23,20 @@ let
     };
   };
   omitDirs = [ ".git" "dist" "nixpkgs" "hnix" ];
-  filterCabalSource = drv: pred:
+  filterCabalSource = pred: drv:
     lib.overrideCabal drv (args: args // { src = builtins.filterSource pred args.src; });
+  addCertPath = drv:
+    lib.overrideCabal drv (args: args // {
+      shellHook = ''
+        export SSL_CERT_FILE="${cacert}/etc/ssl/certs/ca-bundle.crt"
+      '';
+    });
 in
 lib.addBuildTools
   (filterCabalSource
-   (haskellPackages.callPackage ./. {})
-   (path: type:
-        type != "directory" || !(stdenv.lib.elem (baseNameOf path) omitDirs)))
+    (path: type:
+        type != "directory" || !(stdenv.lib.elem (baseNameOf path) omitDirs))
+    (addCertPath (haskellPackages.callPackage ./. {})))
 [
   emacs cabal-install
   nix nix-prefetch-scripts
