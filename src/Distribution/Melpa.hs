@@ -173,6 +173,16 @@ data FossilFetcherNotImplemented = FossilFetcherNotImplemented
 
 instance Exception FossilFetcherNotImplemented
 
+data CVSFetcherNotImplemented = CVSFetcherNotImplemented
+  deriving (Show, Typeable)
+
+instance Exception CVSFetcherNotImplemented
+
+data WikiFetcherNotImplemented = WikiFetcherNotImplemented
+  deriving (Show, Typeable)
+
+instance Exception WikiFetcherNotImplemented
+
 getFetcher :: Text -> FilePath -> Recipe -> IO Nix.Fetch
 
 getFetcher _ sourceDir Bzr {..} = do
@@ -208,11 +218,7 @@ getFetcher _ sourceDir GitLab {..} = do
                   , Nix.sha256 = Nothing
                   }
 
-getFetcher _ _ CVS {..} =
-  pure Nix.CVS { Nix.cvsRoot = url
-               , Nix.cvsModule = cvsModule
-               , Nix.sha256 = Nothing
-               }
+getFetcher _ _ CVS {..} = throwIO CVSFetcherNotImplemented
 
 getFetcher _ sourceDir Hg {..} = do
   rev <- revision_Hg sourceDir
@@ -236,13 +242,7 @@ getFetcher _ sourceDir SVN {..} = do
                , Nix.sha256 = Nothing
                }
 
-getFetcher name _ Wiki {..} = do
-  let
-    url = fromMaybe defaultUrl wikiUrl
-    defaultUrl = "https://www.emacswiki.org/emacs/download/" <> name <> ".el"
-  pure Nix.URL { Nix.url = url
-               , Nix.sha256 = Nothing
-               }
+getFetcher _ _ Wiki {..} = throwIO WikiFetcherNotImplemented
 
 getFetcher _ _ Darcs {..} = throwIO DarcsFetcherNotImplemented
 
