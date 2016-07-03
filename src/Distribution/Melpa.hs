@@ -119,13 +119,13 @@ instance Exception PackageException
 
 getPackage :: Melpa -> Bool -> FilePath -> (Text, Recipe)
            -> IO (Maybe Nix.Package)
-getPackage (Melpa {..}) stable workDir (name, recipe)
+getPackage melpa@(Melpa {..}) stable workDir (name, recipe)
   = showExceptions $ mapExceptionIO (PackageException name) $ do
     let
       packageBuildEl = melpaDir </> "package-build.el"
-      recipeFile = melpaDir </> "recipes" </> T.unpack name
+      recipeFile = melpaDir </> recipeFileName name
       sourceDir = workDir </> T.unpack name
-    recipeHash <- Nix.hash recipeFile
+    melpaRecipe <- getRecipe melpa name
     version <- getVersion packageBuildEl stable recipeFile name sourceDir
     fetch0 <- getFetcher name sourceDir recipe
     (path, fetch) <- Nix.prefetch name fetch0
@@ -134,12 +134,34 @@ getPackage (Melpa {..}) stable workDir (name, recipe)
                      , Nix.version = version
                      , Nix.fetch = fetch
                      , Nix.deps = map Nix.fromText deps
-                     , Nix.recipe = Nix.Recipe
-                                    { Recipe.ename = name
-                                    , Recipe.commit = melpaCommit
-                                    , Recipe.sha256 = recipeHash
-                                    }
+                     , Nix.recipe = melpaRecipe
                      }
+
+recipeFileName :: Text -> FilePath
+recipeFileName (T.unpack -> name) = "recipes" </> name
+
+getRecipe :: Melpa -> Text -> IO Nix.Recipe
+getRecipe (Melpa {..}) name = do
+  let
+      rcp = recipeFileName name
+  hash <- Nix.hash (melpaDir </> rcp)
+  commit <- let args = [ "log"
+                       , "--first-parent"
+                       , "-n", "1"
+                       , "--pretty=format:%H"
+                       , "--", rcp
+                       ]
+                getRecipeRevision out = do
+                  revs <- liftIO (S.lines out >>= S.decodeUtf8 >>= S.toList)
+                  case revs of
+                    (rev:_) -> pure rev
+                    _ -> throwIO NoRevision
+            in runInteractiveProcess "git" args (Just melpaDir) Nothing
+               getRecipeRevision
+  pure Nix.Recipe { Recipe.ename = name
+                  , Recipe.commit = commit
+                  , Recipe.sha256 = hash
+                  }
 
 data DarcsFetcherNotImplemented = DarcsFetcherNotImplemented
   deriving (Show, Typeable)
