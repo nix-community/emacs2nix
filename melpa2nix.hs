@@ -25,7 +25,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 module Main where
 
 import Control.Concurrent ( getNumCapabilities, setNumCapabilities )
-import Control.Monad ( join, when )
+import Control.Monad ( join )
 import Data.Set ( Set )
 import qualified Data.Set as Set
 import Data.Text ( Text )
