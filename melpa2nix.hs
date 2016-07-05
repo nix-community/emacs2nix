@@ -31,6 +31,7 @@ import qualified Data.Set as Set
 import Data.Text ( Text )
 import qualified Data.Text as T
 import Options.Applicative
+import System.Environment (setEnv)
 
 import Distribution.Melpa
 
@@ -81,4 +82,6 @@ melpa2nix nthreads melpaDir stable workDir melpaOut indexOnly packages = do
      then setNumCapabilities nthreads
      else getNumCapabilities >>= setNumCapabilities . (* 4)
 
+  -- Force our TZ to match the melpa build machines
+  setEnv "TZ" "PST8PDT"
   updateMelpa melpaDir stable workDir melpaOut indexOnly packages
