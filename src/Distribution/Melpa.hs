@@ -122,7 +122,7 @@ getPackage :: Melpa -> Bool -> FilePath -> (Text, Recipe)
 getPackage melpa@(Melpa {..}) stable workDir (name, recipe)
   = showExceptions $ mapExceptionIO (PackageException name) $ do
     let
-      packageBuildEl = melpaDir </> "package-build.el"
+      packageBuildEl = melpaDir </> "package-build" </> "package-build.el"
       recipeFile = melpaDir </> recipeFileName name
       sourceDir = workDir </> T.unpack name
     melpaRecipe <- getRecipe melpa name
