@@ -81,7 +81,8 @@ readRecipes melpaDir = do
   let packageBuildEl = melpaDir </> "package-build" </> "package-build.el"
       recipesDir = melpaDir </> "recipes"
   dumpRecipesEl <- getDataFileName "dump-recipes.el"
-  let args = [ "--batch"
+  let args = [ "-Q"
+             , "--batch"
              , "-l", packageBuildEl
              , "-l", dumpRecipesEl
              , "-f", "dump-recipes-json", recipesDir
