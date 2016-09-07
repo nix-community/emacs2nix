@@ -152,7 +152,7 @@ emacs :: [String] -> (InputByteStream -> IO a) -> IO a
 emacs args go = do
   load <- getDataFileName "elpa2json.el"
   let
-    args' = [ "--batch", "--load", load ] ++ args
+    args' = [ "-Q", "--batch", "--load", load ] ++ args
   runInteractiveProcess "emacs" args' Nothing Nothing go
 
 parseJsonFromStream :: FromJSON a => InputByteStream -> IO (Either String a)

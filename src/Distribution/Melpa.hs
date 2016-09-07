@@ -257,7 +257,8 @@ getVersion :: FilePath -> Bool -> FilePath -> Text -> FilePath -> IO Text
 getVersion packageBuildEl stable recipeFile packageName sourceDir
   = do
     checkoutEl <- getDataFileName "checkout.el"
-    let args = [ "--batch"
+    let args = [ "-Q"
+                , "--batch"
                 , "-l", packageBuildEl
                 , "-l", checkoutEl
                 , "-f", if stable then "checkout-stable" else "checkout"
@@ -290,7 +291,8 @@ getDeps packageBuildEl recipeFile packageName sourceDirOrEl
                 act sourceDir
           | otherwise = act sourceDirOrEl
     withSourceDir $ \sourceDir -> do
-      let args = [ "--batch"
+      let args = [ "-Q"
+                  , "--batch"
                   , "-l", packageBuildEl
                   , "-l", getDepsEl
                   , "-f", "get-deps", recipeFile, T.unpack packageName, sourceDir
