@@ -16,7 +16,7 @@ build-type:          Simple
 extra-source-files:  ChangeLog.md
 cabal-version:       >=1.10
 data-dir: scripts
-data-files: *.el, *.sh
+data-files: *.el
 
 library
   exposed-modules:
