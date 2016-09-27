@@ -1,5 +1,7 @@
 { nixpkgs ? import ./nixpkgs {}, profiling ? false }:
 
+with nixpkgs;
+
 let
   inherit (pkgs.haskell) lib;
   addCertPath = drv:
@@ -17,4 +19,4 @@ let
       bazaar cvs curl darcs fossil git mercurial subversion
     ];
 in
-addBuildTools (addCertPath (import ./default.nix { inherit nixpkgs profiling; })).env
+(addBuildTools (addCertPath (import ./default.nix { inherit nixpkgs profiling; }))).env
