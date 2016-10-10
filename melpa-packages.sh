@@ -1,5 +1,5 @@
 #!/usr/bin/env nix-shell
-#!nix-shell -i bash -A env
+#!nix-shell -i bash
 
 # usage: ./melpa-packages.sh --melpa PATH_TO_MELPA_CLONE
 
