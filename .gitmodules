@@ -1,6 +1,6 @@
-[submodule "hnix"]
-	path = hnix
-	url = https://github.com/jwiegley/hnix.git
 [submodule "nixpkgs"]
 	path = nixpkgs
 	url = https://github.com/NixOS/nixpkgs-channels.git
+[submodule "hnix"]
+	path = hnix
+	url = https://github.com/jwiegley/hnix.git
