@@ -4,14 +4,14 @@ with nixpkgs;
 
 let
   inherit (pkgs.haskell) lib;
-  haskellPackages = pkgs.haskell.packages.ghc801.override {
+  haskellPackages = pkgs.haskellPackages.override {
     overrides = self: super: {
 
       mkDerivation = args: super.mkDerivation (args // {
         enableLibraryProfiling = profiling;
       });
 
-      hnix = self.callPackage ./hnix {};
+      hnix = self.callPackage ./hnix/project.nix {};
     };
   };
   filterSource = drv: pred:
