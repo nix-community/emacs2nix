@@ -189,10 +189,10 @@ prefetch _ fetch@(SVN {..}) = do
 
 prefetch _ fetch@(GitHub {..}) = do
   let
-    args = ["--url", T.unpack url, "--name", T.unpack name]
+    args = ["--name", T.unpack name, "--unpack", T.unpack url]
     url = "https://github.com/" <> owner <> "/" <> repo <> "/archive/" <> rev <> ".tar.gz"
     name = repo <> "-" <> rev <> "-src"
-  prefetchHelper "nix-prefetch-zip" args $ \out -> do
+  prefetchHelper "nix-prefetch-url" args $ \out -> do
     hashes <- liftIO (S.lines out >>= S.decodeUtf8 >>= S.toList)
     case hashes of
       (hash:path:_) -> pure (T.unpack path, fetch { sha256 = Just hash })
@@ -200,11 +200,11 @@ prefetch _ fetch@(GitHub {..}) = do
 
 prefetch _ fetch@(GitLab {..}) = do
   let
-    args = ["--url", T.unpack url, "--name", T.unpack name]
+    args = ["--name", T.unpack name, "--unpack", T.unpack url]
     url = "https://gitlab.com/" <> owner <> "/" <> repo
           <> "/repository/archive.tar.gz?ref=" <> rev
     name = repo <> "-" <> rev <> "-src"
-  prefetchHelper "nix-prefetch-zip" args $ \out -> do
+  prefetchHelper "nix-prefetch-url" args $ \out -> do
     hashes <- liftIO (S.lines out >>= S.decodeUtf8 >>= S.toList)
     case hashes of
       (hash:path:_) -> pure (T.unpack path, fetch { sha256 = Just hash })
