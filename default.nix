@@ -14,15 +14,25 @@ let
       hnix = self.callPackage ./hnix/project.nix {};
     };
   };
-  filterSource = drv: pred:
-    lib.overrideCabal drv
-    (args: args // { src = builtins.filterSource pred args.src; });
+  filterSource =
+    let
+      overrideSrc = drv: f:
+        lib.overrideCabal drv (args: args // { src = f args.src; });
+    in
+      drv: pred: overrideSrc drv (src: builtins.filterSource pred src);
   omitDirs =
     let
-      omitted = [ ".git" "dist" "nixpkgs" "hnix" ];
-    in drv:
-    filterSource drv
-    (path: type:
-      type != "directory" || !(stdenv.lib.elem (baseNameOf path) omitted));
+      blacklistDirs = [ ".git" "dist" "nixpkgs" "hnix" ];
+      whitelistExts = [ ".cabal" ".hs" ".el" ];
+      whitelistNames = [ "LICENSE" ];
+      inherit (stdenv) lib;
+      predicate = path: type:
+        let baseName = baseNameOf path; in
+        if type == "directory"
+          then !(lib.elem baseName blacklistDirs)
+          else lib.any (suf: lib.hasSuffix suf baseName) whitelistExts
+            || lib.any (name: baseName == name) whitelistNames;
+    in
+      drv: filterSource drv predicate;
 in
 omitDirs (haskellPackages.callPackage ./emacs2nix.nix {})
