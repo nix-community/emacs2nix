@@ -28,7 +28,6 @@ import Control.Error
 import Control.Exception
 import Control.Monad.IO.Class
 import Data.ByteString (ByteString)
-import qualified Data.Map.Strict as M
 import Data.Monoid
 import Data.Text (Text)
 import qualified Data.Text as T
@@ -37,7 +36,7 @@ import Nix.Expr
 import System.Environment (getEnvironment)
 import qualified System.IO.Streams as S
 import qualified System.IO.Streams.Attoparsec as S
-import Data.Aeson ( parseJSON, Value, Object, (.:!), withObject )
+import Data.Aeson ( (.:!), withObject )
 import Data.Aeson.Parser ( json' )
 import Data.Aeson.Types ( parseEither )
 
@@ -151,8 +150,7 @@ prefetch _ fetch@(Git {..}) = do
     sha256 <- liftIO $ parseEither jsonp <$> S.parseFromStream json' out
     pathes <- liftIO (S.lines out >>= S.decodeUtf8 >>= S.toList)
     case (sha256, pathes) of
-      (Right sha,(_:path:_)) -> pure (T.unpack path,
-                                      fetch { sha256 = sha })
+      (Right sha,(_:path:_)) -> pure (T.unpack path, fetch { sha256 = sha })
       _ -> throwIO BadPrefetchOutput
 
 prefetch _ fetch@(Bzr {..}) = do
