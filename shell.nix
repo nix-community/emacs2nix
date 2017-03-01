@@ -1,5 +1,7 @@
 { nixpkgs ? import ./nixpkgs {}, profiling ? false }:
 
+# Shell environment for interactive development
+
 with nixpkgs;
 
 let
@@ -14,7 +16,7 @@ let
   addBuildTools = drv:
     lib.addBuildTools drv
     [
-      emacs cabal-install
+      emacs
       nix nix-prefetch-scripts
       bazaar cvs curl darcs fossil git mercurial subversion
     ];

@@ -1,6 +1,6 @@
-#!/usr/bin/env nix-shell
-#!nix-shell -i bash
+#! /usr/bin/env nix-shell
+#! nix-shell shell-fetch.nix -i bash
 
 # usage: ./elpa-packages.sh -o PATH
 
-cabal run elpa2nix -- https://elpa.gnu.org/packages/ "$@"
+elpa2nix https://elpa.gnu.org/packages/ "$@"

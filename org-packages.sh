@@ -1,6 +1,6 @@
-#!/usr/bin/env nix-shell
-#!nix-shell -i bash
+#! /usr/bin/env nix-shell
+#! nix-shell shell-fetch.nix -i bash
 
 # usage: ./org-packages.sh -o PATH
 
-cabal run elpa2nix -- http://orgmode.org/elpa/ "$@"
+elpa2nix http://orgmode.org/elpa/ "$@"
