@@ -49,7 +49,9 @@ library
     , filepath >= 1.3
     , hashable >= 1.2
     , hnix
+    , http-streams >= 0.7.2.0
     , io-streams >= 1.3
+    , taggy >= 0.2.0
     , temporary >= 1.2
     , text >= 1.2
     , text-regex-replace == 0.1.*

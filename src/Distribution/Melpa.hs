@@ -33,6 +33,8 @@ import Control.Monad.IO.Class
 import Data.Aeson ( parseJSON )
 import Data.Aeson.Parser ( json' )
 import Data.Aeson.Types ( parseEither )
+import qualified Data.ByteString.Lazy as BL
+import qualified Data.ByteString as B
 import Data.Char ( isDigit, isHexDigit )
 import Data.Map.Strict ( Map )
 import qualified Data.Map.Strict as M
@@ -41,13 +43,20 @@ import Data.Set ( Set )
 import qualified Data.Set as Set
 import Data.Text ( Text )
 import qualified Data.Text as T
+import qualified Data.Text.Lazy as TL
+import qualified Data.Text.Lazy.Encoding as TLE
+import qualified Data.Text.Encoding as TE
+import Data.Text.Read ( decimal )
 import Data.Typeable ( Typeable )
+import qualified Network.Http.Client as HTTP
 import System.Directory
        ( createDirectoryIfMissing, copyFile, doesFileExist )
 import System.FilePath
 import qualified System.IO.Streams as S
 import qualified System.IO.Streams.Attoparsec as S
 import System.IO.Temp ( withSystemTempDirectory )
+import Text.Taggy.Parser (taggyWith)
+import Text.Taggy.Types ( Tag (..), Attribute(..) )
 
 import Distribution.Melpa.Recipe
 import qualified Distribution.Nix.Fetch as Nix
@@ -236,10 +245,15 @@ getFetcher _ sourceDir SVN {..} = do
                , Nix.sha256 = Nothing
                }
 
-getFetcher name _ Wiki {..} = do
+getFetcher name _ (w@Wiki {..}) = do
+  guessedRevision <- guessWikiRevision name w
   let
-    url = fromMaybe defaultUrl wikiUrl
     defaultUrl = "https://www.emacswiki.org/emacs/download/" <> name <> ".el"
+    versionedDefaultUrl =
+      case guessedRevision of
+        Nothing -> defaultUrl
+        Just version -> defaultUrl <> "?revision=" <> T.pack (show version)
+    url = fromMaybe versionedDefaultUrl wikiUrl
   pure Nix.URL { Nix.url = url
                , Nix.sha256 = Nothing
                }
@@ -247,6 +261,43 @@ getFetcher name _ Wiki {..} = do
 getFetcher _ _ Darcs {..} = throwIO DarcsFetcherNotImplemented
 
 getFetcher _ _ Fossil {..} = throwIO FossilFetcherNotImplemented
+
+guessWikiRevision :: Text -> Recipe -> IO (Maybe Integer)
+guessWikiRevision name Wiki { wikiUrl = Just _ } =
+  -- No guessing when there is an explicitly set wiki URL
+  return $ Nothing
+
+guessWikiRevision name Wiki {} = do
+   body <- getAsText revisionsPageUrl
+   -- TL.unpack body `trace` return ()
+   return $ findLatestRevision $ taggyWith True body
+  where
+       revisionsPageUrl :: B.ByteString
+       revisionsPageUrl = TE.encodeUtf8 $ "https://www.emacswiki.org/emacs?action=history;id=" <> name <> ".el"
+
+       defaultPageUrl :: Text
+       defaultPageUrl = "https://www.emacswiki.org/emacs/" <> name <> ".el"
+
+       defaultRevisionAttr = Attribute "href" defaultPageUrl
+
+       getAsText :: B.ByteString -> IO TL.Text
+       getAsText url = TLE.decodeUtf8 . BL.fromStrict <$> HTTP.get url HTTP.concatHandler
+
+       readDecimal :: Text -> Maybe Integer
+       readDecimal aText = case decimal aText of
+         Left _ -> Nothing
+         Right (i, _) -> Just i
+
+       revisionPrefix = "Revision "
+
+       findLatestRevision [] = Nothing
+       findLatestRevision (TagOpen "a" attrs _ : TagText aText : tags)
+         | elem defaultRevisionAttr attrs && T.isPrefixOf revisionPrefix aText
+           = readDecimal $ T.drop (T.length revisionPrefix) aText
+         | otherwise = findLatestRevision tags
+       findLatestRevision (_:tags) = findLatestRevision tags
+
+guessWikiRevision _ _ = return Nothing
 
 data NoVersion = NoVersion
   deriving (Show, Typeable)
