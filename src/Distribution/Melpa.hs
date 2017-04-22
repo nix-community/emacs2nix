@@ -263,7 +263,7 @@ getFetcher _ _ Darcs {..} = throwIO DarcsFetcherNotImplemented
 getFetcher _ _ Fossil {..} = throwIO FossilFetcherNotImplemented
 
 guessWikiRevision :: Text -> Recipe -> IO (Maybe Integer)
-guessWikiRevision name Wiki { wikiUrl = Just _ } =
+guessWikiRevision _ Wiki { wikiUrl = Just _ } =
   -- No guessing when there is an explicitly set wiki URL
   return $ Nothing
 
