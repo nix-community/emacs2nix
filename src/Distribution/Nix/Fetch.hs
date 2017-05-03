@@ -147,10 +147,10 @@ prefetch _ fetch@(Git {..}) = do
       pure ["--branch-name", T.unpack name]
     jsonp = withObject "need an object" (\o -> o .:! "sha256")
   prefetchHelper "nix-prefetch-git" args $ \out -> do
-    sha256 <- liftIO $ parseEither jsonp <$> S.parseFromStream json' out
+    sha256_ <- liftIO $ parseEither jsonp <$> S.parseFromStream json' out
     pathes <- liftIO (S.lines out >>= S.decodeUtf8 >>= S.toList)
-    case (sha256, pathes) of
-      (Right sha,(_:path:_)) -> pure (T.unpack path, fetch { sha256 = sha })
+    case (sha256_, pathes) of
+      (Right sha, (_:path:_)) -> pure (T.unpack path, fetch { sha256 = sha })
       _ -> throwIO BadPrefetchOutput
 
 prefetch _ fetch@(Bzr {..}) = do
