@@ -42,7 +42,7 @@ import Data.Aeson.Types ( parseEither )
 
 import Util (runInteractiveProcess)
 
-data Fetch = URL { url :: Text, sha256 :: Maybe Text }
+data Fetch = URL { url :: Text, sha256 :: Maybe Text, name :: Maybe Text }
            | Git { url :: Text, rev :: Text, branchName :: Maybe Text, sha256 :: Maybe Text }
            | Bzr { url :: Text, rev :: Text, sha256 :: Maybe Text }
            | CVS { cvsRoot :: Text, cvsModule :: Maybe Text, sha256 :: Maybe Text }
@@ -65,6 +65,7 @@ fetchExpr :: Fetch -> NExpr
 fetchExpr (URL {..}) = (mkApp (mkSym "fetchurl") . mkNonRecSet . catMaybes)
                        [ Just ("url" `bindTo` mkStr url)
                        , bindTo "sha256" . mkStr <$> sha256
+                       , bindTo "name" . mkStr <$> name
                        ]
 fetchExpr (Git {..}) = (mkApp (mkSym "fetchgit") . mkNonRecSet . catMaybes)
                        [ Just ("url" `bindTo` mkStr url)

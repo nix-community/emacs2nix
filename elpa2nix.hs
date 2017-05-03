@@ -182,6 +182,7 @@ hashPackage server (name, pkg) = showExceptions $ do
     url = server </> basename <.> ext
     fetch = Nix.URL { Nix.url = T.pack url
                     , Nix.sha256 = Nothing
+                    , Nix.name = Nothing
                     }
 
   (_, fetcher) <- Nix.prefetch name fetch

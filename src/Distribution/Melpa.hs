@@ -256,6 +256,7 @@ getFetcher name _ (w@Wiki {..}) = do
     url = fromMaybe versionedDefaultUrl wikiUrl
   pure Nix.URL { Nix.url = url
                , Nix.sha256 = Nothing
+               , Nix.name = Just (name <> ".el")
                }
 
 getFetcher _ _ Darcs {..} = throwIO DarcsFetcherNotImplemented
