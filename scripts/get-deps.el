@@ -30,7 +30,7 @@
                               (package-build--get-package-info pkg-source))))
               (deps (apply 'append
                            (mapcar (lambda (dep)
-                                     (list (package-build--sym-to-keyword (car dep))
+                                     (list (intern (format ":%s" (car dep)))
                                            (cadr dep)))
                                    (elt pkg-info 1)))))
          (if deps (princ (json-encode deps)) (princ "{}")))))))
