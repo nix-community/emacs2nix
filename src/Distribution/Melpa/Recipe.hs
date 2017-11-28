@@ -78,11 +78,13 @@ instance FromJSON Recipe where
 
 readRecipes :: FilePath -> IO (Map Text Recipe)
 readRecipes melpaDir = do
-  let packageBuildEl = melpaDir </> "package-build" </> "package-build.el"
+  let packageBuildDir = melpaDir </> "package-build"
+      packageBuildEl = "package-build.el"
       recipesDir = melpaDir </> "recipes"
   dumpRecipesEl <- getDataFileName "dump-recipes.el"
   let args = [ "-Q"
              , "--batch"
+             , "-L", packageBuildDir
              , "-l", packageBuildEl
              , "-l", dumpRecipesEl
              , "-f", "dump-recipes-json", recipesDir
