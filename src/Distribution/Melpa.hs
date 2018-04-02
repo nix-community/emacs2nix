@@ -131,14 +131,15 @@ getPackage :: Melpa -> Bool -> FilePath -> (Text, Recipe)
 getPackage melpa@(Melpa {..}) stable workDir (name, recipe)
   = showExceptions $ mapExceptionIO (PackageException name) $ do
     let
-      packageBuildEl = melpaDir </> "package-build" </> "package-build.el"
+      packageBuildDir = melpaDir </> "package-build"
+      packageBuildEl = "package-build.el"
       recipeFile = melpaDir </> recipeFileName name
       sourceDir = workDir </> T.unpack name
     melpaRecipe <- getRecipe melpa name
-    version <- getVersion packageBuildEl stable recipeFile name sourceDir
+    version <- getVersion packageBuildDir packageBuildEl stable recipeFile name sourceDir
     fetch0 <- getFetcher name sourceDir recipe
     (path, fetch) <- Nix.prefetch name fetch0
-    deps <- M.keys <$> getDeps packageBuildEl recipeFile name path
+    deps <- M.keys <$> getDeps packageBuildDir packageBuildEl recipeFile name path
     pure Nix.Package { Nix.pname = Nix.fromText name
                      , Nix.version = version
                      , Nix.fetch = fetch
@@ -305,12 +306,13 @@ data NoVersion = NoVersion
 
 instance Exception NoVersion
 
-getVersion :: FilePath -> Bool -> FilePath -> Text -> FilePath -> IO Text
-getVersion packageBuildEl stable recipeFile packageName sourceDir
+getVersion :: FilePath -> FilePath -> Bool -> FilePath -> Text -> FilePath -> IO Text
+getVersion packageBuildDir packageBuildEl stable recipeFile packageName sourceDir
   = do
     checkoutEl <- getDataFileName "checkout.el"
     let args = [ "-Q"
                 , "--batch"
+                , "-L", packageBuildDir
                 , "-l", packageBuildEl
                 , "-l", checkoutEl
                 , "-f", if stable then "checkout-stable" else "checkout"
@@ -329,8 +331,8 @@ data ParseDepsError = ParseDepsError String
 
 instance Exception ParseDepsError
 
-getDeps :: FilePath -> FilePath -> Text -> FilePath -> IO (Map Text [Integer])
-getDeps packageBuildEl recipeFile packageName sourceDirOrEl
+getDeps :: FilePath -> FilePath -> FilePath -> Text -> FilePath -> IO (Map Text [Integer])
+getDeps packageBuildDir packageBuildEl recipeFile packageName sourceDirOrEl
   = do
     getDepsEl <- getDataFileName "get-deps.el"
     isEl <- doesFileExist sourceDirOrEl
@@ -345,6 +347,7 @@ getDeps packageBuildEl recipeFile packageName sourceDirOrEl
     withSourceDir $ \sourceDir -> do
       let args = [ "-Q"
                   , "--batch"
+                  , "-L", packageBuildDir
                   , "-l", packageBuildEl
                   , "-l", getDepsEl
                   , "-f", "get-deps", recipeFile, T.unpack packageName, sourceDir
