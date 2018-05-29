@@ -1,38 +1,32 @@
-{ nixpkgs ? import ./nixpkgs {}, profiling ? false }:
-
-with nixpkgs;
+let nixpkgs = import ./nixpkgs.nix; in
 
 let
-  inherit (pkgs.haskell) lib;
-  haskellPackages = pkgs.haskellPackages.override {
-    overrides = self: super: {
 
-      mkDerivation = args: super.mkDerivation (args // {
-        enableLibraryProfiling = profiling;
-      });
+  inherit (nixpkgs) pkgs;
+  inherit (pkgs) haskellPackages lib;
 
-      hnix = self.callPackage ./hnix/project.nix {};
-    };
-  };
-  filterSource =
+
+  blacklistDirs = [ ".git" "dist" "dist-newstyle" ];
+  whitelistExts = [ ".cabal" ".hs" ];
+  whitelistNames = [ "LICENSE" ];
+
+  filterSrc =
     let
       overrideSrc = drv: f:
-        lib.overrideCabal drv (args: args // { src = f args.src; });
-    in
-      drv: pred: overrideSrc drv (src: builtins.filterSource pred src);
-  omitDirs =
-    let
-      blacklistDirs = [ ".git" "dist" "nixpkgs" "hnix" ];
-      whitelistExts = [ ".cabal" ".hs" ".el" ];
-      whitelistNames = [ "LICENSE" ];
-      inherit (stdenv) lib;
+        let inherit (pkgs.haskell.lib) overrideCabal; in
+        overrideCabal drv (args: args // { src = f args.src; });
       predicate = path: type:
+        let inherit (lib) any elem hasSuffix; in
         let baseName = baseNameOf path; in
         if type == "directory"
-          then !(lib.elem baseName blacklistDirs)
-          else lib.any (suf: lib.hasSuffix suf baseName) whitelistExts
-            || lib.any (name: baseName == name) whitelistNames;
+          then !(elem baseName blacklistDirs)
+          else any (suf: hasSuffix suf baseName) whitelistExts
+            || any (name: baseName == name) whitelistNames;
     in
-      drv: filterSource drv predicate;
+      drv: overrideSrc drv (src: builtins.filterSource predicate src);
+
+  drv = filterSrc (haskellPackages.callPackage ./package.nix {});
+
 in
-omitDirs (haskellPackages.callPackage ./emacs2nix.nix {})
+
+  drv

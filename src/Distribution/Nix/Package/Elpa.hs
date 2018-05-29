@@ -18,6 +18,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 -}
 
+{-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 
@@ -42,13 +43,13 @@ data Package
     }
 
 expression :: Package -> NExpr
-expression (Package {..}) = (mkSym "callPackage") `mkApp` drv `mkApp` emptySet where
+expression (Package {..}) = (mkSym "callPackage") @@ drv @@ emptySet where
   drv = mkFunction args body
   emptySet = mkNonRecSet []
   requires = map fromName deps
-  args = (mkParamset . map optionalBuiltins)
+  args = (flip mkParamset True . map optionalBuiltins)
          ("lib" : "elpaBuild" : importFetcher fetch : requires)
-  body = (mkApp (mkSym "elpaBuild") . mkNonRecSet)
+  body = ((@@) (mkSym "elpaBuild") . mkNonRecSet)
          [ "pname" `bindTo` mkStr (fromName pname)
          , "version" `bindTo` mkStr version
          , "src" `bindTo` fetchExpr fetch

@@ -18,6 +18,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 -}
 
+{-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 
@@ -48,13 +49,13 @@ data Recipe
            }
 
 expression :: Package -> NExpr
-expression (Package {..}) = (mkSym "callPackage") `mkApp` drv `mkApp` emptySet where
+expression (Package {..}) = (mkSym "callPackage") @@ drv @@ emptySet where
   drv = mkFunction args body
   emptySet = mkNonRecSet []
   requires = map fromName deps
-  args = (mkParamset . map optionalBuiltins)
+  args = (flip mkParamset True . map optionalBuiltins)
          ("lib" : "melpaBuild" : "fetchurl" : importFetcher fetch : requires)
-  body = (mkApp (mkSym "melpaBuild") . mkNonRecSet)
+  body = ((@@) (mkSym "melpaBuild") . mkNonRecSet)
          [ "pname" `bindTo` mkStr (fromName pname)
          , "version" `bindTo` mkStr version
          , "src" `bindTo` fetchExpr fetch
@@ -70,7 +71,7 @@ expression (Package {..}) = (mkSym "callPackage") `mkApp` drv `mkApp` emptySet w
         where
           homepage = T.append "https://melpa.org/#/" (ename recipe)
           license = Fix (NSelect (mkSym "lib") [StaticKey "licenses", StaticKey "free"] Nothing)
-      fetchRecipe = (mkApp (mkSym "fetchurl") . mkNonRecSet)
+      fetchRecipe = ((@@) (mkSym "fetchurl") . mkNonRecSet)
                     [ "url" `bindTo` mkStr
                       (T.concat
                        [ "https://raw.githubusercontent.com/milkypostman/melpa/"

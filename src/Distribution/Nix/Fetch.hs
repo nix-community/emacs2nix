@@ -62,44 +62,44 @@ importFetcher (GitHub {}) = "fetchFromGitHub"
 importFetcher (GitLab {}) = "fetchFromGitLab"
 
 fetchExpr :: Fetch -> NExpr
-fetchExpr (URL {..}) = (mkApp (mkSym "fetchurl") . mkNonRecSet . catMaybes)
+fetchExpr (URL {..}) = ((@@) (mkSym "fetchurl") . mkNonRecSet . catMaybes)
                        [ Just ("url" `bindTo` mkStr url)
                        , bindTo "sha256" . mkStr <$> sha256
                        , bindTo "name" . mkStr <$> name
                        ]
-fetchExpr (Git {..}) = (mkApp (mkSym "fetchgit") . mkNonRecSet . catMaybes)
+fetchExpr (Git {..}) = ((@@) (mkSym "fetchgit") . mkNonRecSet . catMaybes)
                        [ Just ("url" `bindTo` mkStr url)
                        , Just ("rev" `bindTo` mkStr rev)
                        , bindTo "branchName" . mkStr <$> branchName
                        , bindTo "sha256" . mkStr <$> sha256
                        ]
-fetchExpr (Bzr {..}) = (mkApp (mkSym "fetchbzr") . mkNonRecSet . catMaybes)
+fetchExpr (Bzr {..}) = ((@@) (mkSym "fetchbzr") . mkNonRecSet . catMaybes)
                        [ Just ("url" `bindTo` mkStr url)
                        , Just ("rev" `bindTo` mkStr rev)
                        , bindTo "sha256" . mkStr <$> sha256
                        ]
-fetchExpr (CVS {..}) = (mkApp (mkSym "fetchcvs") . mkNonRecSet . catMaybes)
+fetchExpr (CVS {..}) = ((@@) (mkSym "fetchcvs") . mkNonRecSet . catMaybes)
                        [ Just ("cvsRoot" `bindTo` mkStr cvsRoot)
                        , bindTo "module" . mkStr <$> cvsModule
                        , bindTo "sha256" . mkStr <$> sha256
                        ]
-fetchExpr (Hg {..}) = (mkApp (mkSym "fetchhg") . mkNonRecSet . catMaybes)
+fetchExpr (Hg {..}) = ((@@) (mkSym "fetchhg") . mkNonRecSet . catMaybes)
                       [ Just ("url" `bindTo` mkStr url)
                       , Just ("rev" `bindTo` mkStr rev)
                       , bindTo "sha256" . mkStr <$> sha256
                       ]
-fetchExpr (SVN {..}) = (mkApp (mkSym "fetchsvn") . mkNonRecSet . catMaybes)
+fetchExpr (SVN {..}) = ((@@) (mkSym "fetchsvn") . mkNonRecSet . catMaybes)
                        [ Just ("url" `bindTo` mkStr url)
                        , Just ("rev" `bindTo` mkStr rev)
                        , bindTo "sha256" . mkStr <$> sha256
                        ]
-fetchExpr (GitHub {..}) = (mkApp (mkSym "fetchFromGitHub") . mkNonRecSet . catMaybes)
+fetchExpr (GitHub {..}) = ((@@) (mkSym "fetchFromGitHub") . mkNonRecSet . catMaybes)
                           [ Just ("owner" `bindTo` mkStr owner)
                           , Just ("repo" `bindTo` mkStr repo)
                           , Just ("rev" `bindTo` mkStr rev)
                           , bindTo "sha256" . mkStr <$> sha256
                           ]
-fetchExpr (GitLab {..}) = (mkApp (mkSym "fetchFromGitLab") . mkNonRecSet . catMaybes)
+fetchExpr (GitLab {..}) = ((@@) (mkSym "fetchFromGitLab") . mkNonRecSet . catMaybes)
                           [ Just ("owner" `bindTo` mkStr owner)
                           , Just ("repo" `bindTo` mkStr repo)
                           , Just ("rev" `bindTo` mkStr rev)

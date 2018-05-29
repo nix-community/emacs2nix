@@ -25,6 +25,7 @@ module Distribution.Nix.Index ( readIndex, writeIndex ) where
 
 import Control.Exception
 import Data.Fix
+import Data.List.NonEmpty (NonEmpty(..))
 import Data.Map.Strict ( Map )
 import qualified Data.Map.Strict as M
 import Data.Text ( Text )
@@ -72,7 +73,7 @@ getFunctionBody _ = Nothing
 getPackages :: NExpr -> Maybe (Map Name NExpr)
 getPackages (Fix (NSet bindings)) =
   let
-    getPackage (NamedVar [StaticKey name] expr) = Just (fromText name, expr)
+    getPackage (NamedVar (StaticKey name :| []) expr _) = Just (fromText name, expr)
     getPackage _ = Nothing
   in
     M.fromList <$> traverse getPackage bindings
@@ -80,7 +81,7 @@ getPackages _ = Nothing
 
 packageIndex :: Map Name NExpr -> NExpr
 packageIndex (M.toList -> packages) = mkFunction args body where
-  args = mkParamset [("callPackage", Nothing)]
+  args = mkParamset [("callPackage", Nothing)] False
   body = (mkNonRecSet . map bindPackage) packages
   bindPackage (name, expr) = bindTo (fromName name) expr
 

@@ -134,10 +134,10 @@ getPackage melpa@(Melpa {..}) stable workDir (name, recipe)
       packageBuildDir = melpaDir </> "package-build"
       packageBuildEl = "package-build.el"
       recipeFile = melpaDir </> recipeFileName name
-      sourceDir = workDir </> T.unpack name
+      packageWorkDir = workDir </> T.unpack name
     melpaRecipe <- getRecipe melpa name
-    version <- getVersion packageBuildDir packageBuildEl stable recipeFile name sourceDir
-    fetch0 <- getFetcher name sourceDir recipe
+    version <- getVersion packageBuildDir stable recipeFile name packageWorkDir
+    fetch0 <- getFetcher name (packageWorkDir </> "working" </> T.unpack name) recipe
     (path, fetch) <- Nix.prefetch name fetch0
     deps <- M.keys <$> getDeps packageBuildDir packageBuildEl recipeFile name path
     pure Nix.Package { Nix.pname = Nix.fromText name
@@ -306,19 +306,20 @@ data NoVersion = NoVersion
 
 instance Exception NoVersion
 
-getVersion :: FilePath -> FilePath -> Bool -> FilePath -> Text -> FilePath -> IO Text
-getVersion packageBuildDir packageBuildEl stable recipeFile packageName sourceDir
+getVersion :: FilePath -> Bool -> FilePath -> Text -> FilePath -> IO Text
+getVersion packageBuildDir stable recipeFile packageName workDir
   = do
     checkoutEl <- getDataFileName "checkout.el"
     let args = [ "-Q"
                 , "--batch"
                 , "-L", packageBuildDir
-                , "-l", packageBuildEl
                 , "-l", checkoutEl
                 , "-f", if stable then "checkout-stable" else "checkout"
-                , recipeFile, T.unpack packageName, sourceDir
+                , T.unpack packageName
+                , recipeFile
                 ]
-    runInteractiveProcess "emacs" args Nothing Nothing $ \out -> do
+    createDirectoryIfMissing True workDir
+    runInteractiveProcess "emacs" args (Just workDir) Nothing $ \out -> do
       result <- liftIO (S.fold (<>) Nothing =<< S.map Just =<< S.decodeUtf8 out)
       case result of
         Nothing -> throwIO NoVersion

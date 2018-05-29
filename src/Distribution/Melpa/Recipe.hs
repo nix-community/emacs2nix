@@ -25,7 +25,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 module Distribution.Melpa.Recipe where
 
-import Control.Exception ( bracket )
+import Control.Exception ( SomeException(..), bracket, catch )
 import Data.Aeson
 import Data.Aeson.Types
   ( Options(..), SumEncoding(..), defaultOptions, defaultTaggedObject, parseEither )
@@ -92,8 +92,14 @@ readRecipes melpaDir = do
   bracket
     (S.runInteractiveProcess "emacs" args Nothing Nothing)
     (\(_, _, _, pid) -> S.waitForProcess pid)
-    (\(_, out, _, _) -> do
-         result <- parseEither parseJSON <$> S.parseFromStream json' out
+    (\(_, out, err, _) -> do
+         result <-
+           catch
+           (parseEither parseJSON <$> S.parseFromStream json' out)
+           (\(SomeException exn) ->
+              do
+                S.supply err S.stderr
+                pure (Left $ show exn))
          case result of
            Left err -> do
              let msg = "error reading recipes: " <> T.pack err
