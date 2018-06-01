@@ -54,7 +54,7 @@ expression (Package {..}) = (mkSym "callPackage") @@ drv @@ emptySet where
   drv = mkFunction args body
   emptySet = mkNonRecSet []
   requires = map fromName deps
-  args = (flip mkParamset True . map optionalBuiltins)
+  args = (flip mkParamset False . map optionalBuiltins)
          ("lib" : "melpaBuild" : "fetchurl" : importFetcher fetch : requires)
   body = ((@@) (mkSym "melpaBuild") . mkNonRecSet)
          [ "pname" `bindTo` mkStr (fromName pname)
@@ -71,7 +71,7 @@ expression (Package {..}) = (mkSym "callPackage") @@ drv @@ emptySet where
              ]
         where
           homepage = T.append "https://melpa.org/#/" (ename recipe)
-          license = Fix (NSelect (mkSym "lib") [StaticKey "licenses", StaticKey "gpl3"] Nothing)
+          license = Fix (NSelect (mkSym "lib") [StaticKey "licenses", StaticKey "free"] Nothing)
       fetchRecipe = ((@@) (mkSym "fetchurl") . mkNonRecSet)
                     [ "url" `bindTo` mkStr
                       (T.concat
