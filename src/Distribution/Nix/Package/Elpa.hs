@@ -47,7 +47,7 @@ expression (Package {..}) = (mkSym "callPackage") @@ drv @@ emptySet where
   drv = mkFunction args body
   emptySet = mkNonRecSet []
   requires = map fromName deps
-  args = (flip mkParamset True . map optionalBuiltins)
+  args = (flip mkParamset False . map optionalBuiltins)
          ("lib" : "elpaBuild" : importFetcher fetch : requires)
   body = ((@@) (mkSym "elpaBuild") . mkNonRecSet)
          [ "pname" `bindTo` mkStr (fromName pname)
