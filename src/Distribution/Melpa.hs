@@ -123,7 +123,7 @@ updateMelpa melpaDir stable workDir melpaOut namesMapFile indexOnly packages = d
     updated
       = M.union
         updates
-        (M.filterWithKey (\k _ -> not (recipeDeleted k)) existing)
+        (M.filterWithKey (\k _ -> indexOnly || not (recipeDeleted k)) existing)
 
   writeIndex melpaOut updated
 
