@@ -57,7 +57,7 @@ import qualified Distribution.Emacs.Name as Emacs
 
 -- | A valid Nix package name.
 newtype Name = Name { fromName :: Text }
-  deriving (Eq, Hashable, Ord)
+  deriving (Eq, Hashable, Ord, Show)
 
 
 data InvalidName
