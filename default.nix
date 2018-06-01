@@ -7,8 +7,8 @@ let
 
 
   blacklistDirs = [ ".git" "dist" "dist-newstyle" ];
-  whitelistExts = [ ".cabal" ".hs" ];
-  whitelistNames = [ "LICENSE" ];
+  whitelistExts = [ ".cabal" ".el" ".hs" ];
+  whitelistNames = [ "COPYING" "LICENSE" ];
 
   filterSrc =
     let
