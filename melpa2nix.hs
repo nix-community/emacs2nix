@@ -35,6 +35,7 @@ import Options.Applicative
 import System.Environment (setEnv)
 
 import Distribution.Melpa
+import Distribution.Melpa.Melpa ( Stable (..) )
 
 main :: IO ()
 main = join (execParser (info (helper <*> parser) desc))
@@ -57,8 +58,7 @@ parser =
                           <> help "use N threads; default is number of CPUs")
     melpa = strOption (long "melpa" <> metavar "DIR"
                         <> help "path to MELPA repository")
-    stable = switch (long "stable"
-                      <> help "generate packages from MELPA Stable")
+    stable = Stable <$> switch (long "stable" <> help "generate packages from MELPA Stable")
     work = strOption (long "work" <> metavar "DIR"
                       <> help "path to temporary workspace")
     output = strOption (long "output" <> short 'o' <> metavar "FILE"
@@ -74,7 +74,7 @@ parser =
 
 melpa2nix :: Int  -- ^ number of threads to use
           -> FilePath  -- ^ path to MELPA repository
-          -> Bool      -- ^ generate packages from MELPA Stable
+          -> Stable    -- ^ generate packages from MELPA Stable
           -> FilePath  -- ^ temporary workspace
           -> FilePath  -- ^ dump MELPA recipes here
           -> FilePath  -- ^ map of Emacs names to Nix names

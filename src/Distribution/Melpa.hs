@@ -61,6 +61,7 @@ import Text.Taggy.Parser (taggyWith)
 import Text.Taggy.Types ( Tag (..), Attribute(..) )
 
 import qualified Distribution.Emacs.Name as Emacs
+import Distribution.Melpa.Melpa
 import Distribution.Melpa.Recipe
 import qualified Distribution.Nix.Fetch as Nix
 import qualified Distribution.Nix.Hash as Nix
@@ -72,17 +73,8 @@ import qualified Distribution.Nix.Package.Melpa as Nix
 import Paths_emacs2nix ( getDataFileName )
 import Util
 
-data Melpa = Melpa { melpaDir :: FilePath
-                   , melpaCommit :: Text
-                   }
-
-data ParseMelpaError = ParseMelpaError String
-  deriving (Show, Typeable)
-
-instance Exception ParseMelpaError
-
 updateMelpa :: FilePath
-            -> Bool
+            -> Stable
             -> FilePath  -- ^ temporary workspace
             -> FilePath  -- ^ dump MELPA recipes here
             -> FilePath  -- ^ map of Emacs names to Nix names
@@ -200,7 +192,7 @@ package source and a "packages" subdirectory with the build product.
 
  -}
 
-getPackage :: Melpa -> Bool -> FilePath
+getPackage :: Melpa -> Stable -> FilePath
            -> HashMap Emacs.Name Nix.Name
            -> (Text, Recipe)
            -> IO (Maybe Nix.Package)
@@ -236,8 +228,8 @@ getPackage melpa@(Melpa {..}) stable tmpDir namesMap (name, recipe) =
       , Nix.recipe = melpaRecipe
       }
 
-build :: Melpa -> Bool -> Text -> FilePath -> IO PkgInfo
-build melpa stable name packageDir =
+build :: Melpa -> Stable -> Text -> FilePath -> IO PkgInfo
+build melpa Stable {..} name packageDir =
   do
     buildEl <- getDataFileName "build.el"
     let
