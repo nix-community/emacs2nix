@@ -9,11 +9,26 @@
 (setq package-build-archive-dir (expand-file-name "packages/"))
 (setq package-build-recipes-dir (expand-file-name "recipes/"))
 
+(defun pkg-info-for-json (info)
+  "Convert INFO into a data structure which will serialize to JSON in the desired shape.
+Differs from `package-build--pkg-info-for-json' by ignoring `:props'."
+  (let ((ver (elt info 0))
+        (deps (elt info 1))
+        (desc (elt info 2))
+        (type (elt info 3)))
+    (list :ver ver
+          :deps (cl-mapcan (lambda (dep)
+                             (list (intern (format ":%s" (car dep)))
+                                   (cadr dep)))
+                           deps)
+          :desc desc
+          :type type)))
+
 (defun build-1 (name)
   (let* ((rcp (package-recipe-lookup name))
          (version (package-build--checkout rcp))
          (pkg-info (cdr (package-build-package rcp version))))
-    (princ (json-encode (package-build--pkg-info-for-json pkg-info)))))
+    (princ (json-encode (pkg-info-for-json pkg-info)))))
 
 (defun build ()
   (if (not noninteractive)
