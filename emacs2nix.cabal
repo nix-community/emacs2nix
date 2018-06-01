@@ -23,6 +23,7 @@ library
     Distribution.Emacs.Name
     Distribution.Melpa
     Distribution.Melpa.Melpa
+    Distribution.Melpa.PkgInfo
     Distribution.Melpa.Recipe
     Distribution.Nix.Builtin
     Distribution.Nix.Exception

@@ -38,10 +38,8 @@ import qualified Data.ByteString as B
 import Data.Char ( isDigit, isHexDigit )
 import Data.Foldable ( toList )
 import Data.HashMap.Strict ( HashMap )
-import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Map.Strict as M
 import Data.Monoid ( (<>) )
-import Data.Scientific ( floatingOrInteger )
 import Data.Set ( Set )
 import qualified Data.Set as Set
 import Data.Text ( Text )
@@ -51,7 +49,6 @@ import qualified Data.Text.Lazy.Encoding as TLE
 import qualified Data.Text.Encoding as TE
 import Data.Text.Read ( decimal )
 import Data.Typeable ( Typeable )
-import Data.Version ( Version (..), makeVersion )
 import qualified Network.Http.Client as HTTP
 import System.Directory ( createDirectoryIfMissing, copyFile )
 import System.FilePath
@@ -62,6 +59,7 @@ import Text.Taggy.Types ( Tag (..), Attribute(..) )
 
 import qualified Distribution.Emacs.Name as Emacs
 import Distribution.Melpa.Melpa
+import Distribution.Melpa.PkgInfo
 import Distribution.Melpa.Recipe
 import qualified Distribution.Nix.Fetch as Nix
 import qualified Distribution.Nix.Hash as Nix
@@ -125,38 +123,6 @@ data PackageException = PackageException Text SomeException
 instance Exception PackageException
 
 
-data PkgInfo =
-  PkgInfo
-  { version :: !Version
-  , deps :: HashMap Text Version
-  }
-
-
-parseVersion :: Value -> Parser Version
-parseVersion =
-  withArray "version" $ fmap makeVersion . traverse parseNatural . toList
-  where
-    parseNatural =
-      withScientific "natural number" $ \x ->
-      case floatingOrInteger x of
-        Left (r :: Double) -> fail ("not an integer: " ++ show r)
-        Right i
-          | i < 0     -> fail ("not non-negative: " ++ show i)
-          | otherwise -> pure i
-
-
-parsePkgInfo :: Value -> Parser PkgInfo
-parsePkgInfo =
-  withObject "pkg-info" $ \obj ->
-  do
-    version <- parseVersion =<< obj .: "ver"
-    deps <- parseDeps =<< obj .: "deps"
-    pure PkgInfo {..}
-  where
-    parseDeps =
-      withObject "dependencies" $ traverse parseVersion
-
-
 {-|
 
 To create an expression for an Emacs package, we need several pieces of
@@ -217,7 +183,7 @@ getPackage melpa@(Melpa {..}) stable tmpDir namesMap (name, recipe) =
     (_, fetch) <- Nix.prefetch name =<< freezeSource name sourceDir recipe
 
     nixName <- Nix.getName namesMap (Emacs.Name name)
-    nixDeps <- mapM (Nix.getName namesMap . Emacs.Name) (HashMap.keys $ deps pkgInfo)
+    nixDeps <- mapM (Nix.getName namesMap . Emacs.Name) (toList $ deps pkgInfo)
 
     pure
       Nix.Package
