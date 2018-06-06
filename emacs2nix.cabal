@@ -34,7 +34,8 @@ library
     Distribution.Nix.Name
     Distribution.Nix.Package.Elpa
     Distribution.Nix.Package.Melpa
-    Util
+    Exceptions
+    Process
   other-modules:
     Paths_emacs2nix
   hs-source-dirs: src

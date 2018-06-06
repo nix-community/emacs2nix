@@ -40,7 +40,7 @@ import Data.Aeson ( (.:!), withObject )
 import Data.Aeson.Parser ( json' )
 import Data.Aeson.Types ( parseEither )
 
-import Util (runInteractiveProcess)
+import Process
 
 data Fetch = URL { url :: Text, sha256 :: Maybe Text, name :: Maybe Text }
            | Git { url :: Text, rev :: Text, branchName :: Maybe Text, sha256 :: Maybe Text }

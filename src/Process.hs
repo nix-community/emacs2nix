@@ -21,7 +21,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module Util where
+module Process where
 
 import Control.Concurrent.Async (Concurrently(..))
 import Control.Exception
@@ -29,26 +29,13 @@ import Data.ByteString (ByteString)
 import Data.Monoid ((<>))
 import Data.Text (Text)
 import qualified Data.Text as T
-import Data.Typeable (Typeable)
+import Debug.Trace
 import System.Exit (ExitCode(..))
 import System.IO.Streams (InputStream)
 import qualified System.IO.Streams as S
-import Debug.Trace
 
-data Died = Died Int Text
-  deriving (Show, Typeable)
+import Exceptions
 
-instance Exception Died
-
-data ProcessFailed = ProcessFailed String [String] SomeException
-  deriving (Show, Typeable)
-
-instance Exception ProcessFailed
-
-data ProcessingFailed = ProcessingFailed Text Text SomeException
-  deriving (Show, Typeable)
-
-instance Exception ProcessingFailed
 
 slurp :: InputStream ByteString -> IO Text
 slurp stream = S.fold (<>) T.empty =<< S.decodeUtf8 stream
@@ -82,17 +69,3 @@ runInteractiveProcess cmd args cwd env withOutput
       (ExitFailure code, Right _) ->
           throwIO $ Died code "the improbable happened: successfully parsed \
                               \output from failed process"
-
-showExceptions :: IO b -> IO (Maybe b)
-showExceptions go = catch (Just <$> go) handler
-  where
-    handler (SomeException e) = do
-      S.write (Just (T.pack (show e))) =<< S.encodeUtf8 =<< S.unlines S.stdout
-      pure Nothing
-
-showExceptions_ :: IO b -> IO ()
-showExceptions_ go = showExceptions go >> pure ()
-
-mapExceptionIO :: (Exception e, Exception f) => (e -> f) -> IO a -> IO a
-mapExceptionIO f go = catch go handler where
-  handler e = throwIO (f e)

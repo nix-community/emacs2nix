@@ -67,9 +67,9 @@ import Distribution.Nix.Index
 import qualified Distribution.Nix.Name as Nix
 import qualified Distribution.Nix.Package.Melpa as Recipe ( Recipe(..) )
 import qualified Distribution.Nix.Package.Melpa as Nix
-
+import Exceptions
+import Process
 import Paths_emacs2nix ( getDataFileName )
-import Util
 
 updateMelpa :: FilePath
             -> Stable
