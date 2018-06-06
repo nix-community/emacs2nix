@@ -22,6 +22,7 @@ library
   exposed-modules:
     Distribution.Elpa
     Distribution.Emacs.Name
+    Distribution.Git
     Distribution.Melpa
     Distribution.Melpa.Melpa
     Distribution.Melpa.PkgInfo

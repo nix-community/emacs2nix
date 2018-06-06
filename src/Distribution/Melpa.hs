@@ -58,6 +58,7 @@ import Text.Taggy.Parser (taggyWith)
 import Text.Taggy.Types ( Tag (..), Attribute(..) )
 
 import qualified Distribution.Emacs.Name as Emacs
+import qualified Distribution.Git as Git
 import Distribution.Melpa.Melpa
 import Distribution.Melpa.PkgInfo
 import Distribution.Melpa.Recipe
@@ -82,7 +83,7 @@ updateMelpa :: FilePath
 updateMelpa melpaDir stable workDir melpaOut namesMapFile indexOnly packages = do
   namesMap <- Nix.readNames namesMapFile
 
-  melpaCommit <- revision_Git Nothing melpaDir
+  melpaCommit <- Git.revision melpaDir Nothing []
   let melpa = Melpa {..}
 
   recipes <- readRecipes melpaDir
@@ -220,23 +221,7 @@ freezeRecipe :: Melpa -> Text -> IO Nix.Recipe
 freezeRecipe melpa@(Melpa {..}) name = do
   let recipe = recipeFileName melpa name
   hash <- Nix.hash recipe
-  commit <-
-    let
-      args =
-        [ "log"
-        , "--first-parent"
-        , "-n", "1"
-        , "--pretty=format:%H"
-        , "--", recipe
-        ]
-      getRecipeRevision out =
-        do
-          revs <- liftIO (S.lines out >>= S.decodeUtf8 >>= S.toList)
-          case revs of
-            (rev:_) -> pure rev
-            _ -> throwIO NoRevision
-    in
-      runInteractiveProcess "git" args (Just melpaDir) Nothing getRecipeRevision
+  commit <- Git.revision melpaDir Nothing [recipe]
   pure
     Nix.Recipe
     { Recipe.ename = name
@@ -384,11 +369,6 @@ data ParsePkgInfoError = ParsePkgInfoError String
   deriving (Show, Typeable)
 
 instance Exception ParsePkgInfoError
-
-data NoRevision = NoRevision
-  deriving (Show, Typeable)
-
-instance Exception NoRevision
 
 revision_Bzr :: FilePath -> IO Text
 revision_Bzr tmp = do
