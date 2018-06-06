@@ -28,40 +28,27 @@ module Distribution.Melpa ( updateMelpa ) where
 import Control.Concurrent ( getNumCapabilities )
 import Control.Concurrent.Async ( Concurrently(..) )
 import Control.Concurrent.QSem
-import Control.Error hiding ( err )
 import Control.Exception
 import Control.Monad.IO.Class
 import Data.Aeson.Parser ( json' )
 import Data.Aeson.Types
-import qualified Data.ByteString.Lazy as BL
-import qualified Data.ByteString as B
-import Data.Char ( isDigit, isHexDigit )
 import Data.Foldable ( toList )
 import Data.HashMap.Strict ( HashMap )
-import qualified Data.Map.Strict as M
-import Data.Monoid ( (<>) )
+import qualified Data.Map.Strict as Map
 import Data.Set ( Set )
 import qualified Data.Set as Set
 import Data.Text ( Text )
 import qualified Data.Text as T
-import qualified Data.Text.Lazy as TL
-import qualified Data.Text.Lazy.Encoding as TLE
-import qualified Data.Text.Encoding as TE
-import Data.Text.Read ( decimal )
 import Data.Typeable ( Typeable )
-import qualified Network.Http.Client as HTTP
 import System.Directory ( createDirectoryIfMissing, copyFile )
 import System.FilePath
-import qualified System.IO.Streams as S
 import qualified System.IO.Streams.Attoparsec as S
-import Text.Taggy.Parser (taggyWith)
-import Text.Taggy.Types ( Tag (..), Attribute(..) )
 
 import qualified Distribution.Emacs.Name as Emacs
 import qualified Distribution.Git as Git
+import Distribution.Melpa.Fetcher
 import Distribution.Melpa.Melpa
 import Distribution.Melpa.PkgInfo
-import Distribution.Melpa.Recipe
 import qualified Distribution.Nix.Fetch as Nix
 import qualified Distribution.Nix.Hash as Nix
 import Distribution.Nix.Index
@@ -78,7 +65,7 @@ updateMelpa :: FilePath
             -> FilePath  -- ^ dump MELPA recipes here
             -> FilePath  -- ^ map of Emacs names to Nix names
             -> Bool  -- ^ only generate the index
-            -> Set Text
+            -> Set Emacs.Name
             -> IO ()
 updateMelpa melpaDir stable workDir melpaOut namesMapFile indexOnly packages = do
   namesMap <- Nix.readNames namesMapFile
@@ -89,32 +76,43 @@ updateMelpa melpaDir stable workDir melpaOut namesMapFile indexOnly packages = d
   recipes <- readRecipes melpaDir
 
   let
-    isSelected name = Set.null packages || Set.member name packages
-    selected = M.filterWithKey (\k _ -> isSelected k) recipes
+    selected = Map.filterWithKey (\k _ -> isSelected k) recipes
+      where
+        isSelected name = Set.null packages || Set.member name packages
 
   createDirectoryIfMissing True workDir
 
   sem <- newQSem =<< getNumCapabilities
 
-  let update pkg
-        = Concurrently
-          (bracket (waitQSem sem) (\_ -> signalQSem sem)
-            (\_ -> getPackage melpa stable workDir namesMap pkg))
-      toExpression pkg = (Nix.pname pkg, Nix.expression pkg)
-  updates <- if indexOnly
-             then pure M.empty
-             else M.fromList . map toExpression . catMaybes
-                  <$> runConcurrently (traverse update (M.toList selected))
+  let
+    update name fetcher =
+      Concurrently
+      $ bracket (waitQSem sem) (\_ -> signalQSem sem)
+      $ \_ -> getPackage melpa stable workDir namesMap (name, fetcher)
+    updateKeys (_, pkg) = (Nix.pname pkg, Nix.expression pkg)
+  updates <-
+    runConcurrently
+    $ if indexOnly
+      then pure Map.empty
+      else Map.fromList . map updateKeys . Map.toList
+           <$> Map.traverseMaybeWithKey update selected
 
   existing <- readIndex melpaOut
 
+  recipeNames <- Set.fromList <$> traverse (Nix.getName namesMap) (Map.keys recipes)
+  selectedNames <- Set.fromList <$> traverse (Nix.getName namesMap) (Map.keys selected)
+
   let
-    recipeDeleted (Nix.fromName -> name)
-      = M.notMember name recipes && isSelected name
+    -- | Was the recipe removed?
+    removed = \name -> not (Set.member name recipeNames) && isSelected name
+      where
+        isSelected name =
+          Set.null selectedNames || Set.member name selectedNames
     updated
-      = M.union
-        updates
-        (M.filterWithKey (\k _ -> indexOnly || not (recipeDeleted k)) existing)
+      | indexOnly = Map.union updates existing
+      | otherwise =
+          Map.union updates
+          $ Map.filterWithKey (\k _ -> (not . removed) k) existing
 
   writeIndex melpaOut updated
 
@@ -161,9 +159,9 @@ package source and a "packages" subdirectory with the build product.
 
 getPackage :: Melpa -> Stable -> FilePath
            -> HashMap Emacs.Name Nix.Name
-           -> (Text, Recipe)
+           -> (Emacs.Name, Fetcher)
            -> IO (Maybe Nix.Package)
-getPackage melpa@(Melpa {..}) stable tmpDir namesMap (name, recipe) =
+getPackage melpa@(Melpa {..}) stable tmpDir namesMap (Emacs.fromName -> name, fetcher) =
   showExceptions $ mapExceptionIO (PackageException name) $ do
     let
       recipeFile = recipeFileName melpa name
@@ -181,7 +179,7 @@ getPackage melpa@(Melpa {..}) stable tmpDir namesMap (name, recipe) =
 
     melpaRecipe <- freezeRecipe melpa name
     pkgInfo <- build melpa stable name packageDir
-    (_, fetch) <- Nix.prefetch name =<< freezeSource name sourceDir recipe
+    (_, fetch) <- Nix.prefetch name =<< freeze fetcher sourceDir
 
     nixName <- Nix.getName namesMap (Emacs.Name name)
     nixDeps <- mapM (Nix.getName namesMap . Emacs.Name) (toList $ deps pkgInfo)
@@ -229,134 +227,6 @@ freezeRecipe melpa@(Melpa {..}) name = do
     , Recipe.sha256 = hash
     }
 
-data DarcsFetcherNotImplemented = DarcsFetcherNotImplemented
-  deriving (Show, Typeable)
-
-instance Exception DarcsFetcherNotImplemented
-
-data FossilFetcherNotImplemented = FossilFetcherNotImplemented
-  deriving (Show, Typeable)
-
-instance Exception FossilFetcherNotImplemented
-
-freezeSource :: Text -> FilePath -> Recipe -> IO Nix.Fetch
-
-freezeSource _ sourceDir Bzr {..} = do
-  rev <- revision_Bzr sourceDir
-  pure Nix.Bzr { Nix.url = url
-               , Nix.rev = rev
-               , Nix.sha256 = Nothing
-               }
-
-freezeSource _ sourceDir Git {..} = do
-  rev <- revision_Git branch sourceDir
-  pure Nix.Git { Nix.url = url
-               , Nix.rev = rev
-               , Nix.branchName = branch
-               , Nix.sha256 = Nothing
-               }
-
-freezeSource _ sourceDir GitHub {..} = do
-  rev <- revision_Git branch sourceDir
-  let (owner:rest) = T.splitOn "/" repo
-  pure Nix.GitHub { Nix.owner = owner
-                  , Nix.repo = T.concat rest
-                  , Nix.rev = rev
-                  , Nix.sha256 = Nothing
-                  }
-
-freezeSource _ sourceDir GitLab {..} = do
-  rev <- revision_Git branch sourceDir
-  let (owner:rest) = T.splitOn "/" repo
-  pure Nix.GitLab { Nix.owner = owner
-                  , Nix.repo = T.concat rest
-                  , Nix.rev = rev
-                  , Nix.sha256 = Nothing
-                  }
-
-freezeSource _ _ CVS {..} =
-  pure Nix.CVS { Nix.cvsRoot = url
-               , Nix.cvsModule = cvsModule
-               , Nix.sha256 = Nothing
-               }
-
-freezeSource _ sourceDir Hg {..} = do
-  rev <- revision_Hg sourceDir
-  pure Nix.Hg { Nix.url = url
-              , Nix.rev = rev
-              , Nix.sha256 = Nothing
-              }
-
-freezeSource _ sourceDir Bitbucket {..} = do
-  let url = "https://bitbucket.com/" <> repo
-  rev <- revision_Hg sourceDir
-  pure Nix.Hg { Nix.url = url
-              , Nix.rev = rev
-              , Nix.sha256 = Nothing
-              }
-
-freezeSource _ sourceDir SVN {..} = do
-  rev <- revision_SVN sourceDir
-  pure Nix.SVN { Nix.url = url
-               , Nix.rev = rev
-               , Nix.sha256 = Nothing
-               }
-
-freezeSource name _ (w@Wiki {..}) = do
-  guessedRevision <- guessWikiRevision name w
-  let
-    defaultUrl = "https://www.emacswiki.org/emacs/download/" <> name <> ".el"
-    versionedDefaultUrl =
-      case guessedRevision of
-        Nothing -> defaultUrl
-        Just version -> defaultUrl <> "?revision=" <> T.pack (show version)
-    url = fromMaybe versionedDefaultUrl wikiUrl
-  pure Nix.URL { Nix.url = url
-               , Nix.sha256 = Nothing
-               , Nix.name = Just (name <> ".el")
-               }
-
-freezeSource _ _ Darcs {..} = throwIO DarcsFetcherNotImplemented
-
-freezeSource _ _ Fossil {..} = throwIO FossilFetcherNotImplemented
-
-guessWikiRevision :: Text -> Recipe -> IO (Maybe Integer)
-guessWikiRevision _ Wiki { wikiUrl = Just _ } =
-  -- No guessing when there is an explicitly set wiki URL
-  return $ Nothing
-
-guessWikiRevision name Wiki {} = do
-   body <- getAsText revisionsPageUrl
-   -- TL.unpack body `trace` return ()
-   return $ findLatestRevision $ taggyWith True body
-  where
-       revisionsPageUrl :: B.ByteString
-       revisionsPageUrl = TE.encodeUtf8 $ "https://www.emacswiki.org/emacs?action=history;id=" <> name <> ".el"
-
-       defaultPageUrl :: Text
-       defaultPageUrl = "https://www.emacswiki.org/emacs/" <> name <> ".el"
-
-       defaultRevisionAttr = Attribute "href" defaultPageUrl
-
-       getAsText :: B.ByteString -> IO TL.Text
-       getAsText url = TLE.decodeUtf8 . BL.fromStrict <$> HTTP.get url HTTP.concatHandler
-
-       readDecimal :: Text -> Maybe Integer
-       readDecimal aText = case decimal aText of
-         Left _ -> Nothing
-         Right (i, _) -> Just i
-
-       revisionPrefix = "Revision "
-
-       findLatestRevision [] = Nothing
-       findLatestRevision (TagOpen "a" attrs _ : TagText aText : tags)
-         | elem defaultRevisionAttr attrs && T.isPrefixOf revisionPrefix aText
-           = readDecimal $ T.drop (T.length revisionPrefix) aText
-         | otherwise = findLatestRevision tags
-       findLatestRevision (_:tags) = findLatestRevision tags
-
-guessWikiRevision _ _ = return Nothing
-
 data NoVersion = NoVersion
   deriving (Show, Typeable)
 
@@ -369,56 +239,3 @@ data ParsePkgInfoError = ParsePkgInfoError String
   deriving (Show, Typeable)
 
 instance Exception ParsePkgInfoError
-
-revision_Bzr :: FilePath -> IO Text
-revision_Bzr tmp = do
-  let args = [ "log", "-l1", tmp ]
-  runInteractiveProcess "bzr" args Nothing Nothing $ \out -> do
-    let getRevno = (T.takeWhile isDigit . T.strip <$>) . T.stripPrefix "revno:"
-    revnos <- mapMaybe getRevno <$> liftIO (S.lines out >>= S.decodeUtf8 >>= S.toList)
-    case revnos of
-      (rev:_) -> pure rev
-      _ -> throwIO NoRevision
-
-revision_Git :: Maybe Text -> FilePath -> IO Text
-revision_Git branch tmp = do
-  runInteractiveProcess "git" gitArgs (Just tmp) Nothing $ \out -> do
-    revs <- liftIO (S.lines out >>= S.decodeUtf8 >>= S.toList)
-    case revs of
-      (rev:_) -> pure rev
-      _ -> throwIO NoRevision
-  where
-    fullBranch = do
-        branch_ <- branch
-        -- package-build does not fetch all branches by default, so they must be referred
-        -- to under the origin/ prefix
-        return (T.unpack ("origin/" <> branch_))
-    gitArgs = [ "log", "--first-parent", "-n1", "--pretty=format:%H" ]
-              ++ maybeToList fullBranch
-
-revision_Hg :: FilePath -> IO Text
-revision_Hg tmp = do
-  runInteractiveProcess "hg" ["tags"] (Just tmp) Nothing $ \out -> do
-    lines_ <- liftIO (S.lines out >>= S.decodeUtf8 >>= S.toList)
-    let revs = catMaybes (hgRev <$> lines_)
-    case revs of
-      (rev:_) -> pure rev
-      _ -> throwIO NoRevision
-  where
-    hgRev txt = do
-        afterTip <- T.strip <$> T.stripPrefix "tip" txt
-        let (_, T.strip . T.takeWhile isHexDigit . T.drop 1 -> rev) = T.breakOn ":" afterTip
-        if T.null rev
-          then Nothing
-          else return rev
-
-revision_SVN :: FilePath -> IO Text
-revision_SVN tmp = do
-  runInteractiveProcess "svn" ["info"] (Just tmp) Nothing $ \out -> do
-    lines_ <- liftIO (S.lines out >>= S.decodeUtf8 >>= S.toList)
-    let revs = catMaybes (svnRev <$> lines_)
-    case revs of
-      (rev:_) -> pure rev
-      _ -> throwIO NoRevision
-  where
-    svnRev = fmap T.strip . T.stripPrefix "Revision:"
