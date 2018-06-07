@@ -27,8 +27,8 @@ module Distribution.Melpa.Fetcher ( Fetcher (..), readRecipes ) where
 import Data.Aeson.Types ( (.:), (.:?) )
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Types as Aeson
-import qualified Data.HashMap.Strict as HashMap
 import Data.HashMap.Strict ( HashMap )
+import qualified Data.HashMap.Strict as HashMap
 import Data.Monoid
 import Data.Text ( Text )
 import qualified Data.Text as Text
@@ -56,7 +56,8 @@ newtype Fetcher = Fetcher { freeze :: FilePath -> IO Nix.Fetch }
 
 
 -- | Read recipes from MELPA into a map from package name to the 'Fetcher' for
--- each package.
+-- each package. The map keys are the /Emacs/ package names (not yet
+-- sanitized for Nix).
 readRecipes :: FilePath -> IO (HashMap Emacs.Name Fetcher)
 readRecipes melpaDir = do
   let packageBuildDir = melpaDir </> "package-build"
@@ -85,17 +86,15 @@ readRecipes melpaDir = do
 -- | Parse a map of package names to MELPA recipes from the JSON encoding of
 -- MELPA recipes.
 parseFetchers :: Aeson.Value -> Aeson.Parser (HashMap Emacs.Name Fetcher)
-parseFetchers =
-  Aeson.withObject "recipes"
-  $ HashMap.traverseWithKey parseFetcher
-  . HashMap.fromList
-  . map (\(k, v) -> (Emacs.Name k, v))
-  . HashMap.toList
+parseFetchers = Aeson.withObject "recipes" parseFetcher1
+  where
+    mapKeys f = HashMap.fromList . map (\(k, v) -> (f k, v)) . HashMap.toList
+    parseFetcher1 = (<$>) (mapKeys Emacs.Name) . HashMap.traverseWithKey parseFetcher
 
 
 -- | Parse a 'Fetcher' from the JSON encoding of a MELPA recipe.
-parseFetcher :: Emacs.Name -> Aeson.Value -> Aeson.Parser Fetcher
-parseFetcher (Emacs.fromName -> name) =
+parseFetcher :: Text -> Aeson.Value -> Aeson.Parser Fetcher
+parseFetcher name =
   Aeson.withObject "recipe" $ \rcp ->
     do
       fetcher <- rcp .: "fetcher"
