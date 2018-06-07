@@ -38,6 +38,7 @@ library
     Distribution.Nix.Package.Elpa
     Distribution.Nix.Package.Melpa
     Distribution.SVN
+    Distribution.Wiki
     Exceptions
     Process
   other-modules:

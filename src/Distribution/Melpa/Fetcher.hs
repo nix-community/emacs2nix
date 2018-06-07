@@ -28,25 +28,15 @@ import Control.Exception
 import Data.Aeson.Types ( (.:), (.:?) )
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Types as Aeson
-import Data.ByteString ( ByteString )
-import qualified Data.ByteString.Lazy as ByteString.Lazy
 import qualified Data.HashMap.Strict as HashMap
 import Data.Map.Strict ( Map )
 import qualified Data.Map.Strict as Map
-import Data.Maybe ( fromMaybe )
 import Data.Monoid
 import Data.Text ( Text )
 import qualified Data.Text as Text
-import qualified Data.Text.Lazy as Lazy ( Text )
-import qualified Data.Text.Encoding as Text
-import qualified Data.Text.Lazy.Encoding as Text.Lazy
-import qualified Data.Text.Read as Text
-import qualified Network.Http.Client as HTTP
 import System.FilePath
 import qualified System.IO.Streams as Stream
 import qualified System.IO.Streams.Attoparsec as Stream
-import Text.Taggy.Parser ( taggyWith )
-import Text.Taggy.Types ( Tag (..), Attribute(..) )
 
 import qualified Distribution.Bzr as Bzr
 import qualified Distribution.Emacs.Name as Emacs
@@ -54,6 +44,7 @@ import qualified Distribution.Git as Git
 import qualified Distribution.Hg as Hg
 import qualified Distribution.Nix.Fetch as Nix
 import qualified Distribution.SVN as SVN
+import qualified Distribution.Wiki as Wiki
 import Paths_emacs2nix ( getDataFileName )
 
 
@@ -168,47 +159,8 @@ parseFetcher (Emacs.fromName -> name) =
             url <- rcp .:? "url"
             pure Fetcher
               { freeze = \_ ->
-                  Nix.fetchURL <$> freezeWikiURL name url <*> pure (Just $ name <> ".el")
+                  do
+                    rev <- Wiki.revision name url
+                    pure $ Nix.fetchURL rev (Just $ name <> ".el")
               }
         _ -> fail ("fetcher `" ++ Text.unpack fetcher ++ "' not implemented")
-
-defaultWikiURL :: Text -> Maybe Integer -> Text
-defaultWikiURL name rev =
-  let
-    query = (\r -> "?revision=" <> Text.pack (show r)) <$> rev
-  in
-    "https://www.emacswiki.org/emacs/download/" <> name <> ".el" <> fromMaybe "" query
-
-
-freezeWikiURL :: Text -> Maybe Text -> IO Text
-freezeWikiURL _ (Just url) = pure url
-freezeWikiURL name Nothing = defaultWikiURL name <$> guessWikiRevision name
-
-guessWikiRevision :: Text -> IO (Maybe Integer)
-guessWikiRevision name =
-  do
-    body <- getAsText revisionsPageUrl
-    return $ findLatestRevision $ taggyWith True body
-    where
-        revisionsPageUrl :: ByteString
-        revisionsPageUrl = Text.encodeUtf8 $ "https://www.emacswiki.org/emacs?action=history;id=" <> name <> ".el"
-
-        defaultRevisionAttr = Attribute "href" (defaultWikiURL name Nothing)
-
-        getAsText :: ByteString -> IO Lazy.Text
-        getAsText url = Text.Lazy.decodeUtf8 . ByteString.Lazy.fromStrict <$> HTTP.get url HTTP.concatHandler
-
-        readDecimal :: Text -> Maybe Integer
-        readDecimal aText =
-          case Text.decimal aText of
-            Left _ -> Nothing
-            Right (i, _) -> Just i
-
-        revisionPrefix = "Revision "
-
-        findLatestRevision [] = Nothing
-        findLatestRevision (TagOpen "a" attrs _ : TagText aText : tags)
-          | elem defaultRevisionAttr attrs && Text.isPrefixOf revisionPrefix aText =
-              readDecimal $ Text.drop (Text.length revisionPrefix) aText
-          | otherwise = findLatestRevision tags
-        findLatestRevision (_:tags) = findLatestRevision tags
