@@ -31,7 +31,6 @@ import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Types as Aeson
 import Data.ByteString ( ByteString )
 import qualified Data.ByteString.Lazy as ByteString.Lazy
-import qualified Data.Char as Char
 import qualified Data.HashMap.Strict as HashMap
 import Data.Map.Strict ( Map )
 import qualified Data.Map.Strict as Map
@@ -53,6 +52,7 @@ import Text.Taggy.Types ( Tag (..), Attribute(..) )
 import qualified Distribution.Bzr as Bzr
 import qualified Distribution.Emacs.Name as Emacs
 import qualified Distribution.Git as Git
+import qualified Distribution.Hg as Hg
 import qualified Distribution.Nix.Fetch as Nix
 import Exceptions
 import Paths_emacs2nix ( getDataFileName )
@@ -122,7 +122,7 @@ parseFetcher (Emacs.fromName -> name) =
             repo <- rcp .: "repo"
             let url = "https://bitbucket.com/" <> repo
             pure Fetcher
-              { freeze = \src -> Nix.fetchHg url <$> revisionHg src }
+              { freeze = \src -> Nix.fetchHg url <$> Hg.revision src }
         "bzr" ->
           do
             url <- rcp .: "url"
@@ -159,7 +159,7 @@ parseFetcher (Emacs.fromName -> name) =
           do
             url <- rcp .: "url"
             pure Fetcher
-              { freeze = \src -> Nix.fetchHg url <$> revisionHg src }
+              { freeze = \src -> Nix.fetchHg url <$> Hg.revision src }
         "svn" ->
           do
             url <- rcp .: "url"
@@ -214,23 +214,6 @@ guessWikiRevision name =
               readDecimal $ Text.drop (Text.length revisionPrefix) aText
           | otherwise = findLatestRevision tags
         findLatestRevision (_:tags) = findLatestRevision tags
-
-revisionHg :: FilePath -> IO Text
-revisionHg source = do
-  runInteractiveProcess "hg" ["tags"] (Just source) Nothing $ \out -> do
-    lines_ <- liftIO (Stream.lines out >>= Stream.decodeUtf8 >>= Stream.toList)
-    case getFirst (foldMap (First . hgRev) lines_) of
-      Just rev -> pure rev
-      _ -> throwIO NoRevision
-  where
-    hgRev txt = do
-      afterTip <- Text.strip <$> Text.stripPrefix "tip" txt
-      let
-        (_, after) = Text.breakOn ":" afterTip
-        rev = (Text.strip . Text.takeWhile Char.isHexDigit . Text.drop 1) after
-      if Text.null rev
-        then Nothing
-        else return rev
 
 revisionSVN :: FilePath -> IO Text
 revisionSVN tmp = do

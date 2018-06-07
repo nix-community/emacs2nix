@@ -24,6 +24,7 @@ library
     Distribution.Elpa
     Distribution.Emacs.Name
     Distribution.Git
+    Distribution.Hg
     Distribution.Melpa
     Distribution.Melpa.Fetcher
     Distribution.Melpa.Melpa
