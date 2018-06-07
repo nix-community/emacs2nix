@@ -19,3 +19,7 @@
 * TODO Avoid changing recipe revision every time
 * TODO Get package descriptions
 * TODO Get package licenses
+
+* TODO Keep a bidirectional map of names
+
+A bidirectional map of names is useful to get Emacs names after parsing the package index from Nix. Keeping the map in the Nixpkgs tree makes it configurable.
