@@ -20,6 +20,7 @@ data-dir: scripts
 library
   exposed-modules:
     Distribution.Elpa
+    Distribution.Emacs.Name
     Distribution.Melpa
     Distribution.Melpa.Recipe
     Distribution.Nix.Builtin
