@@ -50,6 +50,7 @@ import qualified System.IO.Streams.Attoparsec as Stream
 import Text.Taggy.Parser ( taggyWith )
 import Text.Taggy.Types ( Tag (..), Attribute(..) )
 
+import qualified Distribution.Bzr as Bzr
 import qualified Distribution.Emacs.Name as Emacs
 import qualified Distribution.Git as Git
 import qualified Distribution.Nix.Fetch as Nix
@@ -126,7 +127,7 @@ parseFetcher (Emacs.fromName -> name) =
           do
             url <- rcp .: "url"
             pure Fetcher
-              { freeze = \src -> Nix.fetchBzr url <$> revisionBzr src }
+              { freeze = \src -> Nix.fetchBzr url <$> Bzr.revision src }
         "git" ->
           do
             url <- rcp .: "url"
@@ -213,18 +214,6 @@ guessWikiRevision name =
               readDecimal $ Text.drop (Text.length revisionPrefix) aText
           | otherwise = findLatestRevision tags
         findLatestRevision (_:tags) = findLatestRevision tags
-
-revisionBzr :: FilePath -> IO Text
-revisionBzr tmp =
-  do
-    let args = [ "log", "-l1", tmp ]
-    runInteractiveProcess "bzr" args Nothing Nothing $ \out -> do
-      lines_ <- liftIO (Stream.lines out >>= Stream.decodeUtf8 >>= Stream.toList)
-      case getFirst (foldMap (First . getRevno) lines_) of
-        Just rev -> pure rev
-        _ -> throwIO NoRevision
-  where
-    getRevno = (Text.takeWhile Char.isDigit . Text.strip <$>) . Text.stripPrefix "revno:"
 
 revisionHg :: FilePath -> IO Text
 revisionHg source = do
