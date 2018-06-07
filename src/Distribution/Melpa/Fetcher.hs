@@ -24,13 +24,11 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 module Distribution.Melpa.Fetcher ( Fetcher (..), readRecipes ) where
 
-import Control.Exception
 import Data.Aeson.Types ( (.:), (.:?) )
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Types as Aeson
 import qualified Data.HashMap.Strict as HashMap
-import Data.Map.Strict ( Map )
-import qualified Data.Map.Strict as Map
+import Data.HashMap.Strict ( HashMap )
 import Data.Monoid
 import Data.Text ( Text )
 import qualified Data.Text as Text
@@ -46,6 +44,7 @@ import qualified Distribution.Nix.Fetch as Nix
 import qualified Distribution.SVN as SVN
 import qualified Distribution.Wiki as Wiki
 import Paths_emacs2nix ( getDataFileName )
+import Process
 
 
 -- | A @Fetcher@ is parsed from a MELPA recipe and can be frozen to (ultimately)
@@ -56,7 +55,9 @@ import Paths_emacs2nix ( getDataFileName )
 newtype Fetcher = Fetcher { freeze :: FilePath -> IO Nix.Fetch }
 
 
-readRecipes :: FilePath -> IO (Map Emacs.Name Fetcher)
+-- | Read recipes from MELPA into a map from package name to the 'Fetcher' for
+-- each package.
+readRecipes :: FilePath -> IO (HashMap Emacs.Name Fetcher)
 readRecipes melpaDir = do
   let packageBuildDir = melpaDir </> "package-build"
       packageBuildEl = "package-build.el"
@@ -69,33 +70,26 @@ readRecipes melpaDir = do
              , "-l", dumpRecipesEl
              , "-f", "dump-recipes-json", recipesDir
              ]
-  bracket
-    (Stream.runInteractiveProcess "emacs" args Nothing Nothing)
-    (\(_, _, _, pid) -> Stream.waitForProcess pid)
-    (\(_, sout, serr, _) -> do
-         result <-
-           catch
-           (Aeson.parseEither parseFetchers <$> Stream.parseFromStream Aeson.json' sout)
-           (\(SomeException exn) ->
-              do
-                Stream.supply serr Stream.stderr
-                pure (Left $ show exn))
-         case result of
-           Left err -> do
-             let msg = "error reading recipes: " <> Text.pack err
-             Stream.write (Just msg) =<< Stream.encodeUtf8 Stream.stderr
-             return Map.empty
-           Right recipes -> return recipes)
+  runInteractiveProcess "emacs" args Nothing Nothing $ \out ->
+    do
+      value <- Stream.parseFromStream Aeson.json' out
+      case Aeson.parseEither parseFetchers value of
+        Left err ->
+          do
+            let msg = "error reading recipes: " <> Text.pack err
+            Stream.write (Just msg) =<< Stream.encodeUtf8 Stream.stderr
+            return HashMap.empty
+        Right recipes -> return recipes
 
 
 -- | Parse a map of package names to MELPA recipes from the JSON encoding of
 -- MELPA recipes.
-parseFetchers :: Aeson.Value -> Aeson.Parser (Map Emacs.Name Fetcher)
+parseFetchers :: Aeson.Value -> Aeson.Parser (HashMap Emacs.Name Fetcher)
 parseFetchers =
   Aeson.withObject "recipes"
-  $ Map.traverseWithKey parseFetcher
-  . Map.mapKeys Emacs.Name
-  . Map.fromList
+  $ HashMap.traverseWithKey parseFetcher
+  . HashMap.fromList
+  . map (\(k, v) -> (Emacs.Name k, v))
   . HashMap.toList
 
 
