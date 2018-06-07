@@ -25,7 +25,6 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 module Distribution.Melpa.Fetcher ( Fetcher (..), readRecipes ) where
 
 import Control.Exception
-import Control.Monad.IO.Class
 import Data.Aeson.Types ( (.:), (.:?) )
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Types as Aeson
@@ -54,9 +53,8 @@ import qualified Distribution.Emacs.Name as Emacs
 import qualified Distribution.Git as Git
 import qualified Distribution.Hg as Hg
 import qualified Distribution.Nix.Fetch as Nix
-import Exceptions
+import qualified Distribution.SVN as SVN
 import Paths_emacs2nix ( getDataFileName )
-import Process ( runInteractiveProcess )
 
 
 -- | A @Fetcher@ is parsed from a MELPA recipe and can be frozen to (ultimately)
@@ -164,7 +162,7 @@ parseFetcher (Emacs.fromName -> name) =
           do
             url <- rcp .: "url"
             pure Fetcher
-              { freeze = \src -> Nix.fetchSVN url <$> revisionSVN src }
+              { freeze = \src -> Nix.fetchSVN url <$> SVN.revision src }
         "wiki" ->
           do
             url <- rcp .:? "url"
@@ -214,13 +212,3 @@ guessWikiRevision name =
               readDecimal $ Text.drop (Text.length revisionPrefix) aText
           | otherwise = findLatestRevision tags
         findLatestRevision (_:tags) = findLatestRevision tags
-
-revisionSVN :: FilePath -> IO Text
-revisionSVN tmp = do
-  runInteractiveProcess "svn" ["info"] (Just tmp) Nothing $ \out -> do
-    lines_ <- liftIO (Stream.lines out >>= Stream.decodeUtf8 >>= Stream.toList)
-    case getFirst (foldMap (First . svnRev) lines_) of
-      Just rev -> pure rev
-      _ -> throwIO NoRevision
-  where
-    svnRev = fmap Text.strip . Text.stripPrefix "Revision:"
