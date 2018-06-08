@@ -16,7 +16,12 @@
   CLOSED: [2015-08-21 Fri 14:16]
 * TODO Generate readable errors
 * TODO Don't complain if a package lacks a stable version
-* TODO Avoid changing recipe revision every time
+* DONE Avoid changing recipe revision every time
+
+  - State "DONE"       from "TODO"       [2018-06-08 Fri 09:56]
+
+The source file list is expanded from the recipe and passed to Git to limit the range of commits considered. For Git-based packages, the recipe and source revisions are changed only when the package is actually updated.
+
 * TODO Get package descriptions
 * DONE Get package licenses
 
