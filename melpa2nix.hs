@@ -32,7 +32,7 @@ import qualified Data.Set as Set
 import Data.Text ( Text )
 import qualified Data.Text as T
 import Options.Applicative
-import System.Environment (setEnv)
+import System.Environment ( setEnv, unsetEnv )
 
 import Distribution.Melpa
 import Distribution.Melpa.Melpa ( Stable (..) )
@@ -89,4 +89,6 @@ melpa2nix nthreads melpaDir stable workDir melpaOut namesMapFile indexOnly packa
 
   -- Force our TZ to match the melpa build machines
   setEnv "TZ" "PST8PDT"
+  -- Any operation requiring a password should fail
+  unsetEnv "SSH_ASKPASS"
   updateMelpa melpaDir stable workDir melpaOut namesMapFile indexOnly packages
