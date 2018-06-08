@@ -28,6 +28,7 @@ module Exceptions
     , Died (..)
     , ProcessFailed (..)
     , ProcessingFailed (..)
+    , ParseFilesError (..)
     ) where
 
 import Control.Exception
@@ -59,6 +60,12 @@ data ProcessingFailed = ProcessingFailed Text Text SomeException
   deriving (Show, Typeable)
 
 instance Exception ProcessingFailed
+
+
+data ParseFilesError = ParseFilesError String
+  deriving (Show, Typeable)
+
+instance Exception ParseFilesError
 
 
 showExceptions :: IO b -> IO (Maybe b)

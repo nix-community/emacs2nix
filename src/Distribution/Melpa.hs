@@ -73,7 +73,7 @@ updateMelpa melpaDir stable workDir melpaOut namesMapFile indexOnly packages = d
   melpaCommit <- Git.revision melpaDir Nothing []
   let melpa = Melpa {..}
 
-  recipes <- readRecipes melpaDir
+  recipes <- readRecipes melpa
 
   let
     selected = Map.filterWithKey (\k _ -> isSelected k) recipes
@@ -179,7 +179,7 @@ getPackage melpa@(Melpa {..}) stable tmpDir namesMap (Emacs.fromName -> name, fe
 
     melpaRecipe <- freezeRecipe melpa name
     pkgInfo <- build melpa stable name packageDir
-    (_, fetch) <- Nix.prefetch name =<< freeze fetcher sourceDir
+    (_, fetch) <- Nix.prefetch name =<< freeze fetcher melpa sourceDir
 
     nixName <- Nix.getName namesMap (Emacs.Name name)
     nixDeps <- mapM (Nix.getName namesMap . Emacs.Name) (toList $ deps pkgInfo)
@@ -231,9 +231,6 @@ data NoVersion = NoVersion
   deriving (Show, Typeable)
 
 instance Exception NoVersion
-
-packageBuildDir :: Melpa -> FilePath
-packageBuildDir Melpa {..} = melpaDir </> "package-build"
 
 data ParsePkgInfoError = ParsePkgInfoError String
   deriving (Show, Typeable)

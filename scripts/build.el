@@ -41,3 +41,12 @@ Differs from `package-build--pkg-info-for-json' by ignoring `:props'."
       (error "`build-stable' is to be used only with -batch"))
   (setq package-build-stable t)
   (build))
+
+(defun files-1 (name)
+  (let* ((rcp (package-recipe-lookup name))
+         (version (package-build--checkout rcp)))
+    (princ (json-encode (package-build--expand-source-file-list rcp)))))
+
+(defun files ()
+  (pcase command-line-args-left
+    (`(,name) (files-1 name))))

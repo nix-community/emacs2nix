@@ -20,6 +20,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ViewPatterns #-}
 
 module Distribution.Melpa.Fetcher ( Fetcher (..), readRecipes ) where
@@ -40,10 +41,12 @@ import qualified Distribution.Bzr as Bzr
 import qualified Distribution.Emacs.Name as Emacs
 import qualified Distribution.Git as Git
 import qualified Distribution.Hg as Hg
+import Distribution.Melpa.Melpa
 import qualified Distribution.Nix.Fetch as Nix
 import qualified Distribution.SVN as SVN
 import qualified Distribution.Wiki as Wiki
 import Paths_emacs2nix ( getDataFileName )
+import Exceptions
 import Process
 
 
@@ -52,22 +55,19 @@ import Process
 -- @Fetcher@ can be parsed from JSON with 'parseFetcher'. Calling @freeze@ with
 -- the local path to the package source produces a 'Nix.Fetch' which is used
 -- to retrieve an exact version of the package source.
-newtype Fetcher = Fetcher { freeze :: FilePath -> IO Nix.Fetch }
+newtype Fetcher = Fetcher { freeze :: Melpa -> FilePath -> IO Nix.Fetch }
 
 
 -- | Read recipes from MELPA into a map from package name to the 'Fetcher' for
 -- each package. The map keys are the /Emacs/ package names (not yet
 -- sanitized for Nix).
-readRecipes :: FilePath -> IO (HashMap Emacs.Name Fetcher)
-readRecipes melpaDir = do
-  let packageBuildDir = melpaDir </> "package-build"
-      packageBuildEl = "package-build.el"
-      recipesDir = melpaDir </> "recipes"
+readRecipes :: Melpa -> IO (HashMap Emacs.Name Fetcher)
+readRecipes melpa = do
+  let recipesDir = melpaDir melpa </> "recipes"
   dumpRecipesEl <- getDataFileName "dump-recipes.el"
   let args = [ "-Q"
              , "--batch"
-             , "-L", packageBuildDir
-             , "-l", packageBuildEl
+             , "-L", packageBuildDir melpa
              , "-l", dumpRecipesEl
              , "-f", "dump-recipes-json", recipesDir
              ]
@@ -104,56 +104,82 @@ parseFetcher name =
             repo <- rcp .: "repo"
             let url = "https://bitbucket.com/" <> repo
             pure Fetcher
-              { freeze = \src -> Nix.fetchHg url <$> Hg.revision src }
+              { freeze = \_ src -> Nix.fetchHg url <$> Hg.revision src }
         "bzr" ->
           do
             url <- rcp .: "url"
             pure Fetcher
-              { freeze = \src -> Nix.fetchBzr url <$> Bzr.revision src }
+              { freeze = \_ src -> Nix.fetchBzr url <$> Bzr.revision src }
         "git" ->
           do
             url <- rcp .: "url"
             branch <- rcp .:? "branch"
             pure Fetcher
-              { freeze = \src ->
-                  Nix.fetchGit url branch <$> Git.revision src branch []
+              { freeze = \melpa src ->
+                  do
+                    files <- getFiles melpa name
+                    Nix.fetchGit url branch <$> Git.revision src branch files
               }
         "github" ->
           do
             (owner, Text.drop 1 -> repo) <- Text.breakOn "/" <$> rcp .: "repo"
             pure Fetcher
-              { freeze = \src ->
-                  Nix.fetchGitHub owner repo <$> Git.revision src Nothing []
+              { freeze = \melpa src ->
+                  do
+                    files <- getFiles melpa name
+                    Nix.fetchGitHub owner repo <$> Git.revision src Nothing files
               }
         "gitlab" ->
           do
             (owner, Text.drop 1 -> repo) <- Text.breakOn "/" <$> rcp .: "repo"
             pure Fetcher
-              { freeze = \src ->
-                  Nix.fetchGitLab owner repo <$> Git.revision src Nothing []
+              { freeze = \melpa src ->
+                  do
+                    files <- getFiles melpa name
+                    Nix.fetchGitLab owner repo <$> Git.revision src Nothing files
               }
         "cvs" ->
           do
             cvsRoot <- rcp .: "url"
             cvsModule <- rcp .: "module"
-            pure Fetcher { freeze = \_ -> pure $ Nix.fetchCVS cvsRoot cvsModule }
+            pure Fetcher { freeze = \_ _ -> pure $ Nix.fetchCVS cvsRoot cvsModule }
         "hg" ->
           do
             url <- rcp .: "url"
             pure Fetcher
-              { freeze = \src -> Nix.fetchHg url <$> Hg.revision src }
+              { freeze = \_ src -> Nix.fetchHg url <$> Hg.revision src }
         "svn" ->
           do
             url <- rcp .: "url"
             pure Fetcher
-              { freeze = \src -> Nix.fetchSVN url <$> SVN.revision src }
+              { freeze = \_ src -> Nix.fetchSVN url <$> SVN.revision src }
         "wiki" ->
           do
             url <- rcp .:? "url"
             pure Fetcher
-              { freeze = \_ ->
+              { freeze = \_ _ ->
                   do
                     rev <- Wiki.revision name url
                     pure $ Nix.fetchURL rev (Just $ name <> ".el")
               }
         _ -> fail ("fetcher `" ++ Text.unpack fetcher ++ "' not implemented")
+
+
+getFiles :: Melpa -> Text -> IO [FilePath]
+getFiles melpa name =
+  do
+    buildEl <- getDataFileName "build.el"
+    let
+      args =
+        [ "-Q", "--batch"
+        , "-L", packageBuildDir melpa
+        , "-l", buildEl
+        , "-f", "files"
+        , Text.unpack name
+        ]
+      cwd = Just (melpaDir melpa)
+    runInteractiveProcess "emacs" args cwd Nothing $ \out -> do
+      r <- Aeson.parseEither Aeson.parseJSON <$> Stream.parseFromStream Aeson.json' out
+      case r of
+        Left err -> throwIO (ParseFilesError err)
+        Right pkgInfo -> pure pkgInfo

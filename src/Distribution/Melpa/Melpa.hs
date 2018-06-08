@@ -23,11 +23,16 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE ViewPatterns #-}
 
-module Distribution.Melpa.Melpa ( Melpa (..), ParseMelpaError (..), Stable (..) ) where
+module Distribution.Melpa.Melpa
+  ( Melpa (..), packageBuildDir
+  , ParseMelpaError (..)
+  , Stable (..)
+  ) where
 
 import Control.Exception ( Exception )
 import Data.Text ( Text )
 import Data.Typeable ( Typeable )
+import System.FilePath
 
 
 data Melpa =
@@ -43,3 +48,7 @@ instance Exception ParseMelpaError
 
 
 newtype Stable = Stable { stable :: Bool }
+
+
+packageBuildDir :: Melpa -> FilePath
+packageBuildDir Melpa {..} = melpaDir </> "package-build"
