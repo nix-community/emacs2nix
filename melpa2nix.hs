@@ -49,6 +49,7 @@ parser =
   <*> stable
   <*> work
   <*> output
+  <*> names
   <*> indexOnly
   <*> packages
   where
@@ -62,6 +63,8 @@ parser =
                       <> help "path to temporary workspace")
     output = strOption (long "output" <> short 'o' <> metavar "FILE"
                         <> help "dump MELPA data to FILE")
+    names = strOption (long "names" <> metavar "FILE"
+                       <> help "map Emacs names to Nix names using FILE")
     indexOnly = flag False True
                 (long "index-only"
                   <> help "don't update packages, only update the index file")
@@ -74,10 +77,11 @@ melpa2nix :: Int  -- ^ number of threads to use
           -> Bool      -- ^ generate packages from MELPA Stable
           -> FilePath  -- ^ temporary workspace
           -> FilePath  -- ^ dump MELPA recipes here
+          -> FilePath  -- ^ map of Emacs names to Nix names
           -> Bool  -- ^ only generate the index
           -> Set Text
           -> IO ()
-melpa2nix nthreads melpaDir stable workDir melpaOut indexOnly packages = do
+melpa2nix nthreads melpaDir stable workDir melpaOut namesMapFile indexOnly packages = do
   -- set number of threads before beginning
   if nthreads > 0
      then setNumCapabilities nthreads
@@ -85,4 +89,4 @@ melpa2nix nthreads melpaDir stable workDir melpaOut indexOnly packages = do
 
   -- Force our TZ to match the melpa build machines
   setEnv "TZ" "PST8PDT"
-  updateMelpa melpaDir stable workDir melpaOut indexOnly packages
+  updateMelpa melpaDir stable workDir melpaOut namesMapFile indexOnly packages

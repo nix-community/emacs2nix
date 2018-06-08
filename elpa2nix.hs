@@ -32,6 +32,7 @@ import Control.Monad ( join, when )
 import Data.Aeson ( FromJSON(..), json' )
 import Data.Aeson.Types ( parseEither )
 import Data.ByteString ( ByteString )
+import Data.HashMap.Strict ( HashMap )
 import Data.Map.Strict ( Map )
 import qualified Data.Map.Strict as M
 import Data.Maybe ( catMaybes )
@@ -51,6 +52,7 @@ import Paths_emacs2nix
 
 import Distribution.Elpa ( Elpa )
 import qualified Distribution.Elpa as Elpa
+import qualified Distribution.Emacs.Name as Emacs
 import qualified Distribution.Nix.Fetch as Nix
 import Distribution.Nix.Index
 import Distribution.Nix.Name ( Name )
@@ -70,6 +72,7 @@ parser =
   <$> (threads <|> pure 0)
   <*> output
   <*> server
+  <*> names
   <*> indexOnly
   where
     threads = option auto
@@ -83,19 +86,24 @@ parser =
     server = strArgument
              (metavar "URL"
               <> help "get packages from server at URL")
+    names = strOption
+            (long "names"
+             <> metavar "FILE"
+             <> help "map Emacs package names to Nix package names using FILE")
     indexOnly = flag False True
                 (long "index-only"
                  <> help "don't update packages, only update the index file")
 
-elpa2nix :: Int -> FilePath -> String -> Bool -> IO ()
-elpa2nix threads output server indexOnly = showExceptions_ $ do
+elpa2nix :: Int -> FilePath -> String -> FilePath -> Bool -> IO ()
+elpa2nix threads output server namesMapFile indexOnly = showExceptions_ $ do
   when (threads > 0) (setNumCapabilities threads)
 
+  namesMap <- Nix.readNames namesMapFile
   archives <- getPackages server
 
   updated <- if indexOnly
              then pure []
-             else runConcurrently (traverse (updatePackage server) (M.toList archives))
+             else runConcurrently (traverse (updatePackage server namesMap) (M.toList archives))
 
   existing <- readIndex output
 
@@ -103,10 +111,10 @@ elpa2nix threads output server indexOnly = showExceptions_ $ do
 
   writeIndex output packages
 
-updatePackage :: String -> (Text, Elpa)
+updatePackage :: String -> HashMap Emacs.Name Name -> (Text, Elpa)
               -> Concurrently (Maybe (Name, NExpr))
-updatePackage server elpa = Concurrently $ do
-  hashed <- hashPackage server elpa
+updatePackage server namesMap elpa = Concurrently $ do
+  hashed <- hashPackage server namesMap elpa
   pure (toExpression <$> hashed)
   where
     toExpression pkg = (Nix.pname pkg, Nix.expression pkg)
@@ -166,8 +174,9 @@ data DistNotImplemented = DistNotImplemented Text
 
 instance Exception DistNotImplemented
 
-hashPackage :: String -> (Text, Elpa) -> IO (Maybe Package)
-hashPackage server (name, pkg) = showExceptions $ do
+hashPackage :: String -> HashMap Emacs.Name Name -> (Text, Elpa)
+            -> IO (Maybe Package)
+hashPackage server namesMap (name, pkg) = showExceptions $ do
   let
     ver = T.intercalate "." (map (T.pack . show) (Elpa.ver pkg))
     basename
@@ -186,10 +195,15 @@ hashPackage server (name, pkg) = showExceptions $ do
                     }
 
   (_, fetcher) <- Nix.prefetch name fetch
+
+  nixName <- Nix.getName namesMap (Emacs.Name name)
+  nixDeps <- mapM (Nix.getName namesMap . Emacs.Name)
+             (maybe [] M.keys (Elpa.deps pkg))
+
   pure Nix.Package
-    { Nix.pname = Nix.fromText name
+    { Nix.pname = nixName
     , Nix.ename = name
     , Nix.version = ver
     , Nix.fetch = fetcher
-    , Nix.deps = map Nix.fromText (maybe [] M.keys (Elpa.deps pkg))
+    , Nix.deps = nixDeps
     }

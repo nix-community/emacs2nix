@@ -18,14 +18,14 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 -}
 
-module Distribution.Emacs.Name ( Name, fromName, fromText ) where
 
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+
+module Distribution.Emacs.Name ( Name (..) ) where
+
+import Data.Hashable ( Hashable )
 import Data.Text ( Text )
 
 
 newtype Name = Name { fromName :: Text }
-  deriving (Eq, Ord, Show)
-
-
-fromText :: Text -> Name
-fromText = Name
+  deriving (Eq, Hashable, Ord, Show)

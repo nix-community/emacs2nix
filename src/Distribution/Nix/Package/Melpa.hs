@@ -80,5 +80,5 @@ expression (Package {..}) = (mkSym "callPackage") @@ drv @@ emptySet where
                        , ename recipe
                        ])
                     , "sha256" `bindTo` mkStr (sha256 recipe)
-                    , "name" `bindTo` mkStr (fromName (fromText (ename recipe)))
+                    , "name" `bindTo` mkStr "recipe"
                     ]
