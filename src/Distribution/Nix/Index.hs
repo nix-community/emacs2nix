@@ -71,7 +71,7 @@ writeIndex output packages = do
   S.withFileAsOutput output (write (packageIndex packages))
   where
     write index out = do
-      let rendered = renderCompact (prettyNix index)
+      let rendered = renderSmart 1.0 80 (prettyNix index)
       displayStream rendered =<< S.encodeUtf8 out
 
 getFunctionBody :: NExpr -> Maybe NExpr
