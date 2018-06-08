@@ -42,3 +42,5 @@ melpa2nix spawns thousands of threads when it starts, using a semaphore to allow
 * TODO Switch to hpack
 
 The .cabal file is a mess of duplicated information. Switch to hpack for a clean package definition.
+
+* TODO Generate commit message and changelog
