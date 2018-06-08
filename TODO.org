@@ -18,7 +18,11 @@
 * TODO Don't complain if a package lacks a stable version
 * TODO Avoid changing recipe revision every time
 * TODO Get package descriptions
-* TODO Get package licenses
+* DONE Get package licenses
+
+  - State "DONE"       from "TODO"       [2018-06-08 Fri 09:56]
+
+All Emacs packages must be licensed GPL-3.
 
 * TODO Keep a bidirectional map of names
 
