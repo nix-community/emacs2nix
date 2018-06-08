@@ -34,3 +34,7 @@ All Emacs packages must be licensed GPL-3.
 A bidirectional map of names is useful to get Emacs names after parsing the package index from Nix. Keeping the map in the Nixpkgs tree makes it configurable.
 
 * TODO Define exceptions ad hoc
+
+* TODO Switch to async-pool
+
+melpa2nix spawns thousands of threads when it starts, using a semaphore to allow a select few to run at a time. Instead, use async-pool to establish a TaskGroup allowing only the selected number of threads to spawn at a time.
