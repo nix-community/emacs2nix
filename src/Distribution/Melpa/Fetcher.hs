@@ -65,7 +65,7 @@ newtype Fetcher = Fetcher { freeze :: Melpa -> FilePath -> IO Nix.Fetch }
 readRecipes :: Melpa -> IO (HashMap Emacs.Name Fetcher)
 readRecipes melpa = do
   let recipesDir = melpaDir melpa </> "recipes"
-  dumpRecipesEl <- getDataFileName "dump-recipes.el"
+  dumpRecipesEl <- getDataFileName "scripts/dump-recipes.el"
   let args = [ "-Q"
              , "--batch"
              , "-L", packageBuildDir melpa
@@ -172,7 +172,7 @@ parseFetcher (Emacs.fromName -> name) =
 getFiles :: Melpa -> Text -> IO [FilePath]
 getFiles melpa name =
   do
-    buildEl <- getDataFileName "build.el"
+    buildEl <- getDataFileName "scripts/build.el"
     let
       args =
         [ "-Q", "--batch"

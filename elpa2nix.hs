@@ -160,7 +160,7 @@ readArchive path = mapException ArchiveError $ do
 
 emacs :: [String] -> (InputByteStream -> IO a) -> IO a
 emacs args go = do
-  load <- getDataFileName "elpa2json.el"
+  load <- getDataFileName "scripts/elpa2json.el"
   let
     args' = [ "-Q", "--batch", "--load", load ] ++ args
   runInteractiveProcess "emacs" args' Nothing Nothing go

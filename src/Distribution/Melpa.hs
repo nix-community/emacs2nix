@@ -204,7 +204,7 @@ getPackage melpa@(Melpa {..}) stable tmpDir namesMap (Emacs.fromName -> name, fe
 build :: Melpa -> Stable -> Text -> FilePath -> IO PkgInfo
 build melpa Stable {..} name packageDir =
   do
-    buildEl <- getDataFileName "build.el"
+    buildEl <- getDataFileName "scripts/build.el"
     let
       args =
         [ "-Q", "--batch"
