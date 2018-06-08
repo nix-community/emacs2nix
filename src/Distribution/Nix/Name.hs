@@ -23,7 +23,14 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ViewPatterns #-}
 
-module Distribution.Nix.Name ( Name (..), readNames, lookupName, getName ) where
+module Distribution.Nix.Name
+  ( Name (..)
+  , readNames
+  , lookupName, getName
+  , InvalidName (..)
+  , ReadNamesError (..)
+  , ParseNixError (..)
+  ) where
 
 import Control.Exception
 import qualified Data.Char as Char
@@ -42,7 +49,8 @@ import Nix.Normal ( normalForm )
 import Nix.Options ( defaultOptions )
 import Nix.Parser
 import Nix.Value
-import Text.PrettyPrint.ANSI.Leijen ( Doc )
+import Text.PrettyPrint.ANSI.Leijen ( Doc, Pretty (..) )
+import qualified Text.PrettyPrint.ANSI.Leijen as Pretty
 
 import qualified Distribution.Emacs.Name as Emacs
 
@@ -91,17 +99,34 @@ getName :: HashMap Emacs.Name Name -> Emacs.Name -> IO Name
 getName namesMap name = either throwIO pure (lookupName namesMap name)
 
 
-data ParseNixFailed = ParseNixFailed Doc
+data ParseNixError = ParseNixError { parseNixErrorReason :: Doc }
   deriving (Show, Typeable)
 
-instance Exception ParseNixFailed
+instance Exception ParseNixError
 
 
-data DecodeNamesFailed = DecodeNamesFailed Doc
+-- | @ReadNamesError@ is thrown by 'readNames' if the Nix expression can be
+-- parsed and evaluated, but the resulting value is not a valid map of Emacs
+-- names to Nix names.
+data ReadNamesError =
+  ReadNamesError
+  { readNamesErrorFilePath :: FilePath
+  , readNamesErrorAttr :: Maybe Text
+  , readNamesErrorReason :: Doc
+  }
   deriving (Show, Typeable)
 
-instance Exception DecodeNamesFailed
+instance Exception ReadNamesError
 
+instance Pretty ReadNamesError where
+  pretty e =
+    Pretty.hsep
+    [ (Pretty.bold . Pretty.string) (readNamesErrorFilePath e) <> Pretty.colon
+    , maybe Pretty.empty
+      (\d -> (Pretty.bold . Pretty.text . Text.unpack) d <> Pretty.colon)
+      (readNamesErrorAttr e)
+    , readNamesErrorReason e
+    ]
 
 -- | Read the map of names from a file, which should contain a Nix expression.
 readNames :: FilePath
@@ -110,7 +135,7 @@ readNames filename =
   do
     result <- parseNixFileLoc filename
     case result of
-      Failure err -> throwIO (ParseNixFailed err)
+      Failure err -> throwIO (ParseNixError err)
       Success parsed ->
         do
           time <- getCurrentTime
@@ -132,7 +157,17 @@ readNames filename =
         NVBuiltinF {} -> found "builtin"
       where
         found what =
-          error (filename ++ ": expected set, but found " ++ what)
+          throw ReadNamesError
+          { readNamesErrorFilePath = filename
+          , readNamesErrorAttr = Nothing
+          , readNamesErrorReason =
+              Pretty.hsep
+              [ "expected"
+              , Pretty.bold "set" <> Pretty.comma
+              , "but found"
+              , (Pretty.bold . Pretty.text) what
+              ]
+          }
 
     getBound (Emacs.fromName -> emacsName) value =
       case unFix value of
@@ -145,5 +180,14 @@ readNames filename =
         NVBuiltinF {} -> found "builtin"
       where
         found what =
-          error (filename ++ ": " ++ Text.unpack emacsName
-                 ++ ": expected string, but found " ++ what)
+          throw ReadNamesError
+          { readNamesErrorFilePath = filename
+          , readNamesErrorAttr = Just emacsName
+          , readNamesErrorReason =
+              Pretty.hsep
+              [ "expected"
+              , Pretty.bold "string" <> Pretty.comma
+              , "but found"
+              , (Pretty.bold . Pretty.text) what
+              ]
+          }
