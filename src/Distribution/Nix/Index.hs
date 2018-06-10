@@ -39,10 +39,10 @@ import qualified System.IO.Streams as S
 import Text.PrettyPrint.ANSI.Leijen hiding ( (<$>) )
 
 import Distribution.Nix.Exception
-import Distribution.Nix.Name ( Name, fromName, fromText )
+import qualified Distribution.Nix.Name as Nix
 
 readIndex :: FilePath  -- ^ output file
-          -> IO (Map Name NExpr)
+          -> IO (Map Nix.Name NExpr)
 readIndex output = parseOutputOrDefault =<< doesFileExist output
   where
     die = throwIO (InvalidIndex output)
@@ -57,7 +57,7 @@ readIndex output = parseOutputOrDefault =<< doesFileExist output
       | otherwise = pure M.empty
 
 writeIndex :: FilePath  -- ^ output file
-           -> Map Name NExpr
+           -> Map Nix.Name NExpr
            -> IO ()
 writeIndex output packages = do
   S.withFileAsOutput output (write (packageIndex packages))
@@ -70,20 +70,20 @@ getFunctionBody :: NExpr -> Maybe NExpr
 getFunctionBody (Fix (NAbs _ body)) = Just body
 getFunctionBody _ = Nothing
 
-getPackages :: NExpr -> Maybe (Map Name NExpr)
+getPackages :: NExpr -> Maybe (Map Nix.Name NExpr)
 getPackages (Fix (NSet bindings)) =
   let
-    getPackage (NamedVar (StaticKey name :| []) expr _) = Just (fromText name, expr)
+    getPackage (NamedVar (StaticKey name :| []) expr _) = Just (Nix.Name name, expr)
     getPackage _ = Nothing
   in
     M.fromList <$> traverse getPackage bindings
 getPackages _ = Nothing
 
-packageIndex :: Map Name NExpr -> NExpr
+packageIndex :: Map Nix.Name NExpr -> NExpr
 packageIndex (M.toList -> packages) = mkFunction args body where
   args = mkParamset [("callPackage", Nothing)] False
   body = (mkNonRecSet . map bindPackage) packages
-  bindPackage (name, expr) = bindTo (fromName name) expr
+  bindPackage (name, expr) = bindTo (Nix.fromName name) expr
 
 displayStream :: SimpleDoc -> OutputStream Text -> IO ()
 displayStream sdoc out = display sdoc where

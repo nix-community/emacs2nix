@@ -36,6 +36,7 @@ import Data.Aeson.Types ( parseEither )
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.ByteString as B
 import Data.Char ( isDigit, isHexDigit )
+import Data.HashMap.Strict ( HashMap )
 import Data.Map.Strict ( Map )
 import qualified Data.Map.Strict as M
 import Data.Monoid ( (<>) )
@@ -58,6 +59,7 @@ import System.IO.Temp ( withSystemTempDirectory )
 import Text.Taggy.Parser (taggyWith)
 import Text.Taggy.Types ( Tag (..), Attribute(..) )
 
+import qualified Distribution.Emacs.Name as Emacs
 import Distribution.Melpa.Recipe
 import qualified Distribution.Nix.Fetch as Nix
 import qualified Distribution.Nix.Hash as Nix
@@ -82,10 +84,13 @@ updateMelpa :: FilePath
             -> Bool
             -> FilePath  -- ^ temporary workspace
             -> FilePath  -- ^ dump MELPA recipes here
+            -> FilePath  -- ^ map of Emacs names to Nix names
             -> Bool  -- ^ only generate the index
             -> Set Text
             -> IO ()
-updateMelpa melpaDir stable workDir melpaOut indexOnly packages = do
+updateMelpa melpaDir stable workDir melpaOut namesMapFile indexOnly packages = do
+  namesMap <- Nix.readNames namesMapFile
+
   melpaCommit <- revision_Git Nothing melpaDir
   let melpa = Melpa {..}
 
@@ -102,7 +107,7 @@ updateMelpa melpaDir stable workDir melpaOut indexOnly packages = do
   let update pkg
         = Concurrently
           (bracket (waitQSem sem) (\_ -> signalQSem sem)
-            (\_ -> getPackage melpa stable workDir pkg))
+            (\_ -> getPackage melpa stable workDir namesMap pkg))
       toExpression pkg = (Nix.pname pkg, Nix.expression pkg)
   updates <- if indexOnly
              then pure M.empty
@@ -126,9 +131,11 @@ data PackageException = PackageException Text SomeException
 
 instance Exception PackageException
 
-getPackage :: Melpa -> Bool -> FilePath -> (Text, Recipe)
+getPackage :: Melpa -> Bool -> FilePath
+           -> HashMap Emacs.Name Nix.Name
+           -> (Text, Recipe)
            -> IO (Maybe Nix.Package)
-getPackage melpa@(Melpa {..}) stable workDir (name, recipe)
+getPackage melpa@(Melpa {..}) stable workDir namesMap (name, recipe)
   = showExceptions $ mapExceptionIO (PackageException name) $ do
     let
       packageBuildDir = melpaDir </> "package-build"
@@ -140,12 +147,17 @@ getPackage melpa@(Melpa {..}) stable workDir (name, recipe)
     fetch0 <- getFetcher name (packageWorkDir </> "working" </> T.unpack name) recipe
     (path, fetch) <- Nix.prefetch name fetch0
     deps <- M.keys <$> getDeps packageBuildDir packageBuildEl recipeFile name path
-    pure Nix.Package { Nix.pname = Nix.fromText name
-                     , Nix.version = version
-                     , Nix.fetch = fetch
-                     , Nix.deps = map Nix.fromText deps
-                     , Nix.recipe = melpaRecipe
-                     }
+
+    nixName <- Nix.getName namesMap (Emacs.Name name)
+    nixDeps <- mapM (Nix.getName namesMap . Emacs.Name) deps
+
+    pure Nix.Package
+      { Nix.pname = nixName
+      , Nix.version = version
+      , Nix.fetch = fetch
+      , Nix.deps = nixDeps
+      , Nix.recipe = melpaRecipe
+      }
 
 recipeFileName :: Text -> FilePath
 recipeFileName (T.unpack -> name) = "recipes" </> name
