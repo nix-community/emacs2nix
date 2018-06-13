@@ -20,6 +20,8 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 
 {-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE ExistentialQuantification #-}
+{-# LANGUAGE StandaloneDeriving #-}
 
 module Exceptions
     ( module Control.Exception
@@ -29,6 +31,7 @@ module Exceptions
     , ProcessFailed (..)
     , ProcessingFailed (..)
     , ParseFilesError (..)
+    , ManyExceptions (..), manyExceptions
     ) where
 
 import Control.Exception
@@ -81,3 +84,13 @@ showExceptions_ go = showExceptions go >> pure ()
 mapExceptionIO :: (Exception e, Exception f) => (e -> f) -> IO a -> IO a
 mapExceptionIO f go = catch go handler where
   handler e = throwIO (f e)
+
+data ManyExceptions = forall e. Exception e => ManyExceptions [e]
+  deriving (Typeable)
+
+deriving instance Show ManyExceptions
+
+instance Exception ManyExceptions
+
+manyExceptions :: Exception e => [e] -> ManyExceptions
+manyExceptions = ManyExceptions
