@@ -26,7 +26,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 module Distribution.Nix.Name
   ( Name (..)
   , readNames
-  , lookupName, getName
+  , fromText, lookupName, getName
   , InvalidName (..)
   , ReadNamesError (..)
   , ParseNixError (..)
@@ -70,27 +70,29 @@ data InvalidName
 instance Exception InvalidName
 
 
--- | Decode a valid Nix package name from 'Text', or if the name is invalid,
--- indicate the violation.
-lookupName :: HashMap Emacs.Name Name -> Emacs.Name -> Either InvalidName Name
-lookupName nameMap name =
-  maybe defaultName Right (HashMap.lookup name nameMap)
+fromText :: Text -> Either InvalidName Name
+fromText txt
+  | Char.isDigit (Text.head txt) = Left (InvalidNameBeginDigit txt)
+  | otherwise =
+      case getFirst (Text.foldl' firstIllegal mempty txt) of
+        Nothing -> Right (Name txt)
+        Just illegal -> Left (InvalidNameIllegalChar txt illegal)
   where
-    txt = Emacs.fromName name
-
-    defaultName
-      | Char.isDigit (Text.head txt) = Left (InvalidNameBeginDigit txt)
-      | otherwise =
-          case getFirst (Text.foldl' firstIllegal mempty txt) of
-            Nothing -> Right (Name txt)
-            Just illegal -> Left (InvalidNameIllegalChar txt illegal)
-
     illegalChars = Set.fromList ['@', '+'] -- may not appear in a Nix name
 
     -- | Find the first illegal character in the name.
     firstIllegal a c
       | Set.member c illegalChars = a <> pure c
       | otherwise = a <> mempty
+
+
+-- | Decode a valid Nix package name from 'Text', or if the name is invalid,
+-- indicate the violation.
+lookupName :: HashMap Emacs.Name Name -> Emacs.Name -> Either InvalidName Name
+lookupName nameMap name =
+  maybe (fromText txt) Right (HashMap.lookup name nameMap)
+  where
+    txt = Emacs.fromName name
 
 
 -- | Decode a valid Nix package name from 'Text', or if the name is invalid,
