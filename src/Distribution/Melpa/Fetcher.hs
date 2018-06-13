@@ -60,7 +60,8 @@ newtype Fetcher = Fetcher { freeze :: Melpa -> FilePath -> IO Nix.Fetch }
 
 -- | Read recipes from MELPA into a map from package name to the 'Fetcher' for
 -- each package. The map keys are the /Emacs/ package names (not yet
--- sanitized for Nix).
+-- sanitized for Nix). A @HashMap@ is used because random access is required
+-- to check if recipes have been deleted.
 readRecipes :: Melpa -> IO (HashMap Emacs.Name Fetcher)
 readRecipes melpa = do
   let recipesDir = melpaDir melpa </> "recipes"
@@ -88,13 +89,16 @@ readRecipes melpa = do
 parseFetchers :: Aeson.Value -> Aeson.Parser (HashMap Emacs.Name Fetcher)
 parseFetchers = Aeson.withObject "recipes" parseFetcher1
   where
-    mapKeys f = HashMap.fromList . map (\(k, v) -> (f k, v)) . HashMap.toList
-    parseFetcher1 = (<$>) (mapKeys Emacs.Name) . HashMap.traverseWithKey parseFetcher
+    mapKeys f = HashMap.fromList . map mapKey1 . HashMap.toList
+      where
+        mapKey1 (k, v) = (f k, v)
+    parseFetcher1 =
+      HashMap.traverseWithKey parseFetcher . mapKeys Emacs.Name
 
 
 -- | Parse a 'Fetcher' from the JSON encoding of a MELPA recipe.
-parseFetcher :: Text -> Aeson.Value -> Aeson.Parser Fetcher
-parseFetcher name =
+parseFetcher :: Emacs.Name -> Aeson.Value -> Aeson.Parser Fetcher
+parseFetcher (Emacs.fromName -> name) =
   Aeson.withObject "recipe" $ \rcp ->
     do
       fetcher <- rcp .: "fetcher"

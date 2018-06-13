@@ -32,11 +32,13 @@ import Control.Exception
 import Control.Monad.IO.Class
 import Data.Aeson.Parser ( json' )
 import Data.Aeson.Types
+import Data.Either ( partitionEithers )
 import Data.Foldable ( toList )
 import Data.HashMap.Strict ( HashMap )
+import qualified Data.HashMap.Strict as HashMap
+import Data.HashSet ( HashSet )
+import qualified Data.HashSet as HashSet
 import qualified Data.Map.Strict as Map
-import Data.Set ( Set )
-import qualified Data.Set as Set
 import Data.Text ( Text )
 import qualified Data.Text as T
 import Data.Typeable ( Typeable )
@@ -65,54 +67,60 @@ updateMelpa :: FilePath
             -> FilePath  -- ^ dump MELPA recipes here
             -> FilePath  -- ^ map of Emacs names to Nix names
             -> Bool  -- ^ only generate the index
-            -> Set Emacs.Name
+            -> HashSet Nix.Name
             -> IO ()
-updateMelpa melpaDir stable workDir melpaOut namesMapFile indexOnly packages = do
+updateMelpa melpaDir stable workDir melpaOut namesMapFile indexOnly selected = do
   namesMap <- Nix.readNames namesMapFile
 
   melpaCommit <- Git.revision melpaDir Nothing []
   let melpa = Melpa {..}
 
-  recipes <- readRecipes melpa
+  let
+    getRecipeNames recipes =
+      let
+        (errors, results) =
+          (partitionEithers . map getRecipeName)
+          (HashMap.toList recipes)
+      in
+        case errors of
+          [] -> pure (HashMap.fromList results)
+          _ -> (throwIO . manyExceptions) errors
+      where
+        getRecipeName x@(ename, _) =
+          (,) <$> Nix.lookupName namesMap ename <*> pure x
+  recipes <- getRecipeNames =<< readRecipes melpa
 
   let
-    selected = Map.filterWithKey (\k _ -> isSelected k) recipes
-      where
-        isSelected name = Set.null packages || Set.member name packages
+    select
+      | HashSet.null selected = id
+      | otherwise = Map.filterWithKey (\name _ -> HashSet.member name selected)
 
   createDirectoryIfMissing True workDir
 
   sem <- newQSem =<< getNumCapabilities
 
   let
-    update name fetcher =
+    update _ x =
       Concurrently
       $ bracket (waitQSem sem) (\_ -> signalQSem sem)
-      $ \_ -> getPackage melpa stable workDir namesMap (name, fetcher)
-    updateKeys (_, pkg) = (Nix.pname pkg, Nix.expression pkg)
+      $ \_ -> getPackage melpa stable workDir namesMap x
+    toMap = Map.fromList . HashMap.toList
   updates <-
     runConcurrently
     $ if indexOnly
       then pure Map.empty
-      else Map.fromList . map updateKeys . Map.toList
-           <$> Map.traverseMaybeWithKey update selected
+      else Map.traverseMaybeWithKey update (select $ toMap recipes)
 
   existing <- readIndex melpaOut
 
-  recipeNames <- Set.fromList <$> traverse (Nix.getName namesMap) (Map.keys recipes)
-  selectedNames <- Set.fromList <$> traverse (Nix.getName namesMap) (Map.keys selected)
-
   let
     -- | Was the recipe removed?
-    removed = \name -> not (Set.member name recipeNames) && isSelected name
-      where
-        isSelected name =
-          Set.null selectedNames || Set.member name selectedNames
+    removed name = not (HashMap.member name recipes)
     updated
-      | indexOnly = Map.union updates existing
+      | indexOnly = Map.union (Nix.expression <$> updates) existing
       | otherwise =
-          Map.union updates
-          $ Map.filterWithKey (\k _ -> (not . removed) k) existing
+          Map.union (Nix.expression <$> updates)
+          $ Map.filterWithKey (\k _ -> (not . removed) k) (select existing)
 
   writeIndex melpaOut updated
 
