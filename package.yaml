@@ -35,6 +35,7 @@ dependencies:
   - io-streams >= 1.3
   - scientific >= 0.3
   - taggy >= 0.2
+  - template-haskell >= 2.12
   - temporary >= 1.2
   - text >= 1.2
   - time >= 1.5
