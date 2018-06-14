@@ -59,7 +59,8 @@ import Distribution.Nix.Name ( Name )
 import qualified Distribution.Nix.Name as Nix
 import Distribution.Nix.Package.Elpa ( Package )
 import qualified Distribution.Nix.Package.Elpa as Nix
-import Util
+import Exceptions
+import Process
 
 main :: IO ()
 main = join (execParser (info (helper <*> parser) desc))

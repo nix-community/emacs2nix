@@ -16,12 +16,31 @@
   CLOSED: [2015-08-21 Fri 14:16]
 * TODO Generate readable errors
 * TODO Don't complain if a package lacks a stable version
-* TODO Avoid changing recipe revision every time
+* DONE Avoid changing recipe revision every time
+
+  - State "DONE"       from "TODO"       [2018-06-08 Fri 09:56]
+
+The source file list is expanded from the recipe and passed to Git to limit the range of commits considered. For Git-based packages, the recipe and source revisions are changed only when the package is actually updated.
+
 * TODO Get package descriptions
-* TODO Get package licenses
+* DONE Get package licenses
+
+  - State "DONE"       from "TODO"       [2018-06-08 Fri 09:56]
+
+All Emacs packages must be licensed GPL-3.
 
 * TODO Keep a bidirectional map of names
 
 A bidirectional map of names is useful to get Emacs names after parsing the package index from Nix. Keeping the map in the Nixpkgs tree makes it configurable.
 
 * TODO Define exceptions ad hoc
+
+* TODO Switch to async-pool
+
+melpa2nix spawns thousands of threads when it starts, using a semaphore to allow a select few to run at a time. Instead, use async-pool to establish a TaskGroup allowing only the selected number of threads to spawn at a time.
+
+* TODO Switch to hpack
+
+The .cabal file is a mess of duplicated information. Switch to hpack for a clean package definition.
+
+* TODO Generate commit message and changelog

@@ -27,6 +27,7 @@ module Distribution.Nix.Package.Melpa ( Package(..), Recipe(..), expression ) wh
 import Data.Fix
 import Data.Text ( Text )
 import qualified Data.Text as T
+import Data.Version ( Version, showVersion )
 import Nix.Expr
 
 import Distribution.Nix.Builtin
@@ -36,7 +37,7 @@ import Distribution.Nix.Name
 data Package
   = Package
     { pname :: !Name
-    , version :: !Text
+    , version :: !Version
     , fetch :: !Fetch
     , deps :: ![Name]
     , recipe :: !Recipe
@@ -53,11 +54,11 @@ expression (Package {..}) = (mkSym "callPackage") @@ drv @@ emptySet where
   drv = mkFunction args body
   emptySet = mkNonRecSet []
   requires = map fromName deps
-  args = (flip mkParamset True . map optionalBuiltins)
+  args = (flip mkParamset False . map optionalBuiltins)
          ("lib" : "melpaBuild" : "fetchurl" : importFetcher fetch : requires)
   body = ((@@) (mkSym "melpaBuild") . mkNonRecSet)
          [ "pname" `bindTo` mkStr (fromName pname)
-         , "version" `bindTo` mkStr version
+         , "version" `bindTo` mkStr (T.pack $ showVersion version)
          , "src" `bindTo` fetchExpr fetch
          , "recipeFile" `bindTo` fetchRecipe
          , "packageRequires" `bindTo` mkList (map mkSym requires)
