@@ -27,7 +27,7 @@ Differs from `package-build--pkg-info-for-json' by ignoring `:props'."
 (defun build-1 (name)
   (let* ((rcp (package-recipe-lookup name))
          (version (package-build--checkout rcp))
-         (pkg-info (cdr (package-build-package rcp version))))
+         (pkg-info (cdr (package-build--package rcp version))))
     (princ (json-encode (pkg-info-for-json pkg-info)))))
 
 (defun build ()

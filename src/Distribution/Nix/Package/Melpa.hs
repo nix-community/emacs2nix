@@ -62,7 +62,7 @@ expression (Package {..}) = (mkSym "callPackage") @@ drv @@ emptySet where
          [ "pname" `bindTo` mkStr (fromName pname)
          , "version" `bindTo` mkStr (T.pack $ showVersion version)
          , "src" `bindTo` fetchExpr fetch
-         , "recipeFile" `bindTo` fetchRecipe
+         , "recipe" `bindTo` fetchRecipe
          , "packageRequires" `bindTo` mkList (map mkSym requires)
          , "meta" `bindTo` meta
          ]
