@@ -185,5 +185,5 @@ getFiles melpa name =
     runInteractiveProcess "emacs" args cwd Nothing $ \out -> do
       r <- Aeson.parseEither Aeson.parseJSON <$> Stream.parseFromStream Aeson.json' out
       case r of
-        Left err -> throwIO (ParseFilesError err)
+        Left err -> throwM (ParseFilesError err)
         Right pkgInfo -> pure pkgInfo

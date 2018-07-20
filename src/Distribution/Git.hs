@@ -47,7 +47,7 @@ revision src branch files =
   do
     runInteractiveProcess "git" args (Just src) Nothing $ \out -> do
       revs <- Stream.lines out >>= Stream.decodeUtf8
-      maybe (throwIO NoRevision) pure =<< Stream.read revs
+      maybe (throwM NoRevision) pure =<< Stream.read revs
   where
     args = [ "log", "--first-parent", "-n1", "--pretty=format:%H" ]
            -- package-build does not fetch all branches by default, so they

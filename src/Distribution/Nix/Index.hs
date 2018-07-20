@@ -46,6 +46,7 @@ import System.IO.Streams ( OutputStream )
 import qualified System.IO.Streams as S
 import Text.PrettyPrint.ANSI.Leijen hiding ( sep )
 
+import qualified Distribution.Emacs.Name as Emacs
 import Distribution.Nix.Exception
 import qualified Distribution.Nix.Name as Nix
 
@@ -81,7 +82,8 @@ getFunctionBody _ = Nothing
 getPackages :: NExpr -> Maybe (Map Nix.Name NExpr)
 getPackages (Fix (NSet bindings)) =
   let
-    getPackage (NamedVar (StaticKey name :| []) expr _) = Just (Nix.Name name, expr)
+    getPackage (NamedVar (StaticKey name :| []) expr _) =
+      Just (Nix.Name { Nix.fromName = name, Nix.ename = Emacs.Name name }, expr)
     getPackage _ = Nothing
   in
     fmap Map.fromList (traverse getPackage bindings)

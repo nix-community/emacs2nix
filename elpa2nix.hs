@@ -96,21 +96,22 @@ parser =
                  <> help "don't update packages, only update the index file")
 
 elpa2nix :: Int -> FilePath -> String -> FilePath -> Bool -> IO ()
-elpa2nix threads output server namesMapFile indexOnly = showExceptions_ $ do
-  when (threads > 0) (setNumCapabilities threads)
+elpa2nix threads output server namesMapFile indexOnly =
+  catchPretty_ $ do
+    when (threads > 0) (setNumCapabilities threads)
 
-  namesMap <- Nix.readNames namesMapFile
-  archives <- getPackages server
+    namesMap <- Nix.readNames namesMapFile
+    archives <- getPackages server
 
-  updated <- if indexOnly
-             then pure []
-             else runConcurrently (traverse (updatePackage server namesMap) (M.toList archives))
+    updated <- if indexOnly
+              then pure []
+              else runConcurrently (traverse (updatePackage server namesMap) (M.toList archives))
 
-  existing <- readIndex output
+    existing <- readIndex output
 
-  let packages = M.union (M.fromList (catMaybes updated)) existing
+    let packages = M.union (M.fromList (catMaybes updated)) existing
 
-  writeIndex output packages
+    writeIndex output packages
 
 updatePackage :: String -> HashMap Emacs.Name Name -> (Text, Elpa)
               -> Concurrently (Maybe (Name, NExpr))
@@ -177,34 +178,35 @@ instance Exception DistNotImplemented
 
 hashPackage :: String -> HashMap Emacs.Name Name -> (Text, Elpa)
             -> IO (Maybe Package)
-hashPackage server namesMap (name, pkg) = showExceptions $ do
-  let
-    ver = T.intercalate "." (map (T.pack . show) (Elpa.ver pkg))
-    basename
-      | null (Elpa.ver pkg) = T.unpack name
-      | otherwise = T.unpack (name <> "-" <> ver)
+hashPackage server namesMap (name, pkg) =
+  catchPretty $ do
+    let
+      ver = T.intercalate "." (map (T.pack . show) (Elpa.ver pkg))
+      basename
+        | null (Elpa.ver pkg) = T.unpack name
+        | otherwise = T.unpack (name <> "-" <> ver)
 
-  ext <- case Elpa.dist pkg of
-           "single" -> pure "el"
-           "tar" -> pure "tar"
-           other -> throwIO (DistNotImplemented other)
-  let
-    url = server </> basename <.> ext
-    fetch = Nix.URL { Nix.url = T.pack url
-                    , Nix.sha256 = Nothing
-                    , Nix.name = Nothing
-                    }
+    ext <- case Elpa.dist pkg of
+            "single" -> pure "el"
+            "tar" -> pure "tar"
+            other -> throwIO (DistNotImplemented other)
+    let
+      url = server </> basename <.> ext
+      fetch = Nix.URL { Nix.url = T.pack url
+                      , Nix.sha256 = Nothing
+                      , Nix.name = Nothing
+                      }
 
-  (_, fetcher) <- Nix.prefetch name fetch
+    (_, fetcher) <- Nix.prefetch name fetch
 
-  nixName <- Nix.getName namesMap (Emacs.Name name)
-  nixDeps <- mapM (Nix.getName namesMap . Emacs.Name)
-             (maybe [] M.keys (Elpa.deps pkg))
+    nixName <- Nix.getName namesMap (Emacs.Name name)
+    nixDeps <- mapM (Nix.getName namesMap . Emacs.Name)
+              (maybe [] M.keys (Elpa.deps pkg))
 
-  pure Nix.Package
-    { Nix.pname = nixName
-    , Nix.ename = name
-    , Nix.version = ver
-    , Nix.fetch = fetcher
-    , Nix.deps = nixDeps
-    }
+    pure Nix.Package
+      { Nix.pname = nixName
+      , Nix.ename = name
+      , Nix.version = ver
+      , Nix.fetch = fetcher
+      , Nix.deps = nixDeps
+      }

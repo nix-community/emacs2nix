@@ -18,6 +18,8 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 -}
 
+{-# LANGUAGE DuplicateRecordFields #-}
+{-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
@@ -65,20 +67,23 @@ expression (Package {..}) = (mkSym "callPackage") @@ drv @@ emptySet where
          , "meta" `bindTo` meta
          ]
     where
+      Recipe { ename, commit } = recipe
       meta = mkNonRecSet
              [ "homepage" `bindTo` mkStr homepage
              , "license" `bindTo` license
              ]
         where
-          homepage = T.append "https://melpa.org/#/" (ename recipe)
-          license = Fix (NSelect (mkSym "lib") [StaticKey "licenses", StaticKey "free"] Nothing)
+          homepage = T.append "https://melpa.org/#/" ename
+          license =
+            Fix (NSelect (mkSym "lib")
+                 [StaticKey "licenses", StaticKey "free"] Nothing)
       fetchRecipe = ((@@) (mkSym "fetchurl") . mkNonRecSet)
                     [ "url" `bindTo` mkStr
                       (T.concat
                        [ "https://raw.githubusercontent.com/milkypostman/melpa/"
-                       , commit recipe
+                       , commit
                        , "/recipes/"
-                       , ename recipe
+                       , ename
                        ])
                     , "sha256" `bindTo` mkStr (sha256 recipe)
                     , "name" `bindTo` mkStr "recipe"
