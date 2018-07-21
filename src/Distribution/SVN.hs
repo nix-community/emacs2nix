@@ -35,6 +35,6 @@ revision :: FilePath -> IO Text
 revision tmp = do
   runInteractiveProcess "svn" ["info"] (Just tmp) Nothing $ \out -> do
     revs <- Stream.mapMaybe getRev =<< (Stream.lines out >>= Stream.decodeUtf8)
-    maybe (throwIO NoRevision) pure =<< Stream.read revs
+    maybe (throwM NoRevision) pure =<< Stream.read revs
   where
     getRev = (<$>) Text.strip . Text.stripPrefix "Revision:"

@@ -19,31 +19,36 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
 {-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE DuplicateRecordFields #-}
+{-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE ViewPatterns #-}
 
 module Distribution.Nix.Name
   ( Name (..)
   , readNames
-  , fromText, lookupName, getName
+  , fromText, getName
   , InvalidName (..)
   , ReadNamesError (..)
   , ParseNixError (..)
   ) where
 
-import Control.Exception
 import qualified Data.Char as Char
 import Data.Fix ( Fix (..) )
 import Data.Hashable
 import Data.HashMap.Strict ( HashMap )
 import qualified Data.HashMap.Strict as HashMap
+import Data.Maybe ( fromMaybe )
 import Data.Monoid
+import Data.Set ( Set )
 import qualified Data.Set as Set
 import Data.Text ( Text )
 import qualified Data.Text as Text
 import Data.Time.Clock ( getCurrentTime )
-import Data.Typeable
 import Nix.Exec ( evalExprLoc, runLazyM )
 import Nix.Normal ( normalForm )
 import Nix.Options ( defaultOptions )
@@ -53,32 +58,75 @@ import Text.PrettyPrint.ANSI.Leijen ( Doc, Pretty (..) )
 import qualified Text.PrettyPrint.ANSI.Leijen as Pretty
 
 import qualified Distribution.Emacs.Name as Emacs
+import Exceptions
 
 
 -- | A valid Nix package name.
-newtype Name = Name { fromName :: Text }
-  deriving (Eq, Hashable, Ord, Show)
+data Name =
+  Name
+  {
+    fromName :: Text,
+    ename :: Emacs.Name
+  }
+  deriving (Eq, Ord, Show)
+
+instance Hashable Name where
+  hashWithSalt salt name = hashWithSalt salt (fromName name)
 
 
-data InvalidName
-  = InvalidNameBeginDigit Text
-    -- ^ The name is invalid because it begins with a digit.
-  | InvalidNameIllegalChar Text Char
-    -- ^ The name is invalid because it contains an illegal character
-  deriving (Show, Typeable)
+data InvalidName = forall e. (Exception e, Pretty e) => InvalidName e
+mkException 'PrettyException ''InvalidName
 
-instance Exception InvalidName
+instance Pretty InvalidName where
+  pretty (InvalidName e) =
+    "invalid name: " <> Pretty.pretty e
 
 
-fromText :: Text -> Either InvalidName Name
-fromText txt
-  | Char.isDigit (Text.head txt) = Left (InvalidNameBeginDigit txt)
-  | otherwise =
-      case getFirst (Text.foldl' firstIllegal mempty txt) of
-        Nothing -> Right (Name txt)
-        Just illegal -> Left (InvalidNameIllegalChar txt illegal)
+-- | An exception thrown if @invalidName@ is invalid because it begins with a
+-- digit.
+--
+-- Parent: 'InvalidName'
+data LeadingDigit = LeadingDigit { invalidName :: Text }
+mkException 'InvalidName ''LeadingDigit
+
+instance Pretty LeadingDigit where
+  pretty LeadingDigit {..} =
+    "‘" <> Pretty.string (Text.unpack invalidName) <> "’ begins with a digit"
+
+
+-- | An exception thrown if @invalidName@ is invalid due to the illegal
+-- character @illegalChar@.
+--
+-- Parent: 'InvalidName'
+data IllegalChar = IllegalChar { invalidName :: Text, illegalChar :: Char }
+mkException 'InvalidName ''IllegalChar
+
+instance Pretty IllegalChar where
+  pretty IllegalChar {..} =
+    "‘" <> Pretty.string (Text.unpack invalidName)
+    <> "’ contains illegal character ‘" <> Pretty.char illegalChar <> "’"
+
+-- | Characters that may not appear in a Nix identifier.
+illegalChars :: Set Char
+illegalChars = Set.fromList ['@', '+']
+
+
+-- | Decode a valid Nix package name from 'Text'; if the name is invalid, an
+-- exception is thrown. Valid Nix names must not begin with a digit or contain
+-- the characters in 'illegalChars'.
+--
+-- Throws: 'LeadingDigit', 'IllegalChar'
+fromText :: MonadThrow m => Emacs.Name -> m Name
+fromText name =
+  case getFirst (Text.foldl' firstIllegal mempty txt) of
+    Nothing
+      | leadingDigit -> throwM (LeadingDigit { invalidName = txt })
+      | otherwise -> pure Name { fromName = txt, ename = name }
+    Just illegal ->
+      throwM (IllegalChar { invalidName = txt, illegalChar = illegal })
   where
-    illegalChars = Set.fromList ['@', '+'] -- may not appear in a Nix name
+    txt = Emacs.fromName name
+    leadingDigit = Char.isDigit (Text.head txt)
 
     -- | Find the first illegal character in the name.
     firstIllegal a c
@@ -86,25 +134,21 @@ fromText txt
       | otherwise = a <> mempty
 
 
--- | Decode a valid Nix package name from 'Text', or if the name is invalid,
--- indicate the violation.
-lookupName :: HashMap Emacs.Name Name -> Emacs.Name -> Either InvalidName Name
-lookupName nameMap name =
-  maybe (fromText txt) Right (HashMap.lookup name nameMap)
-  where
-    txt = Emacs.fromName name
+-- | Decode a Nix package name using the provided map. The name is decoded with
+-- 'fromText' if it is not in the map.
+--
+-- Throws: 'LeadingDigit', 'IllegalChar'
+getName :: MonadThrow m => HashMap Emacs.Name Name -> Emacs.Name -> m Name
+getName nameMap name =
+  fromMaybe (fromText name) (pure <$> HashMap.lookup name nameMap)
 
 
--- | Decode a valid Nix package name from 'Text', or if the name is invalid,
--- throw an exception indicating the violation.
-getName :: HashMap Emacs.Name Name -> Emacs.Name -> IO Name
-getName namesMap name = either throwIO pure (lookupName namesMap name)
+data ParseNixError = ParseNixError { reason :: Doc }
+mkException 'PrettyException ''ParseNixError
 
 
-data ParseNixError = ParseNixError { parseNixErrorReason :: Doc }
-  deriving (Show, Typeable)
-
-instance Exception ParseNixError
+instance Pretty ParseNixError where
+  pretty ParseNixError {..} = reason
 
 
 -- | @ReadNamesError@ is thrown by 'readNames' if the Nix expression can be
@@ -112,22 +156,20 @@ instance Exception ParseNixError
 -- names to Nix names.
 data ReadNamesError =
   ReadNamesError
-  { readNamesErrorFilePath :: FilePath
-  , readNamesErrorAttr :: Maybe Text
-  , readNamesErrorReason :: Doc
+  { filePath :: FilePath
+  , attr :: Maybe Text
+  , reason :: Doc
   }
-  deriving (Show, Typeable)
-
-instance Exception ReadNamesError
+mkException 'PrettyException ''ReadNamesError
 
 instance Pretty ReadNamesError where
-  pretty e =
+  pretty ReadNamesError {..} =
     Pretty.hsep
-    [ (Pretty.bold . Pretty.string) (readNamesErrorFilePath e) <> Pretty.colon
+    [ (Pretty.bold . Pretty.string) filePath <> Pretty.colon
     , maybe Pretty.empty
       (\d -> (Pretty.bold . Pretty.text . Text.unpack) d <> Pretty.colon)
-      (readNamesErrorAttr e)
-    , readNamesErrorReason e
+      attr
+    , reason
     ]
 
 -- | Read the map of names from a file, which should contain a Nix expression.
@@ -137,12 +179,12 @@ readNames filename =
   do
     result <- parseNixFileLoc filename
     case result of
-      Failure err -> throwIO (ParseNixError err)
+      Failure err -> throwM (ParseNixError err)
       Success parsed ->
         do
           time <- getCurrentTime
           let opts = defaultOptions time
-          getSet <$> runLazyM opts (normalForm =<< evalExprLoc parsed)
+          getSet =<< runLazyM opts (normalForm =<< evalExprLoc parsed)
   where
     mapKeys f =
       HashMap.fromList . map (\(k, v) -> (f k, v)) . HashMap.toList
@@ -150,7 +192,7 @@ readNames filename =
     getSet value =
       case unFix value of
         NVSetF names _ ->
-          HashMap.mapWithKey getBound (mapKeys Emacs.Name names)
+          HashMap.traverseWithKey getBound (mapKeys Emacs.Name names)
         NVConstantF {} -> found "constant"
         NVStrF {} -> found "string"
         NVPathF {} -> found "path"
@@ -159,10 +201,10 @@ readNames filename =
         NVBuiltinF {} -> found "builtin"
       where
         found what =
-          throw ReadNamesError
-          { readNamesErrorFilePath = filename
-          , readNamesErrorAttr = Nothing
-          , readNamesErrorReason =
+          throwM ReadNamesError
+          { filePath = filename
+          , attr = Nothing
+          , reason =
               Pretty.hsep
               [ "expected"
               , Pretty.bold "set" <> Pretty.comma
@@ -171,9 +213,9 @@ readNames filename =
               ]
           }
 
-    getBound (Emacs.fromName -> emacsName) value =
+    getBound ename0 value =
       case unFix value of
-        NVStrF name _ -> Name name
+        NVStrF name _ -> pure Name { fromName = name, ename = ename0 }
         NVSetF {} -> found "set"
         NVConstantF {} -> found "constant"
         NVPathF {} -> found "path"
@@ -182,10 +224,10 @@ readNames filename =
         NVBuiltinF {} -> found "builtin"
       where
         found what =
-          throw ReadNamesError
-          { readNamesErrorFilePath = filename
-          , readNamesErrorAttr = Just emacsName
-          , readNamesErrorReason =
+          throwM ReadNamesError
+          { filePath = filename
+          , attr = Just (Emacs.fromName ename0)
+          , reason =
               Pretty.hsep
               [ "expected"
               , Pretty.bold "string" <> Pretty.comma

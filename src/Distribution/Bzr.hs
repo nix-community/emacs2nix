@@ -37,6 +37,6 @@ revision tmp =
     let args = [ "log", "-l1", tmp ]
     runInteractiveProcess "bzr" args Nothing Nothing $ \out -> do
       revs <- Stream.mapMaybe revno =<< (Stream.lines out >>= Stream.decodeUtf8)
-      maybe (throwIO NoRevision) pure =<< Stream.read revs
+      maybe (throwM NoRevision) pure =<< Stream.read revs
   where
     revno = (Text.takeWhile Char.isDigit . Text.strip <$>) . Text.stripPrefix "revno:"

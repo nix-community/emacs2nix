@@ -24,7 +24,6 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 module Process where
 
 import Control.Concurrent.Async (Concurrently(..))
-import Control.Exception
 import Data.ByteString (ByteString)
 import Data.Monoid ((<>))
 import Data.Text (Text)
@@ -33,6 +32,7 @@ import Debug.Trace
 import System.Exit (ExitCode(..))
 import System.IO.Streams (InputStream)
 import qualified System.IO.Streams as S
+import qualified Text.PrettyPrint.ANSI.Leijen as Pretty
 
 import Exceptions
 
@@ -44,8 +44,8 @@ runInteractiveProcess
   :: String -> [String] -> Maybe FilePath -> Maybe [(String, String)]
   -> (InputStream ByteString -> IO a)
   -> IO a
-runInteractiveProcess cmd args cwd env withOutput
-  = mapExceptionIO (ProcessFailed cmd args) $ do
+runInteractiveProcess cmd args cwd env withOutput =
+  inContext ("process " <> Pretty.string (S.showCommandForUser cmd args)) $ do
     (_, out, err, pid) <- S.runInteractiveProcess cmd args cwd env
     let
       getOutput =
@@ -64,8 +64,8 @@ runInteractiveProcess cmd args cwd env withOutput
     (output, errorMessage, exit) <- runConcurrently ((,,) <$> getOutput <*> getErrors <*> wait)
     case (exit, output) of
       (ExitSuccess, Right v) -> pure v
-      (ExitSuccess, Left (ex, leftover)) -> throwIO $ ProcessingFailed leftover errorMessage ex
-      (ExitFailure code, Left info) -> throwIO $ trace (show info) $ Died code errorMessage
+      (ExitSuccess, Left (ex, leftover)) -> throwM $ ProcessingFailed leftover errorMessage ex
+      (ExitFailure code, Left info) -> throwM $ trace (show info) $ Died code errorMessage
       (ExitFailure code, Right _) ->
-          throwIO $ Died code "the improbable happened: successfully parsed \
-                              \output from failed process"
+          throwM $ Died code "the improbable happened: successfully parsed \
+                             \output from failed process"

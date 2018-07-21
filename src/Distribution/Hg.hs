@@ -36,7 +36,7 @@ revision :: FilePath -> IO Text
 revision source = do
   runInteractiveProcess "hg" ["tags"] (Just source) Nothing $ \out -> do
     revs <- Stream.mapMaybe getRev =<< (Stream.lines out >>= Stream.decodeUtf8)
-    maybe (throwIO NoRevision) pure =<< Stream.read revs
+    maybe (throwM NoRevision) pure =<< Stream.read revs
   where
     getRev txt = do
       afterTip <- Text.strip <$> Text.stripPrefix "tip" txt

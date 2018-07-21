@@ -26,7 +26,6 @@ module Main where
 
 import Control.Concurrent ( getNumCapabilities, setNumCapabilities )
 import Control.Monad ( join )
-import Data.Either ( partitionEithers )
 import Data.HashSet ( HashSet )
 import qualified Data.HashSet as HashSet
 import Data.Monoid ( (<>) )
@@ -35,10 +34,10 @@ import qualified Data.Text as T
 import Options.Applicative
 import System.Environment ( setEnv, unsetEnv )
 
+import qualified Distribution.Emacs.Name as Emacs
 import Distribution.Melpa
 import Distribution.Melpa.Melpa ( Stable (..) )
 import qualified Distribution.Nix.Name as Nix.Name
-import Exceptions
 
 main :: IO ()
 main = join (execParser (info (helper <*> parser) desc))
@@ -84,26 +83,19 @@ melpa2nix :: Int  -- ^ number of threads to use
           -> Bool  -- ^ only generate the index
           -> HashSet Text
           -> IO ()
-melpa2nix nthreads melpaDir stable workDir melpaOut namesMapFile indexOnly packages = do
-  -- set number of threads before beginning
-  if nthreads > 0
-     then setNumCapabilities nthreads
-     else getNumCapabilities >>= setNumCapabilities . (* 4)
+melpa2nix nthreads melpaDir stable workDir melpaOut namesFile indexOnly packages =
+  do
+    -- set number of threads before beginning
+    if nthreads > 0
+      then setNumCapabilities nthreads
+      else getNumCapabilities >>= setNumCapabilities . (* 4)
 
-  let
-    getSelectedNames selected =
-      let
-        (errors, results) =
-          (partitionEithers . map Nix.Name.fromText)
-          (HashSet.toList selected)
-      in
-        case errors of
-          [] -> pure (HashSet.fromList results)
-          _ -> (throwIO . manyExceptions) errors
-  selected <- getSelectedNames packages
+    names <- Nix.Name.readNames namesFile
 
-  -- Force our TZ to match the melpa build machines
-  setEnv "TZ" "PST8PDT"
-  -- Any operation requiring a password should fail
-  unsetEnv "SSH_ASKPASS"
-  updateMelpa melpaDir stable workDir melpaOut namesMapFile indexOnly selected
+    selected <- getSelectedNames names (HashSet.map Emacs.Name packages)
+
+    -- Force our TZ to match the melpa build machines
+    setEnv "TZ" "PST8PDT"
+    -- Any operation requiring a password should fail
+    unsetEnv "SSH_ASKPASS"
+    updateMelpa melpaDir stable workDir melpaOut indexOnly names selected
