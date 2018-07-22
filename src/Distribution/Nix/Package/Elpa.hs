@@ -51,6 +51,7 @@ expression (Package {..}) = (mkSym "callPackage") @@ drv @@ emptySet where
          ("lib" : "elpaBuild" : importFetcher fetch : requires)
   body = ((@@) (mkSym "elpaBuild") . mkNonRecSet)
          [ "pname" `bindTo` mkStr (fromName pname)
+         , "ename" `bindTo` mkStr ename
          , "version" `bindTo` mkStr version
          , "src" `bindTo` fetchExpr fetch
          , "packageRequires" `bindTo` mkList (map mkSym requires)

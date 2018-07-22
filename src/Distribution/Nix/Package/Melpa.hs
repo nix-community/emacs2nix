@@ -60,6 +60,7 @@ expression (Package {..}) = (mkSym "callPackage") @@ drv @@ emptySet where
          ("lib" : "melpaBuild" : "fetchurl" : importFetcher fetch : requires)
   body = ((@@) (mkSym "melpaBuild") . mkNonRecSet)
          [ "pname" `bindTo` mkStr (fromName pname)
+         , "ename" `bindTo` mkStr ename
          , "version" `bindTo` mkStr (T.pack $ showVersion version)
          , "src" `bindTo` fetchExpr fetch
          , "recipe" `bindTo` fetchRecipe
