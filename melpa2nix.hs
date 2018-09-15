@@ -38,11 +38,17 @@ import qualified Distribution.Emacs.Name as Emacs
 import Distribution.Melpa
 import Distribution.Melpa.Melpa ( Stable (..) )
 import qualified Distribution.Nix.Name as Nix.Name
+import Exceptions
 
 main :: IO ()
-main = join (execParser (info (helper <*> parser) desc))
+main =
+    (catchPretty_ . joinParser)
+    (info (helper <*> parser) desc)
   where
     desc = fullDesc <> progDesc "Generate Nix expressions from MELPA recipes"
+
+joinParser :: ParserInfo (IO ()) -> IO ()
+joinParser = join . execParser
 
 parser :: Parser (IO ())
 parser =
