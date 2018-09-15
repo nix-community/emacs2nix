@@ -1,16 +1,15 @@
-{ nixpkgs ? import ./nixpkgs {}, profiling ? false }:
-
-# Shell environment used by the fetching scripts
+let
+  nixpkgs = import ./nixpkgs.nix;
+  emacs2nix = import ./default.nix;
+in
 
 with nixpkgs;
-
-let emacs2nix = import ./default.nix { inherit nixpkgs profiling; }; in
 
 stdenv.mkDerivation {
   name = "interactive-${emacs2nix.name}-environment";
   nativeBuildInputs = [
     emacs nix nix-prefetch-scripts
-    bazaar cvs curl darcs fossil git mercurial subversion
+    bazaar cvs curl fossil git mercurial subversion
     emacs2nix
   ];
   shellHook = ''

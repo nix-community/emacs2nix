@@ -27,7 +27,7 @@ import Data.Text (Text)
 import Data.Typeable (Typeable)
 import qualified System.IO.Streams as S
 
-import Util
+import Process
 
 data NoHashOutput = NoHashOutput
   deriving (Show, Typeable)

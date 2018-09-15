@@ -40,7 +40,7 @@ import Data.Aeson ( (.:!), withObject )
 import Data.Aeson.Parser ( json' )
 import Data.Aeson.Types ( parseEither )
 
-import Util (runInteractiveProcess)
+import Process
 
 data Fetch = URL { url :: Text, sha256 :: Maybe Text, name :: Maybe Text }
            | Git { url :: Text, rev :: Text, branchName :: Maybe Text, sha256 :: Maybe Text }
@@ -50,6 +50,31 @@ data Fetch = URL { url :: Text, sha256 :: Maybe Text, name :: Maybe Text }
            | SVN { url :: Text, rev :: Text, sha256 :: Maybe Text }
            | GitHub { owner :: Text, repo :: Text, rev :: Text, sha256 :: Maybe Text }
            | GitLab { owner :: Text, repo :: Text, rev :: Text, sha256 :: Maybe Text }
+
+
+fetchURL :: Text -> Maybe Text -> Fetch
+fetchURL url name = URL {..} where sha256 = Nothing
+
+fetchGit :: Text -> Maybe Text -> Text -> Fetch
+fetchGit url branchName rev = Git {..} where sha256 = Nothing
+
+fetchBzr :: Text -> Text -> Fetch
+fetchBzr url rev = Bzr {..} where sha256 = Nothing
+
+fetchCVS :: Text -> Maybe Text -> Fetch
+fetchCVS cvsRoot cvsModule = CVS {..} where sha256 = Nothing
+
+fetchHg :: Text -> Text -> Fetch
+fetchHg url rev = Hg {..} where sha256 = Nothing
+
+fetchSVN :: Text -> Text -> Fetch
+fetchSVN url rev = SVN {..} where sha256 = Nothing
+
+fetchGitHub :: Text -> Text -> Text -> Fetch
+fetchGitHub owner repo rev = GitHub {..} where sha256 = Nothing
+
+fetchGitLab :: Text -> Text -> Text -> Fetch
+fetchGitLab owner repo rev = GitLab {..} where sha256 = Nothing
 
 importFetcher :: Fetch -> Text
 importFetcher (URL {}) = "fetchurl"
