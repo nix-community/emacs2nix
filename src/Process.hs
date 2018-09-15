@@ -28,7 +28,6 @@ import Data.ByteString (ByteString)
 import Data.Monoid ((<>))
 import Data.Text (Text)
 import qualified Data.Text as T
-import Debug.Trace
 import System.Exit (ExitCode(..))
 import System.IO.Streams (InputStream)
 import qualified System.IO.Streams as S
@@ -65,7 +64,4 @@ runInteractiveProcess cmd args cwd env withOutput =
     case (exit, output) of
       (ExitSuccess, Right v) -> pure v
       (ExitSuccess, Left (ex, leftover)) -> throwM $ ProcessingFailed leftover errorMessage ex
-      (ExitFailure code, Left info) -> throwM $ trace (show info) $ Died code errorMessage
-      (ExitFailure code, Right _) ->
-          throwM $ Died code "the improbable happened: successfully parsed \
-                             \output from failed process"
+      (ExitFailure code, _) -> throwM $ Died code errorMessage
