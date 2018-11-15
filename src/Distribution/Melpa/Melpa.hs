@@ -24,9 +24,11 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 {-# LANGUAGE ViewPatterns #-}
 
 module Distribution.Melpa.Melpa
-  ( Melpa (..), packageBuildDir
+  ( Melpa (..)
   , ParseMelpaError (..)
   , Stable (..)
+  , packageBuildDir
+  , htmlDir
   ) where
 
 import Control.Exception ( Exception )
@@ -41,6 +43,7 @@ data Melpa =
   , melpaCommit :: Text
   }
 
+
 data ParseMelpaError = ParseMelpaError String
   deriving (Show, Typeable)
 
@@ -52,3 +55,7 @@ newtype Stable = Stable { stable :: Bool }
 
 packageBuildDir :: Melpa -> FilePath
 packageBuildDir Melpa {..} = melpaDir </> "package-build"
+
+
+htmlDir :: Melpa -> FilePath
+htmlDir Melpa { melpaDir } = melpaDir </> "html"
