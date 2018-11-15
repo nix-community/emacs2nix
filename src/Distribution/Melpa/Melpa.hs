@@ -25,6 +25,7 @@ module Distribution.Melpa.Melpa
   , packageBuildDir
   , htmlDir
   , archiveJson
+  , recipesJson
   ) where
 
 import Control.Exception ( Exception )
@@ -59,3 +60,7 @@ htmlDir Melpa { melpaDir } = melpaDir </> "html"
 
 archiveJson :: Melpa -> FilePath
 archiveJson melpa = htmlDir melpa </> "archive" <.> "json"
+
+
+recipesJson :: Melpa -> FilePath
+recipesJson melpa = htmlDir melpa </> "recipes" <.> "json"
