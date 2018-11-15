@@ -19,8 +19,6 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
 
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-
 module Distribution.Emacs.Name ( Name (..) ) where
 
 import Data.Hashable ( Hashable )

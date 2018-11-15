@@ -18,13 +18,11 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 -}
 
-{-# LANGUAGE NamedFieldPuns #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE ViewPatterns #-}
-
-module Distribution.Melpa ( updateMelpa, getSelectedNames, getRecipeNames ) where
+module Distribution.Melpa
+    ( updateMelpa
+    , getSelectedNames
+    , getRecipeNames
+    ) where
 
 import Control.Concurrent ( getNumCapabilities )
 import Control.Concurrent.Async ( Concurrently(..) )

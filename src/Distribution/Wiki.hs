@@ -18,8 +18,6 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
 
-{-# LANGUAGE OverloadedStrings #-}
-
 module Distribution.Wiki ( revision ) where
 
 import Data.ByteString ( ByteString )

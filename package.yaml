@@ -45,6 +45,22 @@ dependencies:
 
 ghc-options: -Wall
 
+default-extensions:
+  - DeriveDataTypeable
+  - DeriveGeneric
+  - DuplicateRecordFields
+  - ExistentialQuantification
+  - GeneralizedNewtypeDeriving
+  - LambdaCase
+  - NamedFieldPuns
+  - OverloadedLists
+  - OverloadedStrings
+  - RankNTypes
+  - RecordWildCards
+  - ScopedTypeVariables
+  - StandaloneDeriving
+  - ViewPatterns
+
 library:
   exposed-modules:
     - Distribution.Bzr

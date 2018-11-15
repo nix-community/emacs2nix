@@ -1,8 +1,8 @@
--- This file has been generated from package.yaml by hpack version 0.27.0.
+-- This file has been generated from package.yaml by hpack version 0.28.2.
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: c1e00f0cc0fbdee53d812a448ab58378e69de319add96dd1a3dcefca1aa81a7b
+-- hash: cc130b956d3d03b0e2aab7ff139b1820a7bbf9dfbb436a457c76c7ef0695e494
 
 name:           emacs2nix
 version:        0.1.0.0
@@ -20,7 +20,6 @@ license:        GPL-3
 license-file:   LICENSE
 build-type:     Simple
 cabal-version:  >= 1.10
-
 data-files:
     scripts/build.el
     scripts/dump-recipes.el
@@ -58,6 +57,7 @@ library
       Paths_emacs2nix
   hs-source-dirs:
       src
+  default-extensions: DeriveDataTypeable DeriveGeneric DuplicateRecordFields ExistentialQuantification GeneralizedNewtypeDeriving LambdaCase NamedFieldPuns OverloadedLists OverloadedStrings RankNTypes RecordWildCards ScopedTypeVariables StandaloneDeriving ViewPatterns
   ghc-options: -Wall
   build-depends:
       aeson >=0.8
@@ -90,6 +90,7 @@ executable elpa2nix
   main-is: elpa2nix.hs
   other-modules:
       Paths_emacs2nix
+  default-extensions: DeriveDataTypeable DeriveGeneric DuplicateRecordFields ExistentialQuantification GeneralizedNewtypeDeriving LambdaCase NamedFieldPuns OverloadedLists OverloadedStrings RankNTypes RecordWildCards ScopedTypeVariables StandaloneDeriving ViewPatterns
   ghc-options: -Wall -threaded
   build-depends:
       aeson >=0.8
@@ -124,6 +125,7 @@ executable melpa2nix
   main-is: melpa2nix.hs
   other-modules:
       Paths_emacs2nix
+  default-extensions: DeriveDataTypeable DeriveGeneric DuplicateRecordFields ExistentialQuantification GeneralizedNewtypeDeriving LambdaCase NamedFieldPuns OverloadedLists OverloadedStrings RankNTypes RecordWildCards ScopedTypeVariables StandaloneDeriving ViewPatterns
   ghc-options: -Wall -threaded
   build-depends:
       aeson >=0.8

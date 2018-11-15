@@ -18,11 +18,6 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 -}
 
-
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE ViewPatterns #-}
-
 module Distribution.Melpa.Fetcher ( Fetcher (..), readRecipes ) where
 
 import Data.Aeson.Types ( (.:), (.:?) )
