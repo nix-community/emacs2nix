@@ -28,7 +28,6 @@ import qualified Data.HashMap.Strict as HashMap
 import Data.Monoid
 import Data.Text ( Text )
 import qualified Data.Text as Text
-import System.FilePath
 import qualified System.IO.Streams as Stream
 import qualified System.IO.Streams.Attoparsec as Stream
 
@@ -53,30 +52,30 @@ import Process
 newtype Fetcher = Fetcher { freeze :: Melpa -> FilePath -> IO Nix.Fetch }
 
 
--- | Read recipes from MELPA into a map from package name to the 'Fetcher' for
--- each package. The map keys are the /Emacs/ package names (not yet
--- sanitized for Nix). A @HashMap@ is used because random access is required
--- to check if recipes have been deleted.
+{- | Read recipes from MELPA.
+
+Read recipes from MELPA into a map from package name to the 'Fetcher' for each
+package. The map keys are the /Emacs/ package names (not yet sanitized for
+Nix). A @HashMap@ is used because random access is required to check if recipes
+have been deleted.
+
+Before this function is called, the recipe archive must be compiled using the
+MELPA @Makefile@.
+
+See also: 'recipesJson'
+
+-}
 readRecipes :: Melpa -> IO (HashMap Emacs.Name Fetcher)
-readRecipes melpa = do
-  let recipesDir = melpaDir melpa </> "recipes"
-  dumpRecipesEl <- getDataFileName "scripts/dump-recipes.el"
-  let args = [ "-Q"
-             , "--batch"
-             , "-L", packageBuildDir melpa
-             , "-l", dumpRecipesEl
-             , "-f", "dump-recipes-json", recipesDir
-             ]
-  runInteractiveProcess "emacs" args Nothing Nothing $ \out ->
-    do
-      value <- Stream.parseFromStream Aeson.json' out
-      case Aeson.parseEither parseFetchers value of
-        Left err ->
-          do
-            let msg = "error reading recipes: " <> Text.pack err
-            Stream.write (Just msg) =<< Stream.encodeUtf8 Stream.stderr
-            return HashMap.empty
-        Right recipes -> return recipes
+readRecipes melpa =
+  Stream.withFileAsInput (recipesJson melpa) $ \inp -> do
+    value <- Stream.parseFromStream Aeson.json' inp
+    case Aeson.parseEither parseFetchers value of
+      Left err ->
+        do
+          let msg = "error reading recipes: " <> Text.pack err
+          Stream.write (Just msg) =<< Stream.encodeUtf8 Stream.stderr
+          return HashMap.empty
+      Right recipes -> return recipes
 
 
 -- | Parse a map of package names to MELPA recipes from the JSON encoding of
