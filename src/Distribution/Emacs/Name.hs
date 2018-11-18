@@ -23,7 +23,14 @@ module Distribution.Emacs.Name ( Name (..) ) where
 
 import Data.Hashable ( Hashable )
 import Data.Text ( Text )
+import qualified Data.Text as Text
+import Text.PrettyPrint.ANSI.Leijen ( Pretty (..) )
+import qualified Text.PrettyPrint.ANSI.Leijen as Pretty
 
 
 newtype Name = Name { fromName :: Text }
   deriving (Eq, Hashable, Ord, Show)
+
+
+instance Pretty Name where
+  pretty = Pretty.text . Text.unpack . fromName

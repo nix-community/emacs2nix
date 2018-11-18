@@ -15,7 +15,11 @@
 * DONE Generate packages from MELPA Stable
   CLOSED: [2015-08-21 Fri 14:16]
 * TODO Generate readable errors
-* TODO Don't complain if a package lacks a stable version
+* CANCELLED Don't complain if a package lacks a stable version
+
+We are removing support for MELPA Stable because the stable package set is not
+closed.
+
 * DONE Avoid changing recipe revision every time
 
   - State "DONE"       from "TODO"       [2018-06-08 Fri 09:56]

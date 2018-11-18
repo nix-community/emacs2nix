@@ -9,7 +9,7 @@ stdenv.mkDerivation {
   name = "interactive-${emacs2nix.name}-environment";
   nativeBuildInputs = [
     emacs nix nix-prefetch-scripts
-    bazaar cvs curl fossil git mercurial subversion
+    curl git mercurial
     emacs2nix
   ];
   shellHook = ''

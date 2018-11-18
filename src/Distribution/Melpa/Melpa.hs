@@ -21,7 +21,6 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 module Distribution.Melpa.Melpa
   ( Melpa (..)
   , ParseMelpaError (..)
-  , Stable (..)
   , packageBuildDir
   , htmlDir
   , archiveJson
@@ -45,9 +44,6 @@ data ParseMelpaError = ParseMelpaError String
   deriving (Show, Typeable)
 
 instance Exception ParseMelpaError
-
-
-newtype Stable = Stable { stable :: Bool }
 
 
 packageBuildDir :: Melpa -> FilePath

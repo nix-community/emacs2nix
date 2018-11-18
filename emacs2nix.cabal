@@ -2,8 +2,9 @@
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: cc130b956d3d03b0e2aab7ff139b1820a7bbf9dfbb436a457c76c7ef0695e494
+-- hash: 711229fd0e0997bdf24708fb67a3510641cd24480eb4b41461d0cd75d31d5325
 
+cabal-version:  >= 1.10
 name:           emacs2nix
 version:        0.1.0.0
 synopsis:       Generate Nix expressions for Emacs packages
@@ -19,7 +20,6 @@ copyright:      (C) 2018  Thomas Tuegel
 license:        GPL-3
 license-file:   LICENSE
 build-type:     Simple
-cabal-version:  >= 1.10
 data-files:
     scripts/build.el
     scripts/dump-recipes.el
@@ -31,7 +31,6 @@ source-repository head
 
 library
   exposed-modules:
-      Distribution.Bzr
       Distribution.Elpa
       Distribution.Git
       Distribution.Hg
@@ -48,8 +47,6 @@ library
       Distribution.Nix.Name
       Distribution.Nix.Package.Elpa
       Distribution.Nix.Package.Melpa
-      Distribution.SVN
-      Distribution.Wiki
       Exceptions
       Process
   other-modules:

@@ -63,7 +63,6 @@ default-extensions:
 
 library:
   exposed-modules:
-    - Distribution.Bzr
     - Distribution.Elpa
     - Distribution.Git
     - Distribution.Hg
@@ -80,8 +79,6 @@ library:
     - Distribution.Nix.Name
     - Distribution.Nix.Package.Elpa
     - Distribution.Nix.Package.Melpa
-    - Distribution.SVN
-    - Distribution.Wiki
     - Exceptions
     - Process
   source-dirs: src

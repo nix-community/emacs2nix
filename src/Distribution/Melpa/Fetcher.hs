@@ -31,17 +31,9 @@ import qualified Data.Text as Text
 import qualified System.IO.Streams as Stream
 import qualified System.IO.Streams.Attoparsec as Stream
 
-import qualified Distribution.Bzr as Bzr
 import qualified Distribution.Emacs.Name as Emacs
-import qualified Distribution.Git as Git
-import qualified Distribution.Hg as Hg
 import Distribution.Melpa.Melpa
 import qualified Distribution.Nix.Fetch as Nix
-import qualified Distribution.SVN as SVN
-import qualified Distribution.Wiki as Wiki
-import Paths_emacs2nix ( getDataFileName )
-import Exceptions
-import Process
 
 
 -- | A @Fetcher@ is parsed from a MELPA recipe and can be frozen to (ultimately)
@@ -49,7 +41,7 @@ import Process
 -- @Fetcher@ can be parsed from JSON with 'parseFetcher'. Calling @freeze@ with
 -- the local path to the package source produces a 'Nix.Fetch' which is used
 -- to retrieve an exact version of the package source.
-newtype Fetcher = Fetcher { freeze :: Melpa -> FilePath -> IO Nix.Fetch }
+newtype Fetcher = Fetcher { freeze :: Text -> Nix.Fetch }
 
 
 {- | Read recipes from MELPA.
@@ -67,32 +59,35 @@ See also: 'recipesJson'
 -}
 readRecipes :: Melpa -> IO (HashMap Emacs.Name Fetcher)
 readRecipes melpa =
-  Stream.withFileAsInput (recipesJson melpa) $ \inp -> do
-    value <- Stream.parseFromStream Aeson.json' inp
-    case Aeson.parseEither parseFetchers value of
-      Left err ->
-        do
-          let msg = "error reading recipes: " <> Text.pack err
-          Stream.write (Just msg) =<< Stream.encodeUtf8 Stream.stderr
-          return HashMap.empty
-      Right recipes -> return recipes
+  Stream.withFileAsInput (recipesJson melpa) $ \recipesInput ->
+    do
+      recipes <- Stream.parseFromStream Aeson.json' recipesInput
+      case Aeson.parseEither parseFetchers recipes of
+        Left err ->
+          do
+            let msg = "error reading recipes: " <> Text.pack err
+            Stream.write (Just msg) =<< Stream.encodeUtf8 Stream.stderr
+            return HashMap.empty
+        Right result -> return result
 
 
 -- | Parse a map of package names to MELPA recipes from the JSON encoding of
 -- MELPA recipes.
-parseFetchers :: Aeson.Value -> Aeson.Parser (HashMap Emacs.Name Fetcher)
-parseFetchers = Aeson.withObject "recipes" parseFetcher1
+parseFetchers
+  :: Aeson.Value  -- ^ Recipes
+  -> Aeson.Parser (HashMap Emacs.Name Fetcher)
+parseFetchers =
+  Aeson.withObject "recipes"
+    (traverse parseFetcher . mapKeys Emacs.Name)
   where
     mapKeys f = HashMap.fromList . map mapKey1 . HashMap.toList
       where
         mapKey1 (k, v) = (f k, v)
-    parseFetcher1 =
-      HashMap.traverseWithKey parseFetcher . mapKeys Emacs.Name
 
 
 -- | Parse a 'Fetcher' from the JSON encoding of a MELPA recipe.
-parseFetcher :: Emacs.Name -> Aeson.Value -> Aeson.Parser Fetcher
-parseFetcher (Emacs.fromName -> name) =
+parseFetcher :: Aeson.Value -> Aeson.Parser Fetcher
+parseFetcher =
   Aeson.withObject "recipe" $ \rcp ->
     do
       fetcher <- rcp .: "fetcher"
@@ -101,83 +96,22 @@ parseFetcher (Emacs.fromName -> name) =
           do
             repo <- rcp .: "repo"
             let url = "https://bitbucket.com/" <> repo
-            pure Fetcher
-              { freeze = \_ src -> Nix.fetchHg url <$> Hg.revision src }
-        "bzr" ->
-          do
-            url <- rcp .: "url"
-            pure Fetcher
-              { freeze = \_ src -> Nix.fetchBzr url <$> Bzr.revision src }
+            pure Fetcher { freeze = Nix.fetchHg url }
         "git" ->
           do
             url <- rcp .: "url"
             branch <- rcp .:? "branch"
-            pure Fetcher
-              { freeze = \melpa src ->
-                  do
-                    files <- getFiles melpa name
-                    Nix.fetchGit url branch <$> Git.revision src branch files
-              }
+            pure Fetcher { freeze = Nix.fetchGit url branch }
         "github" ->
           do
             (owner, Text.drop 1 -> repo) <- Text.breakOn "/" <$> rcp .: "repo"
-            pure Fetcher
-              { freeze = \melpa src ->
-                  do
-                    files <- getFiles melpa name
-                    Nix.fetchGitHub owner repo <$> Git.revision src Nothing files
-              }
+            pure Fetcher { freeze = Nix.fetchGitHub owner repo }
         "gitlab" ->
           do
             (owner, Text.drop 1 -> repo) <- Text.breakOn "/" <$> rcp .: "repo"
-            pure Fetcher
-              { freeze = \melpa src ->
-                  do
-                    files <- getFiles melpa name
-                    Nix.fetchGitLab owner repo <$> Git.revision src Nothing files
-              }
-        "cvs" ->
-          do
-            cvsRoot <- rcp .: "url"
-            cvsModule <- rcp .: "module"
-            pure Fetcher { freeze = \_ _ -> pure $ Nix.fetchCVS cvsRoot cvsModule }
+            pure Fetcher { freeze = Nix.fetchGitLab owner repo }
         "hg" ->
           do
             url <- rcp .: "url"
-            pure Fetcher
-              { freeze = \_ src -> Nix.fetchHg url <$> Hg.revision src }
-        "svn" ->
-          do
-            url <- rcp .: "url"
-            pure Fetcher
-              { freeze = \_ src -> Nix.fetchSVN url <$> SVN.revision src }
-        "wiki" ->
-          do
-            url <- rcp .:? "url"
-            pure Fetcher
-              { freeze = \_ _ ->
-                  do
-                    rev <- Wiki.revision name url
-                    pure $ Nix.fetchURL rev (Just $ name <> ".el")
-              }
+            pure Fetcher { freeze = Nix.fetchHg url }
         _ -> fail ("fetcher `" ++ Text.unpack fetcher ++ "' not implemented")
-
-
-getFiles :: Melpa -> Text -> IO [FilePath]
-getFiles melpa name =
-  do
-    buildEl <- getDataFileName "scripts/build.el"
-    let
-      args =
-        [ "-Q", "--batch"
-        , "-L", packageBuildDir melpa
-        , "-l", buildEl
-        , "-f", "files"
-        , Text.unpack name
-        ]
-      cwd = Just (melpaDir melpa)
-    runInteractiveProcess "emacs" args cwd Nothing $ \out -> do
-      r <- Aeson.parseEither Aeson.parseJSON <$> Stream.parseFromStream Aeson.json' out
-      case r of
-        Left err -> throwM (ParseFilesError err)
-        Right pkgInfo -> pure pkgInfo
