@@ -35,13 +35,17 @@ All Emacs packages must be licensed GPL-3.
 
 * TODO Keep a bidirectional map of names
 
-A bidirectional map of names is useful to get Emacs names after parsing the package index from Nix. Keeping the map in the Nixpkgs tree makes it configurable.
+A bidirectional map of names is useful to get Emacs names after parsing the
+package index from Nix. Keeping the map in the Nixpkgs tree makes it
+configurable.
 
 * TODO Define exceptions ad hoc
 
 * TODO Switch to async-pool
 
-melpa2nix spawns thousands of threads when it starts, using a semaphore to allow a select few to run at a time. Instead, use async-pool to establish a TaskGroup allowing only the selected number of threads to spawn at a time.
+melpa2nix spawns thousands of threads when it starts, using a semaphore to allow
+a select few to run at a time. Instead, use async-pool to establish a TaskGroup
+allowing only the selected number of threads to spawn at a time.
 
 * DONE Switch to hpack
 
@@ -49,3 +53,12 @@ melpa2nix spawns thousands of threads when it starts, using a semaphore to allow
 The .cabal file is a mess of duplicated information. Switch to hpack for a clean package definition.
 
 * TODO Generate commit message and changelog
+
+* TODO Cache individual package expressions
+
+Generating the package set is not interruptible because the package pre-fetch
+results are stored in memory. Individual package expressions should be written
+to `packages/≪name≫-≪version≫.nix' (like the package archive entries). We could
+use hashing to avoid updating the expressions needlessly, or we could use
+Nix. Assembling the final package set should simply be a matter of parsing and
+combining these individual expressions.
