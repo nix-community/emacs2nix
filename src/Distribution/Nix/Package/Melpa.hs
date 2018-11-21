@@ -18,13 +18,11 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 -}
 
-{-# LANGUAGE DuplicateRecordFields #-}
-{-# LANGUAGE NamedFieldPuns #-}
-{-# LANGUAGE OverloadedLists #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RecordWildCards #-}
-
-module Distribution.Nix.Package.Melpa ( Package(..), Recipe(..), expression ) where
+module Distribution.Nix.Package.Melpa
+    ( Package(..)
+    , Recipe(..)
+    , expression
+    ) where
 
 import Data.Fix
 import Data.Text ( Text )

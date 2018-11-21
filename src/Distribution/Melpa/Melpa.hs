@@ -18,15 +18,13 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 -}
 
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE ViewPatterns #-}
-
 module Distribution.Melpa.Melpa
-  ( Melpa (..), packageBuildDir
+  ( Melpa (..)
   , ParseMelpaError (..)
-  , Stable (..)
+  , packageBuildDir
+  , htmlDir
+  , archiveJson
+  , recipesJson
   ) where
 
 import Control.Exception ( Exception )
@@ -41,14 +39,24 @@ data Melpa =
   , melpaCommit :: Text
   }
 
+
 data ParseMelpaError = ParseMelpaError String
   deriving (Show, Typeable)
 
 instance Exception ParseMelpaError
 
 
-newtype Stable = Stable { stable :: Bool }
-
-
 packageBuildDir :: Melpa -> FilePath
 packageBuildDir Melpa {..} = melpaDir </> "package-build"
+
+
+htmlDir :: Melpa -> FilePath
+htmlDir Melpa { melpaDir } = melpaDir </> "html"
+
+
+archiveJson :: Melpa -> FilePath
+archiveJson melpa = htmlDir melpa </> "archive" <.> "json"
+
+
+recipesJson :: Melpa -> FilePath
+recipesJson melpa = htmlDir melpa </> "recipes" <.> "json"

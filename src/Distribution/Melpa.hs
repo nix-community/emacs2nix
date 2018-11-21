@@ -18,20 +18,16 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 -}
 
-{-# LANGUAGE NamedFieldPuns #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE TemplateHaskell #-}
 
-module Distribution.Melpa ( updateMelpa, getSelectedNames, getRecipeNames ) where
+module Distribution.Melpa
+    ( updateMelpa
+    , getSelectedNames
+    ) where
 
 import Control.Concurrent ( getNumCapabilities )
 import Control.Concurrent.Async ( Concurrently(..) )
 import Control.Concurrent.QSem
-import Control.Monad.IO.Class
-import Data.Aeson.Parser ( json' )
-import Data.Aeson.Types
 import Data.Foldable ( toList )
 import Data.HashMap.Strict ( HashMap )
 import qualified Data.HashMap.Strict as HashMap
@@ -41,10 +37,8 @@ import qualified Data.Map.Strict as Map
 import Data.Semigroup
 import Data.Text ( Text )
 import qualified Data.Text as T
-import Data.Typeable ( Typeable )
-import System.Directory ( createDirectoryIfMissing, copyFile )
 import System.FilePath
-import qualified System.IO.Streams.Attoparsec as S
+import Text.PrettyPrint.ANSI.Leijen ( Pretty, (<+>) )
 import qualified Text.PrettyPrint.ANSI.Leijen as Pretty
 
 import qualified Distribution.Emacs.Name as Emacs
@@ -59,43 +53,59 @@ import qualified Distribution.Nix.Name as Nix
 import qualified Distribution.Nix.Package.Melpa as Recipe ( Recipe(..) )
 import qualified Distribution.Nix.Package.Melpa as Nix
 import Exceptions
-import Process
-import Paths_emacs2nix ( getDataFileName )
 
-updateMelpa :: FilePath
-            -> Stable
-            -> FilePath  -- ^ temporary workspace
-            -> FilePath  -- ^ dump MELPA recipes here
-            -> Bool  -- ^ only generate the index
-            -> HashMap Emacs.Name Nix.Name
-            -> HashSet Nix.Name
-            -> IO ()
-updateMelpa melpaDir stable workDir melpaOut indexOnly names selected = do
+
+data MissingRecipeError = MissingRecipeError Nix.Name
+mkException 'PrettyException ''MissingRecipeError
+
+instance Pretty MissingRecipeError where
+  pretty (MissingRecipeError Nix.Name { ename }) =
+    "No recipe found for Emacs package" <+> squotes (Pretty.pretty ename)
+    where
+      squotes doc = "‘" <> doc <> "’"
+
+
+updateMelpa
+  :: FilePath
+  -> FilePath  -- ^ dump MELPA recipes here
+  -> Bool  -- ^ only generate the index
+  -> HashMap Emacs.Name Nix.Name
+  -> HashSet Nix.Name
+  -> IO ()
+updateMelpa melpaDir melpaOut indexOnly names selected = do
   melpaCommit <- Git.revision melpaDir Nothing []
   let melpa = Melpa {..}
 
-  recipes <- getRecipeNames names =<< readRecipes melpa
+  archives <- getKeyNames names =<< readArchives melpa
+  recipes <- getKeyNames names =<< readRecipes melpa
 
   let
     select
       | HashSet.null selected = id
       | otherwise = Map.filterWithKey (\name _ -> HashSet.member name selected)
 
-  createDirectoryIfMissing True workDir
-
   sem <- newQSem =<< getNumCapabilities
 
   let
-    update name recipe =
+    concurrently =
       Concurrently
-      $ bracket (waitQSem sem) (\_ -> signalQSem sem)
-      $ \_ -> getPackage melpa stable workDir names name recipe
+      . bracket (waitQSem sem) (\_ -> signalQSem sem)
+      . const
+    update name pkgInfo =
+      concurrently $ do
+        recipe <- getRecipe
+        getPackage melpa names name pkgInfo recipe
+      where
+        getRecipe =
+          case HashMap.lookup name recipes of
+            Nothing -> throwM (MissingRecipeError name)
+            Just recipe -> return recipe
     toMap = Map.fromList . HashMap.toList
   updates <-
     runConcurrently
     $ if indexOnly
       then pure Map.empty
-      else Map.traverseMaybeWithKey update (select $ toMap recipes)
+      else Map.traverseMaybeWithKey update (select $ toMap archives)
 
   existing <- readIndex melpaOut
 
@@ -130,13 +140,6 @@ getSelectedNames
   -> IO (HashSet Nix.Name)
 getSelectedNames names packages =
   HashSet.fromMap <$> getKeyNames names (HashSet.toMap packages)
-
-
-getRecipeNames
-  :: HashMap Emacs.Name Nix.Name
-  -> HashMap Emacs.Name Fetcher
-  -> IO (HashMap Nix.Name Fetcher)
-getRecipeNames = getKeyNames
 
 
 {-|
@@ -174,73 +177,39 @@ package source and a "packages" subdirectory with the build product.
 
  -}
 
-getPackage :: Melpa -> Stable -> FilePath
-           -> HashMap Emacs.Name Nix.Name
-           -> Nix.Name
-           -> Fetcher
-           -> IO (Maybe Nix.Package)
-getPackage melpa@(Melpa {..}) stable tmpDir namesMap name fetcher =
+getPackage
+  :: Melpa
+  -> HashMap Emacs.Name Nix.Name
+  -> Nix.Name
+  -> PkgInfo
+  -> Fetcher
+  -> IO (Maybe Nix.Package)
+getPackage melpa@(Melpa {..}) namesMap name pkgInfo fetcher =
   catchPretty $ inContext ("package " <> Pretty.string sname) $ do
-    let
-      recipeFile = recipeFileName melpa tname
-
-      packageDir = tmpDir </> sname
-      recipesDir = packageDir </> "recipes"
-      workingDir = packageDir </> "working"
-      archiveDir = packageDir </> "packages"
-      sourceDir = workingDir </> sname
-
-    createDirectoryIfMissing True recipesDir
-    createDirectoryIfMissing True workingDir
-    createDirectoryIfMissing True archiveDir
-    copyFile recipeFile (recipesDir </> sname)
 
     melpaRecipe <- freezeRecipe melpa tname
-    pkgInfo <- build melpa stable tname packageDir
-    (_, fetch) <- Nix.prefetch tname =<< freeze fetcher melpa sourceDir
+    (_, fetch) <- Nix.prefetch tname (freeze fetcher commit)
 
-    nixName <- Nix.getName namesMap ename
     nixDeps <- mapM (Nix.getName namesMap . Emacs.Name) (toList $ deps pkgInfo)
 
-    pure
-      Nix.Package
-      { Nix.pname = nixName
+    pure Nix.Package
+      { Nix.pname = name
       , Nix.version = version pkgInfo
       , Nix.fetch = fetch
       , Nix.deps = nixDeps
       , Nix.recipe = melpaRecipe
       }
   where
+    PkgInfo { commit } = pkgInfo
     Nix.Name { ename } = name
     tname = Emacs.fromName ename
     sname = T.unpack tname
 
-build :: Melpa -> Stable -> Text -> FilePath -> IO PkgInfo
-build melpa Stable {..} name packageDir =
-  do
-    buildEl <- getDataFileName "scripts/build.el"
-    let
-      args =
-        [ "-Q", "--batch"
-        , "-L", packageBuildDir melpa
-        , "-l", buildEl
-        , "-f", if stable then "build-stable" else "build"
-        , T.unpack name
-        ]
-      cwd = Just packageDir
-    runInteractiveProcess "emacs" args cwd Nothing $ \out -> do
-      r <- liftIO (parseEither parsePkgInfo <$> S.parseFromStream json' out)
-      case r of
-        Left err -> throwM (ParsePkgInfoError err)
-        Right pkgInfo -> pure pkgInfo
-
-recipeFileName :: Melpa -> Text -> FilePath
-recipeFileName Melpa {..} (T.unpack -> name) = melpaDir </> "recipes" </> name
 
 freezeRecipe :: Melpa -> Text -> IO Nix.Recipe
-freezeRecipe melpa@(Melpa {..}) name = do
-  let recipe = recipeFileName melpa name
-  hash <- Nix.hash recipe
+freezeRecipe Melpa { melpaDir } name = do
+  let recipe = "recipes" </> T.unpack name
+  hash <- Nix.hash melpaDir recipe
   commit <- Git.revision melpaDir Nothing [recipe]
   pure
     Nix.Recipe
@@ -248,13 +217,3 @@ freezeRecipe melpa@(Melpa {..}) name = do
     , Recipe.commit = commit
     , Recipe.sha256 = hash
     }
-
-data NoVersion = NoVersion
-  deriving (Show, Typeable)
-
-instance Exception NoVersion
-
-data ParsePkgInfoError = ParsePkgInfoError String
-  deriving (Show, Typeable)
-
-instance Exception ParsePkgInfoError

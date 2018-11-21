@@ -18,12 +18,6 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 -}
 
-
-{-# LANGUAGE DeriveDataTypeable #-}
-{-# LANGUAGE ExistentialQuantification #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TemplateHaskell #-}
 
 module Exceptions
@@ -60,10 +54,6 @@ mkException 'SomeException ''ProcessFailed
 
 data ProcessingFailed = ProcessingFailed Text Text SomeException
 mkException 'SomeException ''ProcessingFailed
-
-
-data ParseFilesError = ParseFilesError String
-mkException 'SomeException ''ParseFilesError
 
 
 data PrettyException = forall e. (Exception e, Pretty e) => PrettyException e
@@ -137,4 +127,16 @@ instance Pretty Died where
     Pretty.vsep
     [ "died with exit code" <+> Pretty.pretty exit <> ":"
     , Pretty.string (Text.unpack err)
+    ]
+
+
+data ParseFilesError = ParseFilesError String
+mkException 'PrettyException ''ParseFilesError
+
+
+instance Pretty ParseFilesError where
+  pretty (ParseFilesError err) =
+    Pretty.vsep
+    [ "parse error:"
+    , Pretty.string err
     ]

@@ -18,8 +18,6 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 -}
 
-{-# LANGUAGE DeriveDataTypeable #-}
-
 module Distribution.Nix.Exception where
 
 import Control.Exception

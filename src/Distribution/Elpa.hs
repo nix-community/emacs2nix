@@ -18,8 +18,6 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 -}
 
-{-# LANGUAGE DeriveGeneric #-}
-
 module Distribution.Elpa ( Elpa(..) ) where
 
 import Data.Aeson ( FromJSON(..), ToJSON(..) )

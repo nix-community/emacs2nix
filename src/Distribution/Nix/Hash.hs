@@ -18,8 +18,6 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 -}
 
-{-# LANGUAGE DeriveDataTypeable #-}
-
 module Distribution.Nix.Hash where
 
 import Control.Exception
@@ -39,10 +37,10 @@ newtype NixHashError = NixHashError SomeException
 
 instance Exception NixHashError
 
-hash :: FilePath -> IO Text
-hash filename
-  = mapException NixHashError
-    (runInteractiveProcess "nix-hash" args Nothing Nothing getHash)
+hash :: FilePath -> FilePath -> IO Text
+hash cwd filename =
+  mapException NixHashError
+    (runInteractiveProcess "nix-hash" args (Just cwd) Nothing getHash)
   where
     args = [ "--type", "sha256", "--base32", "--flat", filename ]
     getHash out = do

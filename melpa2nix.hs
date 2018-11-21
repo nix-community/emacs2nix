@@ -18,10 +18,6 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 -}
 
-{-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RecordWildCards #-}
-
 module Main where
 
 import Control.Concurrent ( getNumCapabilities, setNumCapabilities )
@@ -36,7 +32,6 @@ import System.Environment ( setEnv, unsetEnv )
 
 import qualified Distribution.Emacs.Name as Emacs
 import Distribution.Melpa
-import Distribution.Melpa.Melpa ( Stable (..) )
 import qualified Distribution.Nix.Name as Nix.Name
 
 main :: IO ()
@@ -49,8 +44,6 @@ parser =
   melpa2nix
   <$> (threads <|> pure 0)
   <*> melpa
-  <*> stable
-  <*> work
   <*> output
   <*> names
   <*> indexOnly
@@ -60,9 +53,6 @@ parser =
                           <> help "use N threads; default is number of CPUs")
     melpa = strOption (long "melpa" <> metavar "DIR"
                         <> help "path to MELPA repository")
-    stable = Stable <$> switch (long "stable" <> help "generate packages from MELPA Stable")
-    work = strOption (long "work" <> metavar "DIR"
-                      <> help "path to temporary workspace")
     output = strOption (long "output" <> short 'o' <> metavar "FILE"
                         <> help "dump MELPA data to FILE")
     names = strOption (long "names" <> metavar "FILE"
@@ -74,16 +64,15 @@ parser =
                 <$> many (strArgument
                           (metavar "PACKAGE" <> help "only work on PACKAGE"))
 
-melpa2nix :: Int  -- ^ number of threads to use
-          -> FilePath  -- ^ path to MELPA repository
-          -> Stable    -- ^ generate packages from MELPA Stable
-          -> FilePath  -- ^ temporary workspace
-          -> FilePath  -- ^ dump MELPA recipes here
-          -> FilePath  -- ^ map of Emacs names to Nix names
-          -> Bool  -- ^ only generate the index
-          -> HashSet Text
-          -> IO ()
-melpa2nix nthreads melpaDir stable workDir melpaOut namesFile indexOnly packages =
+melpa2nix
+  :: Int  -- ^ number of threads to use
+  -> FilePath  -- ^ path to MELPA repository
+  -> FilePath  -- ^ dump MELPA recipes here
+  -> FilePath  -- ^ map of Emacs names to Nix names
+  -> Bool  -- ^ only generate the index
+  -> HashSet Text  -- ^ selected packages
+  -> IO ()
+melpa2nix nthreads melpaDir melpaOut namesFile indexOnly packages =
   do
     -- set number of threads before beginning
     if nthreads > 0
@@ -98,4 +87,4 @@ melpa2nix nthreads melpaDir stable workDir melpaOut namesFile indexOnly packages
     setEnv "TZ" "PST8PDT"
     -- Any operation requiring a password should fail
     unsetEnv "SSH_ASKPASS"
-    updateMelpa melpaDir stable workDir melpaOut indexOnly names selected
+    updateMelpa melpaDir melpaOut indexOnly names selected

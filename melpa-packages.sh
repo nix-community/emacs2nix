@@ -3,4 +3,4 @@
 
 # usage: ./melpa-packages.sh --melpa PATH_TO_MELPA_CLONE
 
-melpa2nix --work /tmp/melpa2nix "$@"
+melpa2nix --names names.nix "$@"

@@ -18,8 +18,6 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 -}
 
-{-# LANGUAGE OverloadedStrings #-}
-
 module Distribution.Nix.Builtin (optionalBuiltins) where
 
 import qualified Data.Set as S
@@ -36,6 +34,7 @@ optionalBuiltins dep
               , "ansi-color"
               , "antlr-mode"
               , "artist"
+              , "auth-source"
               , "bs"
               , "cedet"
               , "cfengine"

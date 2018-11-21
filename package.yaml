@@ -45,9 +45,24 @@ dependencies:
 
 ghc-options: -Wall
 
+default-extensions:
+  - DeriveDataTypeable
+  - DeriveGeneric
+  - DuplicateRecordFields
+  - ExistentialQuantification
+  - GeneralizedNewtypeDeriving
+  - LambdaCase
+  - NamedFieldPuns
+  - OverloadedLists
+  - OverloadedStrings
+  - RankNTypes
+  - RecordWildCards
+  - ScopedTypeVariables
+  - StandaloneDeriving
+  - ViewPatterns
+
 library:
   exposed-modules:
-    - Distribution.Bzr
     - Distribution.Elpa
     - Distribution.Git
     - Distribution.Hg
@@ -64,8 +79,6 @@ library:
     - Distribution.Nix.Name
     - Distribution.Nix.Package.Elpa
     - Distribution.Nix.Package.Melpa
-    - Distribution.SVN
-    - Distribution.Wiki
     - Exceptions
     - Process
   source-dirs: src
