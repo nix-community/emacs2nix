@@ -64,3 +64,5 @@ to `packages/≪name≫-≪version≫.nix' (like the package archive entries). W
 use hashing to avoid updating the expressions needlessly, or we could use
 Nix. Assembling the final package set should simply be a matter of parsing and
 combining these individual expressions.
+
+* TODO Configure package names and builtins at runtime
