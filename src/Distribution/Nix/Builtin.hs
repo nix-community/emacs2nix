@@ -34,6 +34,7 @@ optionalBuiltins dep
               , "ansi-color"
               , "antlr-mode"
               , "artist"
+              , "auth-source"
               , "bs"
               , "cedet"
               , "cfengine"
