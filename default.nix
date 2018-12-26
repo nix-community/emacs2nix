@@ -8,7 +8,7 @@ let
 
   blacklistDirs = [ ".git" "dist" "dist-newstyle" ];
   whitelistExts = [ ".cabal" ".el" ".hs" ];
-  whitelistNames = [ "COPYING" "LICENSE" ];
+  whitelistNames = [ "COPYING" "LICENSE" "package.yaml" ];
 
   filterSrc =
     let
@@ -29,4 +29,4 @@ let
 
 in
 
-  drv
+drv

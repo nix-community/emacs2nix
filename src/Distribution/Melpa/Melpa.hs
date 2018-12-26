@@ -23,6 +23,7 @@ module Distribution.Melpa.Melpa
   , ParseMelpaError (..)
   , packageBuildDir
   , htmlDir
+  , packagesDir
   , archiveJson
   , recipesJson
   ) where
@@ -52,6 +53,10 @@ packageBuildDir Melpa {..} = melpaDir </> "package-build"
 
 htmlDir :: Melpa -> FilePath
 htmlDir Melpa { melpaDir } = melpaDir </> "html"
+
+
+packagesDir :: Melpa -> FilePath
+packagesDir Melpa { melpaDir } = melpaDir </> "packages"
 
 
 archiveJson :: Melpa -> FilePath

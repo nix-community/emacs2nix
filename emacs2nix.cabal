@@ -1,8 +1,8 @@
--- This file has been generated from package.yaml by hpack version 0.28.2.
+-- This file has been generated from package.yaml by hpack version 0.27.0.
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 711229fd0e0997bdf24708fb67a3510641cd24480eb4b41461d0cd75d31d5325
+-- hash: 5956385ef3d2de008f4bd30ae183f1473eab8ddf4566a76cfc13a2736285e2f5
 
 cabal-version:  >= 1.10
 name:           emacs2nix
@@ -20,6 +20,7 @@ copyright:      (C) 2018  Thomas Tuegel
 license:        GPL-3
 license-file:   LICENSE
 build-type:     Simple
+
 data-files:
     scripts/build.el
     scripts/dump-recipes.el
@@ -51,6 +52,7 @@ library
       Process
   other-modules:
       Exceptions.TH
+      System.IO.Streams.Pretty
       Paths_emacs2nix
   hs-source-dirs:
       src
@@ -68,6 +70,7 @@ library
     , directory >=1.2
     , errors >=2
     , exceptions >=0.8
+    , extra
     , filepath >=1.3
     , hashable >=1.2
     , hnix
@@ -102,6 +105,7 @@ executable elpa2nix
     , emacs2nix
     , errors >=2
     , exceptions >=0.8
+    , extra
     , filepath >=1.3
     , hashable >=1.2
     , hnix
@@ -137,6 +141,7 @@ executable melpa2nix
     , emacs2nix
     , errors >=2
     , exceptions >=0.8
+    , extra
     , filepath >=1.3
     , hashable >=1.2
     , hnix

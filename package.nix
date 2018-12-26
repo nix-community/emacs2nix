@@ -1,6 +1,6 @@
 { mkDerivation, aeson, ansi-wl-pprint, async, attoparsec, base
 , bytestring, containers, data-fix, directory, errors, exceptions
-, filepath, hashable, hnix, http-streams, io-streams
+, extra, filepath, hashable, hnix, hpack, http-streams, io-streams
 , optparse-applicative, scientific, stdenv, taggy, template-haskell
 , temporary, text, time, transformers, unordered-containers
 }:
@@ -13,17 +13,19 @@ mkDerivation {
   enableSeparateDataOutput = true;
   libraryHaskellDepends = [
     aeson ansi-wl-pprint async attoparsec base bytestring containers
-    data-fix directory errors exceptions filepath hashable hnix
+    data-fix directory errors exceptions extra filepath hashable hnix
     http-streams io-streams scientific taggy template-haskell temporary
     text time transformers unordered-containers
   ];
+  libraryToolDepends = [ hpack ];
   executableHaskellDepends = [
     aeson ansi-wl-pprint async attoparsec base bytestring containers
-    data-fix directory errors exceptions filepath hashable hnix
+    data-fix directory errors exceptions extra filepath hashable hnix
     http-streams io-streams optparse-applicative scientific taggy
     template-haskell temporary text time transformers
     unordered-containers
   ];
+  preConfigure = "hpack";
   homepage = "https://github.com/ttuegel/emacs2nix#readme";
   description = "Generate Nix expressions for Emacs packages";
   license = stdenv.lib.licenses.gpl3;

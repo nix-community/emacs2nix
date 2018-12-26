@@ -22,25 +22,21 @@ module Distribution.Nix.Index ( readIndex, writeIndex ) where
 
 import Control.Exception
 import Data.Fix
-import Data.List ( isPrefixOf )
 import Data.List.NonEmpty ( NonEmpty (..) )
 import Data.Map.Strict ( Map )
 import qualified Data.Map.Strict as Map
-import Data.Maybe ( isJust )
-import Data.Text ( Text )
-import qualified Data.Text as Text
-import Nix.Parser ( NAssoc (..), OperatorInfo (..), Result (..), getBinaryOperator, getUnaryOperator, parseNixFile )
-import Nix.Pretty hiding ( exprFNixDoc, prettyNix, prettyParams, prettyParamSet )
 import Nix.Expr
+import qualified Nix.Parser
+import qualified Nix.Pretty
 import Prelude hiding ( (<$>) )
 import System.Directory ( doesFileExist )
-import System.IO.Streams ( OutputStream )
 import qualified System.IO.Streams as S
 import Text.PrettyPrint.ANSI.Leijen hiding ( sep )
 
 import qualified Distribution.Emacs.Name as Emacs
 import Distribution.Nix.Exception
 import qualified Distribution.Nix.Name as Nix
+import System.IO.Streams.Pretty as Pretty
 
 readIndex :: FilePath  -- ^ output file
           -> IO (Map Nix.Name NExpr)
@@ -50,10 +46,10 @@ readIndex output = parseOutputOrDefault =<< doesFileExist output
 
     parseOutputOrDefault exists
       | exists = do
-          result <- parseNixFile output
+          result <- Nix.Parser.parseNixFile output
           case result of
-            Failure _ -> die
-            Success parsed ->
+            Nix.Parser.Failure _ -> die
+            Nix.Parser.Success parsed ->
               maybe die pure (getFunctionBody parsed >>= getPackages)
       | otherwise = pure Map.empty
 
@@ -64,7 +60,7 @@ writeIndex output packages = do
   S.withFileAsOutput output (write (packageIndex packages))
   where
     write index out = do
-      let rendered = renderSmart 1.0 80 (prettyNix index)
+      let rendered = renderSmart 1.0 80 (Nix.Pretty.prettyNix index)
       displayStream rendered =<< S.encodeUtf8 out
 
 getFunctionBody :: NExpr -> Maybe NExpr
@@ -85,95 +81,8 @@ packageIndex :: Map Nix.Name NExpr -> NExpr
 packageIndex (Map.toList -> packages) = mkFunction args body where
   args = mkParamset [("callPackage", Nothing)] False
   body = (mkNonRecSet . map bindPackage) packages
-  bindPackage (name, expr) = bindTo (Nix.fromName name) expr
-
-displayStream :: SimpleDoc -> OutputStream Text -> IO ()
-displayStream sdoc out = display sdoc where
-  display SFail = throwIO PrettyFailed
-  display SEmpty = return ()
-  display (SChar c sdoc') = S.write (Just (Text.singleton c)) out >> display sdoc'
-  display (SText _ t sdoc') = S.write (Just (Text.pack t)) out >> display sdoc'
-  display (SLine i sdoc') = S.write (Just (Text.cons '\n' (indentation i))) out >> display sdoc'
-  display (SSGR _ sdoc') = display sdoc'
-  indentation i = Text.replicate i (Text.singleton ' ')
-
-prettyParams :: Params NixDoc -> Doc
-prettyParams (Param n) = text $ Text.unpack n
-prettyParams (ParamSet s v mname) = prettyParamSet s v <> case mname of
-  Nothing -> empty
-  Just name | Text.null name -> empty
-            | otherwise -> text "@" <> text (Text.unpack name)
-
-prettyParamSet :: ParamSet NixDoc -> Bool -> Doc
-prettyParamSet args var =
-    encloseSep (lbrace <> space) (align (space <> rbrace)) sep (prettyArgs ++ prettyVariadic)
-  where
-    prettyArgs = (Map.elems . Map.mapWithKey prettySetArg . Map.fromList) args
-    prettySetArg n maybeDef = case maybeDef of
-      Nothing -> text (Text.unpack n)
-      Just v -> text (Text.unpack n) <+> text "?" <+> withoutParens v
-    prettyVariadic = [text "..." | var]
-    sep = align (comma <> space)
-
-exprFNixDoc :: NExprF NixDoc -> NixDoc
-exprFNixDoc = \case
-    NConstant atom -> prettyAtom atom
-    NStr str -> simpleExpr $ prettyString str
-    NList [] -> simpleExpr $ lbracket <> rbracket
-    NList xs -> simpleExpr $ group $
-        nest 2 (vsep $ lbracket : map (wrapParens appOpNonAssoc) xs) <$> rbracket
-    NSet [] -> simpleExpr $ lbrace <> rbrace
-    NSet xs -> simpleExpr $ group $
-        nest 2 (vsep $ lbrace : map prettyBind xs) <$> rbrace
-    NRecSet [] -> simpleExpr $ recPrefix <> lbrace <> rbrace
-    NRecSet xs -> simpleExpr $ group $
-        nest 2 (vsep $ recPrefix <> lbrace : map prettyBind xs) <$> rbrace
-    NAbs args body -> leastPrecedence $
-        nest 2 ((prettyParams args <> colon) <$> withoutParens body)
-    NBinary NApp fun arg ->
-        mkNixDoc (wrapParens appOp fun <+> wrapParens appOpNonAssoc arg) appOp
-    NBinary op r1 r2 -> flip mkNixDoc opInfo $ hsep
-        [ wrapParens (f NAssocLeft) r1
-        , text $ Text.unpack $ operatorName opInfo
-        , wrapParens (f NAssocRight) r2
-        ]
-      where
-        opInfo = getBinaryOperator op
-        f x | associativity opInfo /= x = opInfo { associativity = NAssocNone }
-            | otherwise = opInfo
-    NUnary op r1 ->
-        mkNixDoc (text (Text.unpack (operatorName opInfo)) <> wrapParens opInfo r1) opInfo
-      where opInfo = getUnaryOperator op
-    NSelect r attr o ->
-      (if isJust o then leastPrecedence else flip mkNixDoc selectOp) $
-          wrapPath selectOp r <> dot <> prettySelector attr <> ordoc
-      where ordoc = maybe empty (((space <> text "or") <+>) . wrapParens selectOp) o
-    NHasAttr r attr ->
-        mkNixDoc (wrapParens hasAttrOp r <+> text "?" <+> prettySelector attr) hasAttrOp
-    NEnvPath p -> simpleExpr $ text ("<" ++ p ++ ">")
-    NLiteralPath p -> pathExpr $ text $ case p of
-        "./" -> "./."
-        "../" -> "../."
-        ".." -> "../."
-        txt | "/" `isPrefixOf` txt -> txt
-            | "~/" `isPrefixOf` txt -> txt
-            | "./" `isPrefixOf` txt -> txt
-            | "../" `isPrefixOf` txt -> txt
-            | otherwise -> "./" ++ txt
-    NSym name -> simpleExpr $ text (Text.unpack name)
-    NLet binds body -> leastPrecedence $ group $ text "let" <$> indent 2 (
-        vsep (map prettyBind binds)) <$> text "in" <+> withoutParens body
-    NIf cond trueBody falseBody -> leastPrecedence $
-        group $ nest 2 $ (text "if" <+> withoutParens cond) <$>
-          (  align (text "then" <+> withoutParens trueBody)
-         <$> align (text "else" <+> withoutParens falseBody)
-          )
-    NWith scope body -> leastPrecedence $
-        text "with"  <+> withoutParens scope <> semi <$> align (withoutParens body)
-    NAssert cond body -> leastPrecedence $
-        text "assert" <+> withoutParens cond <> semi <$> align (withoutParens body)
-  where
-    recPrefix = text "rec" <> space
-
-prettyNix :: NExpr -> Doc
-prettyNix = withoutParens . cata exprFNixDoc
+  bindPackage (name, drv) =
+      bindTo (Nix.fromName name) expr
+    where
+      expr = (mkSym "callPackage") @@ drv @@ emptySet
+      emptySet = mkNonRecSet []

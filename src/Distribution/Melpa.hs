@@ -30,29 +30,31 @@ import Control.Concurrent.Async ( Concurrently(..) )
 import Control.Concurrent.QSem
 import Data.Foldable ( toList )
 import Data.HashMap.Strict ( HashMap )
-import qualified Data.HashMap.Strict as HashMap
 import Data.HashSet ( HashSet )
-import qualified Data.HashSet as HashSet
-import qualified Data.Map.Strict as Map
 import Data.Semigroup
 import Data.Text ( Text )
-import qualified Data.Text as T
 import System.FilePath
 import Text.PrettyPrint.ANSI.Leijen ( Pretty, (<+>) )
+
+import qualified Data.HashMap.Strict as HashMap
+import qualified Data.HashSet as HashSet
+import qualified Data.Map.Strict as Map
+import qualified Data.Text as T
 import qualified Text.PrettyPrint.ANSI.Leijen as Pretty
 
-import qualified Distribution.Emacs.Name as Emacs
-import qualified Distribution.Git as Git
 import Distribution.Melpa.Fetcher
 import Distribution.Melpa.Melpa
 import Distribution.Melpa.PkgInfo
+import Distribution.Nix.Index
+import Exceptions
+
+import qualified Distribution.Emacs.Name as Emacs
+import qualified Distribution.Git as Git
 import qualified Distribution.Nix.Fetch as Nix
 import qualified Distribution.Nix.Hash as Nix
-import Distribution.Nix.Index
 import qualified Distribution.Nix.Name as Nix
 import qualified Distribution.Nix.Package.Melpa as Recipe ( Recipe(..) )
 import qualified Distribution.Nix.Package.Melpa as Nix
-import Exceptions
 
 
 data MissingRecipeError = MissingRecipeError Nix.Name
@@ -192,13 +194,17 @@ getPackage melpa@(Melpa {..}) namesMap name pkgInfo fetcher =
 
     nixDeps <- mapM (Nix.getName namesMap . Emacs.Name) (toList $ deps pkgInfo)
 
-    pure Nix.Package
-      { Nix.pname = name
-      , Nix.version = version pkgInfo
-      , Nix.fetch = fetch
-      , Nix.deps = nixDeps
-      , Nix.recipe = melpaRecipe
-      }
+    let
+      package =
+        Nix.Package
+          { Nix.pname = name
+          , Nix.version = version pkgInfo
+          , Nix.fetch = fetch
+          , Nix.deps = nixDeps
+          , Nix.recipe = melpaRecipe
+          }
+    Nix.express (packagesDir melpa) package
+    pure package
   where
     PkgInfo { commit } = pkgInfo
     Nix.Name { ename } = name
