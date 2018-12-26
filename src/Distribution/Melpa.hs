@@ -32,8 +32,6 @@ import Data.Foldable ( toList )
 import Data.HashMap.Strict ( HashMap )
 import Data.HashSet ( HashSet )
 import Data.Semigroup
-import Data.Text ( Text )
-import System.FilePath
 import Text.PrettyPrint.ANSI.Leijen ( Pretty, (<+>) )
 
 import qualified Data.HashMap.Strict as HashMap
@@ -189,7 +187,7 @@ getPackage
 getPackage melpa@(Melpa {..}) namesMap name pkgInfo fetcher =
   catchPretty $ inContext ("package " <> Pretty.string sname) $ do
 
-    melpaRecipe <- freezeRecipe melpa tname
+    melpaRecipe <- freezeRecipe melpa ename
     (_, fetch) <- Nix.prefetch tname (freeze fetcher commit)
 
     nixDeps <- mapM (Nix.getName namesMap . Emacs.Name) (toList $ deps pkgInfo)
@@ -203,7 +201,7 @@ getPackage melpa@(Melpa {..}) namesMap name pkgInfo fetcher =
           , Nix.deps = nixDeps
           , Nix.recipe = melpaRecipe
           }
-    Nix.express (packagesDir melpa) package
+    Nix.writePackageExpression melpa package
     pure package
   where
     PkgInfo { commit } = pkgInfo
@@ -212,14 +210,14 @@ getPackage melpa@(Melpa {..}) namesMap name pkgInfo fetcher =
     sname = T.unpack tname
 
 
-freezeRecipe :: Melpa -> Text -> IO Nix.Recipe
-freezeRecipe Melpa { melpaDir } name = do
-  let recipe = "recipes" </> T.unpack name
+freezeRecipe :: Melpa -> Emacs.Name -> IO Nix.Recipe
+freezeRecipe melpa@Melpa { melpaDir } ename = do
+  let recipe = recipeFile melpa ename
   hash <- Nix.hash melpaDir recipe
   commit <- Git.revision melpaDir Nothing [recipe]
   pure
     Nix.Recipe
-    { Recipe.ename = name
+    { Recipe.ename = ename
     , Recipe.commit = commit
     , Recipe.sha256 = hash
     }

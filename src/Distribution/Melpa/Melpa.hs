@@ -24,14 +24,21 @@ module Distribution.Melpa.Melpa
   , packageBuildDir
   , htmlDir
   , packagesDir
+  , recipesDir
+  , packageExpressionNix
   , archiveJson
   , recipesJson
+  , recipeFile
   ) where
 
 import Control.Exception ( Exception )
 import Data.Text ( Text )
+import qualified Data.Text as Text
 import Data.Typeable ( Typeable )
+import Data.Version ( Version, showVersion )
 import System.FilePath
+
+import qualified Distribution.Emacs.Name as Emacs
 
 
 data Melpa =
@@ -59,9 +66,32 @@ packagesDir :: Melpa -> FilePath
 packagesDir Melpa { melpaDir } = melpaDir </> "packages"
 
 
+recipesDir :: Melpa -> FilePath
+recipesDir Melpa { melpaDir } = melpaDir </> "recipes"
+
+
 archiveJson :: Melpa -> FilePath
 archiveJson melpa = htmlDir melpa </> "archive" <.> "json"
 
 
 recipesJson :: Melpa -> FilePath
 recipesJson melpa = htmlDir melpa </> "recipes" <.> "json"
+
+
+packageExpressionNix :: Melpa -> Emacs.Name -> Version -> FilePath
+packageExpressionNix melpa ename version =
+    packagesDir melpa </> filename
+  where
+    filename =
+        concat
+            ( [ Text.unpack (Emacs.fromName ename)
+              , "-"
+              , showVersion version
+              , ".nix"
+              ] :: [String]
+            )
+
+
+recipeFile :: Melpa -> Emacs.Name -> FilePath
+recipeFile melpa ename =
+    recipesDir melpa </> (Text.unpack . Emacs.fromName) ename
