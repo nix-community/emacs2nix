@@ -29,7 +29,6 @@ module Distribution.Nix.Package.Melpa
     ) where
 
 import qualified Control.Exception as Exception
-import qualified Control.Monad.Extra as Monad
 import Data.Fix
 import Data.Text ( Text )
 import qualified Data.Text as Text
@@ -38,14 +37,12 @@ import Nix.Expr
 import qualified Nix.Parser
 import qualified Nix.Pretty
 import qualified System.Directory as Directory
-import System.FilePath ((</>))
 import qualified System.FilePath as FilePath
 import qualified System.IO.Streams as Streams
 import qualified System.IO.Temp as Temp
 import qualified Text.PrettyPrint.ANSI.Leijen as Pretty
 
 import qualified Distribution.Emacs.Name as Emacs
-import Distribution.Melpa.Melpa
 import Distribution.Nix.Builtin
 import Distribution.Nix.Fetch ( Fetch, fetchExpr, importFetcher )
 import qualified Distribution.Nix.Name as Nix
@@ -110,30 +107,23 @@ expression (Package {..}) =
 
 
 writePackageExpression
-  :: Melpa
-  -> Package
+  :: FilePath
+  -> NExpr
   -> IO ()
-writePackageExpression melpa package =
+writePackageExpression output expr =
   do
-    let
-      output = packageExpressionNix melpa ename version
-    -- If the output path exists, assume it is up-to-date.
-    Monad.unlessM (Directory.doesPathExist output)
-      (do
-        let filename = FilePath.takeFileName output
-        tmp <- Temp.emptyTempFile (packagesDir melpa) filename
-        Streams.withFileAsOutput tmp writePackage0
-        Directory.renameFile tmp output
+    let (directory, filename) = FilePath.splitFileName output
+    tmp <- Temp.emptyTempFile directory filename
+    Streams.withFileAsOutput tmp
+      (\out ->
+        do
+          let
+            doc = Nix.Pretty.prettyNix expr
+            rendered = Pretty.renderSmart 1.0 80 doc
+          Pretty.displayStream rendered =<< Streams.encodeUtf8 out
       )
+    Directory.renameFile tmp output
   where
-    Package { pname, version } = package
-    Nix.Name { ename } = pname
-    writePackage0 out =
-      do
-        let
-          expr = expression package
-          rendered = Pretty.renderSmart 1.0 80 (Nix.Pretty.prettyNix expr)
-        Pretty.displayStream rendered =<< Streams.encodeUtf8 out
 
 
 data NixParseFailure = NixParseFailure Pretty.Doc
@@ -145,15 +135,9 @@ instance Pretty.Pretty NixParseFailure where
     "Failed to parse expression:" Pretty.<+> failed
 
 
-readPackageExpression
-  :: Melpa
-  -> Emacs.Name
-  -> Version
-  -> IO NExpr
-readPackageExpression melpa ename version =
+readPackageExpression :: FilePath -> IO NExpr
+readPackageExpression input =
   do
-    let
-      input = packageExpressionNix melpa ename version
     result <- Nix.Parser.parseNixFile input
     case result of
       Nix.Parser.Failure failed ->

@@ -32,12 +32,15 @@ import Data.Foldable ( toList )
 import Data.HashMap.Strict ( HashMap )
 import Data.HashSet ( HashSet )
 import Data.Semigroup
+import Nix.Expr (NExpr)
 import Text.PrettyPrint.ANSI.Leijen ( Pretty, (<+>) )
 
+import qualified Control.Monad.Extra as Monad
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.HashSet as HashSet
 import qualified Data.Map.Strict as Map
 import qualified Data.Text as T
+import qualified System.Directory as Directory
 import qualified Text.PrettyPrint.ANSI.Leijen as Pretty
 
 import Distribution.Melpa.Fetcher
@@ -68,11 +71,10 @@ instance Pretty MissingRecipeError where
 updateMelpa
   :: FilePath
   -> FilePath  -- ^ dump MELPA recipes here
-  -> Bool  -- ^ only generate the index
   -> HashMap Emacs.Name Nix.Name
   -> HashSet Nix.Name
   -> IO ()
-updateMelpa melpaDir melpaOut indexOnly names selected = do
+updateMelpa melpaDir melpaOut names selectedNames = do
   melpaCommit <- Git.revision melpaDir Nothing []
   let melpa = Melpa {..}
 
@@ -81,42 +83,36 @@ updateMelpa melpaDir melpaOut indexOnly names selected = do
 
   let
     select
-      | HashSet.null selected = id
-      | otherwise = Map.filterWithKey (\name _ -> HashSet.member name selected)
+      | HashSet.null selectedNames = id
+      | otherwise =
+        Map.filterWithKey (\name _ -> HashSet.member name selectedNames)
+    selectedPackages = select (toMap archives)
+      where
+        toMap = Map.fromList . HashMap.toList
 
   sem <- newQSem =<< getNumCapabilities
 
   let
-    concurrently =
-      Concurrently
-      . bracket (waitQSem sem) (\_ -> signalQSem sem)
-      . const
     update name pkgInfo =
-      concurrently $ do
+      concurrently $ catchPretty $ inContext context $ do
         recipe <- getRecipe
-        getPackage melpa names name pkgInfo recipe
+        getPackageExpression melpa names name pkgInfo recipe
       where
+        concurrently =
+            Concurrently . withQSem . const
+          where
+            withQSem = bracket (waitQSem sem) (\_ -> signalQSem sem)
+        context =
+            "package" <+> Pretty.string sname
+          where
+            Nix.Name { ename } = name
+            tname = Emacs.fromName ename
+            sname = T.unpack tname
         getRecipe =
           case HashMap.lookup name recipes of
             Nothing -> throwM (MissingRecipeError name)
             Just recipe -> return recipe
-    toMap = Map.fromList . HashMap.toList
-  updates <-
-    runConcurrently
-    $ if indexOnly
-      then pure Map.empty
-      else Map.traverseMaybeWithKey update (select $ toMap archives)
-
-  existing <- readIndex melpaOut
-
-  let
-    -- | Was the recipe removed?
-    removed name = not (HashMap.member name recipes)
-    updated
-      | indexOnly = Map.union (Nix.expression <$> updates) existing
-      | otherwise =
-          Map.union (Nix.expression <$> updates)
-          $ Map.filterWithKey (\k _ -> (not . removed) k) (select existing)
+  updated <- runConcurrently (Map.traverseMaybeWithKey update selectedPackages)
 
   writeIndex melpaOut updated
 
@@ -183,31 +179,48 @@ getPackage
   -> Nix.Name
   -> PkgInfo
   -> Fetcher
-  -> IO (Maybe Nix.Package)
+  -> IO Nix.Package
 getPackage melpa@(Melpa {..}) namesMap name pkgInfo fetcher =
-  catchPretty $ inContext ("package " <> Pretty.string sname) $ do
-
+  do
     melpaRecipe <- freezeRecipe melpa ename
     (_, fetch) <- Nix.prefetch tname (freeze fetcher commit)
 
     nixDeps <- mapM (Nix.getName namesMap . Emacs.Name) (toList $ deps pkgInfo)
 
-    let
-      package =
-        Nix.Package
-          { Nix.pname = name
-          , Nix.version = version pkgInfo
-          , Nix.fetch = fetch
-          , Nix.deps = nixDeps
-          , Nix.recipe = melpaRecipe
-          }
-    Nix.writePackageExpression melpa package
-    pure package
+    pure Nix.Package
+      { Nix.pname = name
+      , Nix.version = version pkgInfo
+      , Nix.fetch = fetch
+      , Nix.deps = nixDeps
+      , Nix.recipe = melpaRecipe
+      }
   where
     PkgInfo { commit } = pkgInfo
     Nix.Name { ename } = name
     tname = Emacs.fromName ename
-    sname = T.unpack tname
+
+
+getPackageExpression
+  :: Melpa
+  -> HashMap Emacs.Name Nix.Name
+  -> Nix.Name
+  -> PkgInfo
+  -> Fetcher
+  -> IO NExpr
+getPackageExpression melpa namesMap name pkgInfo fetcher =
+  do
+    Monad.ifM (Directory.doesFileExist nix)
+      (Nix.readPackageExpression nix)
+      (do
+          package <- getPackage melpa namesMap name pkgInfo fetcher
+          let expr = Nix.expression package
+          Nix.writePackageExpression nix expr
+          return expr
+      )
+  where
+    Nix.Name { ename } = name
+    PkgInfo { version } = pkgInfo
+    nix = packageExpressionNix melpa ename version
 
 
 freezeRecipe :: Melpa -> Emacs.Name -> IO Nix.Recipe

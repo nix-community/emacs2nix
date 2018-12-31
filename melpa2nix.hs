@@ -46,7 +46,6 @@ parser =
   <*> melpa
   <*> output
   <*> names
-  <*> indexOnly
   <*> packages
   where
     threads = option auto (long "threads" <> short 't' <> metavar "N"
@@ -57,9 +56,6 @@ parser =
                         <> help "dump MELPA data to FILE")
     names = strOption (long "names" <> metavar "FILE"
                        <> help "map Emacs names to Nix names using FILE")
-    indexOnly = flag False True
-                (long "index-only"
-                  <> help "don't update packages, only update the index file")
     packages = HashSet.fromList . map T.pack
                 <$> many (strArgument
                           (metavar "PACKAGE" <> help "only work on PACKAGE"))
@@ -69,22 +65,20 @@ melpa2nix
   -> FilePath  -- ^ path to MELPA repository
   -> FilePath  -- ^ dump MELPA recipes here
   -> FilePath  -- ^ map of Emacs names to Nix names
-  -> Bool  -- ^ only generate the index
   -> HashSet Text  -- ^ selected packages
   -> IO ()
-melpa2nix nthreads melpaDir melpaOut namesFile indexOnly packages =
+melpa2nix nthreads melpaDir melpaOut namesFile packages =
   do
     -- set number of threads before beginning
     if nthreads > 0
       then setNumCapabilities nthreads
       else getNumCapabilities >>= setNumCapabilities . (* 4)
-
-    names <- Nix.Name.readNames namesFile
-
-    selected <- getSelectedNames names (HashSet.map Emacs.Name packages)
-
     -- Force our TZ to match the melpa build machines
     setEnv "TZ" "PST8PDT"
     -- Any operation requiring a password should fail
     unsetEnv "SSH_ASKPASS"
-    updateMelpa melpaDir melpaOut indexOnly names selected
+
+    names <- Nix.Name.readNames namesFile
+    selectedNames <- getSelectedNames names (HashSet.map Emacs.Name packages)
+
+    updateMelpa melpaDir melpaOut names selectedNames
