@@ -40,10 +40,7 @@ import Process
 
 data Fetch = URL { url :: Text, sha256 :: Maybe Text, name :: Maybe Text }
            | Git { url :: Text, rev :: Text, branchName :: Maybe Text, sha256 :: Maybe Text }
-           | Bzr { url :: Text, rev :: Text, sha256 :: Maybe Text }
-           | CVS { cvsRoot :: Text, cvsModule :: Maybe Text, sha256 :: Maybe Text }
            | Hg { url :: Text, rev :: Text, sha256 :: Maybe Text }
-           | SVN { url :: Text, rev :: Text, sha256 :: Maybe Text }
            | GitHub { owner :: Text, repo :: Text, rev :: Text, sha256 :: Maybe Text }
            | GitLab { owner :: Text, repo :: Text, rev :: Text, sha256 :: Maybe Text }
 
@@ -54,18 +51,9 @@ fetchURL url name = URL {..} where sha256 = Nothing
 fetchGit :: Text -> Maybe Text -> Text -> Fetch
 fetchGit url branchName rev = Git {..} where sha256 = Nothing
 
-fetchBzr :: Text -> Text -> Fetch
-fetchBzr url rev = Bzr {..} where sha256 = Nothing
-
-fetchCVS :: Text -> Maybe Text -> Fetch
-fetchCVS cvsRoot cvsModule = CVS {..} where sha256 = Nothing
 
 fetchHg :: Text -> Text -> Fetch
 fetchHg url rev = Hg {..} where sha256 = Nothing
-
-fetchSVN :: Text -> Text -> Fetch
-fetchSVN url rev = SVN {..} where sha256 = Nothing
-
 fetchGitHub :: Text -> Text -> Text -> Fetch
 fetchGitHub owner repo rev = GitHub {..} where sha256 = Nothing
 
@@ -75,10 +63,7 @@ fetchGitLab owner repo rev = GitLab {..} where sha256 = Nothing
 importFetcher :: Fetch -> Text
 importFetcher (URL {}) = "fetchurl"
 importFetcher (Git {}) = "fetchgit"
-importFetcher (Bzr {}) = "fetchbzr"
-importFetcher (CVS {}) = "fetchcvs"
 importFetcher (Hg {}) = "fetchhg"
-importFetcher (SVN {}) = "fetchsvn"
 importFetcher (GitHub {}) = "fetchFromGitHub"
 importFetcher (GitLab {}) = "fetchFromGitLab"
 
@@ -94,26 +79,11 @@ fetchExpr (Git {..}) = ((@@) (mkSym "fetchgit") . mkNonRecSet . catMaybes)
                        , bindTo "branchName" . mkStr <$> branchName
                        , bindTo "sha256" . mkStr <$> sha256
                        ]
-fetchExpr (Bzr {..}) = ((@@) (mkSym "fetchbzr") . mkNonRecSet . catMaybes)
-                       [ Just ("url" `bindTo` mkStr url)
-                       , Just ("rev" `bindTo` mkStr rev)
-                       , bindTo "sha256" . mkStr <$> sha256
-                       ]
-fetchExpr (CVS {..}) = ((@@) (mkSym "fetchcvs") . mkNonRecSet . catMaybes)
-                       [ Just ("cvsRoot" `bindTo` mkStr cvsRoot)
-                       , bindTo "module" . mkStr <$> cvsModule
-                       , bindTo "sha256" . mkStr <$> sha256
-                       ]
 fetchExpr (Hg {..}) = ((@@) (mkSym "fetchhg") . mkNonRecSet . catMaybes)
                       [ Just ("url" `bindTo` mkStr url)
                       , Just ("rev" `bindTo` mkStr rev)
                       , bindTo "sha256" . mkStr <$> sha256
                       ]
-fetchExpr (SVN {..}) = ((@@) (mkSym "fetchsvn") . mkNonRecSet . catMaybes)
-                       [ Just ("url" `bindTo` mkStr url)
-                       , Just ("rev" `bindTo` mkStr rev)
-                       , bindTo "sha256" . mkStr <$> sha256
-                       ]
 fetchExpr (GitHub {..}) = ((@@) (mkSym "fetchFromGitHub") . mkNonRecSet . catMaybes)
                           [ Just ("owner" `bindTo` mkStr owner)
                           , Just ("repo" `bindTo` mkStr repo)
@@ -175,36 +145,12 @@ prefetch _ fetch@(Git {..}) = do
       (Right sha, (_:path:_)) -> pure (T.unpack path, fetch { sha256 = sha })
       _ -> throwIO BadPrefetchOutput
 
-prefetch _ fetch@(Bzr {..}) = do
-  let args = [T.unpack url, T.unpack rev]
-  prefetchHelper "nix-prefetch-bzr" args $ \out -> do
-    hashes <- liftIO (S.lines out >>= S.decodeUtf8 >>= S.toList)
-    case hashes of
-      (_:hash:path:_) -> pure (T.unpack path, fetch { sha256 = Just hash })
-      _ -> throwIO BadPrefetchOutput
-
 prefetch _ fetch@(Hg {..}) = do
   let args = [T.unpack url, T.unpack rev]
   prefetchHelper "nix-prefetch-hg" args $ \out -> do
     hashes <- liftIO (S.lines out >>= S.decodeUtf8 >>= S.toList)
     case hashes of
       (hash:path:_) -> pure (T.unpack path, fetch { sha256 = Just hash })
-      _ -> throwIO BadPrefetchOutput
-
-prefetch name fetch@(CVS {..}) = do
-  let args = [T.unpack cvsRoot, T.unpack (fromMaybe name cvsModule)]
-  prefetchHelper "nix-prefetch-cvs" args $ \out -> do
-    hashes <- liftIO (S.lines out >>= S.decodeUtf8 >>= S.toList)
-    case hashes of
-      (hash:path:_) -> pure (T.unpack path, fetch { sha256 = Just hash })
-      _ -> throwIO BadPrefetchOutput
-
-prefetch _ fetch@(SVN {..}) = do
-  let args = [T.unpack url, T.unpack rev]
-  prefetchHelper "nix-prefetch-svn" args $ \out -> do
-    hashes <- liftIO (S.lines out >>= S.decodeUtf8 >>= S.toList)
-    case hashes of
-      (_:hash:path:_) -> pure (T.unpack path, fetch { sha256 = Just hash })
       _ -> throwIO BadPrefetchOutput
 
 prefetch _ fetch@(GitHub {..}) = do
