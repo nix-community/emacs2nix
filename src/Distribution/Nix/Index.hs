@@ -18,40 +18,18 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 -}
 
-module Distribution.Nix.Index ( readIndex, writeIndex ) where
+module Distribution.Nix.Index ( writeIndex ) where
 
-import Control.Exception
-import Data.Fix
-import Data.List.NonEmpty ( NonEmpty (..) )
 import Data.Map.Strict ( Map )
 import qualified Data.Map.Strict as Map
 import Nix.Expr
-import qualified Nix.Parser
 import qualified Nix.Pretty
 import Prelude hiding ( (<$>) )
-import System.Directory ( doesFileExist )
 import qualified System.IO.Streams as S
 import Text.PrettyPrint.ANSI.Leijen hiding ( sep )
 
-import qualified Distribution.Emacs.Name as Emacs
-import Distribution.Nix.Exception
 import qualified Distribution.Nix.Name as Nix
 import System.IO.Streams.Pretty as Pretty
-
-readIndex :: FilePath  -- ^ output file
-          -> IO (Map Nix.Name NExpr)
-readIndex output = parseOutputOrDefault =<< doesFileExist output
-  where
-    die = throwIO (InvalidIndex output)
-
-    parseOutputOrDefault exists
-      | exists = do
-          result <- Nix.Parser.parseNixFile output
-          case result of
-            Nix.Parser.Failure _ -> die
-            Nix.Parser.Success parsed ->
-              maybe die pure (getFunctionBody parsed >>= getPackages)
-      | otherwise = pure Map.empty
 
 writeIndex :: FilePath  -- ^ output file
            -> Map Nix.Name NExpr
@@ -62,20 +40,6 @@ writeIndex output packages = do
     write index out = do
       let rendered = renderSmart 1.0 80 (Nix.Pretty.prettyNix index)
       displayStream rendered =<< S.encodeUtf8 out
-
-getFunctionBody :: NExpr -> Maybe NExpr
-getFunctionBody (Fix (NAbs _ body)) = Just body
-getFunctionBody _ = Nothing
-
-getPackages :: NExpr -> Maybe (Map Nix.Name NExpr)
-getPackages (Fix (NSet bindings)) =
-  let
-    getPackage (NamedVar (StaticKey name :| []) expr _) =
-      Just (Nix.Name { Nix.fromName = name, Nix.ename = Emacs.Name name }, expr)
-    getPackage _ = Nothing
-  in
-    fmap Map.fromList (traverse getPackage bindings)
-getPackages _ = Nothing
 
 packageIndex :: Map Nix.Name NExpr -> NExpr
 packageIndex (Map.toList -> packages) = mkFunction args body where
