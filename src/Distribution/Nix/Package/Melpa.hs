@@ -18,6 +18,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 -}
 
+{-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE TemplateHaskell #-}
 
 module Distribution.Nix.Package.Melpa
@@ -29,8 +30,6 @@ module Distribution.Nix.Package.Melpa
     ) where
 
 import qualified Control.Exception as Exception
-import Data.Fix
-import Data.Text ( Text )
 import qualified Data.Text as Text
 import Data.Version ( Version, showVersion )
 import Nix.Expr
@@ -43,8 +42,8 @@ import qualified System.IO.Temp as Temp
 import qualified Text.PrettyPrint.ANSI.Leijen as Pretty
 
 import qualified Distribution.Emacs.Name as Emacs
-import Distribution.Nix.Builtin
-import Distribution.Nix.Fetch ( Fetch, fetchExpr, importFetcher )
+import Distribution.Nix.Fetch (Fetch, Recipe)
+import qualified Distribution.Nix.Fetch as Fetch
 import qualified Distribution.Nix.Name as Nix
 import Exceptions
 import qualified System.IO.Streams.Pretty as Pretty
@@ -58,52 +57,16 @@ data Package =
     , recipe :: !Recipe
     }
 
-data Recipe =
-  Recipe
-    { ename :: !Emacs.Name
-    , commit :: !Text
-    , sha256 :: !Text
-    }
-
 expression :: Package -> NExpr
 expression (Package {..}) =
-    mkFunction args body
-  where
-    requires = map Nix.fromName deps
-    args = (flip mkParamset False . map optionalBuiltins)
-          ("lib" : "melpaBuild" : "fetchurl" : importFetcher fetch : requires)
-    body = ((@@) (mkSym "melpaBuild") . mkNonRecSet)
-          [ "pname" `bindTo` mkStr (Nix.fromName pname)
-          , "ename" `bindTo` mkStr tname
-          , "version" `bindTo` mkStr (Text.pack $ showVersion version)
-          , "src" `bindTo` fetchExpr fetch
-          , "recipe" `bindTo` fetchRecipe
-          , "packageRequires" `bindTo` mkList (map mkSym requires)
-          , "meta" `bindTo` meta
-          ]
-      where
-        Recipe { ename, commit } = recipe
-        tname = Emacs.fromName ename
-        meta = mkNonRecSet
-              [ "homepage" `bindTo` mkStr homepage
-              , "license" `bindTo` license
-              ]
-          where
-            homepage = Text.append "https://melpa.org/#/" tname
-            license =
-              Fix (NSelect (mkSym "lib")
-                  [StaticKey "licenses", StaticKey "free"] Nothing)
-        fetchRecipe = ((@@) (mkSym "fetchurl") . mkNonRecSet)
-                      [ "url" `bindTo` mkStr
-                        (Text.concat
-                        [ "https://raw.githubusercontent.com/melpa/melpa/"
-                        , commit
-                        , "/recipes/"
-                        , tname
-                        ])
-                      , "sha256" `bindTo` mkStr (sha256 recipe)
-                      , "name" `bindTo` mkStr "recipe"
-                      ]
+    mkNonRecSet
+        [ let Nix.Name { ename } = pname in
+          "ename" $= mkStr (Emacs.fromName ename)
+        , "version" $= mkStr (Text.pack $ showVersion version)
+        , "src" $= Fetch.fetchExpr fetch
+        , "recipe" $= Fetch.fetchExpr (Fetch.fetchRecipe recipe)
+        , "deps" $= mkList (mkStr . Nix.fromName <$> deps)
+        ]
 
 
 writePackageExpression

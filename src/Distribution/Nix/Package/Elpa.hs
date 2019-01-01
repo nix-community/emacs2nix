@@ -20,13 +20,10 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 module Distribution.Nix.Package.Elpa ( Package(..), expression ) where
 
-import Data.Fix
-import Data.Text ( Text )
-import qualified Data.Text as T
+import Data.Text (Text)
 import Nix.Expr
 
-import Distribution.Nix.Builtin
-import Distribution.Nix.Fetch ( Fetch, fetchExpr, importFetcher )
+import Distribution.Nix.Fetch (Fetch, fetchExpr)
 import Distribution.Nix.Name
 
 data Package
@@ -39,29 +36,10 @@ data Package
     }
 
 expression :: Package -> NExpr
-expression (Package {..}) = (mkSym "callPackage") @@ drv @@ emptySet where
-  drv = mkFunction args body
-  emptySet = mkNonRecSet []
-  requires = map fromName deps
-  args = (flip mkParamset False . map optionalBuiltins)
-         ("lib" : "elpaBuild" : importFetcher fetch : requires)
-  body = ((@@) (mkSym "elpaBuild") . mkNonRecSet)
-         [ "pname" `bindTo` mkStr (fromName pname)
-         , "ename" `bindTo` mkStr ename
+expression (Package {..}) =
+    mkNonRecSet
+         [ "ename" `bindTo` mkStr ename
          , "version" `bindTo` mkStr version
          , "src" `bindTo` fetchExpr fetch
-         , "packageRequires" `bindTo` mkList (map mkSym requires)
-         , "meta" `bindTo` meta
+         , "deps" `bindTo` mkList (mkStr . fromName <$> deps)
          ]
-    where
-      meta = mkNonRecSet
-             [ "homepage" `bindTo` mkStr homepage
-             , "license" `bindTo` license
-             ]
-        where
-          homepage = T.concat
-                     [ "https://elpa.gnu.org/packages/"
-                     , ename
-                     , ".html"
-                     ]
-          license = Fix (NSelect (mkSym "lib") [StaticKey "licenses", StaticKey "free"] Nothing)

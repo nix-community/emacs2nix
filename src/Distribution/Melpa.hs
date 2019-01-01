@@ -227,10 +227,6 @@ freezeRecipe :: Melpa -> Emacs.Name -> IO Nix.Recipe
 freezeRecipe melpa@Melpa { melpaDir } ename = do
   let recipe = recipeFile melpa ename
   hash <- Nix.hash melpaDir recipe
-  commit <- Git.revision melpaDir Nothing [recipe]
-  pure
-    Nix.Recipe
-    { Recipe.ename = ename
-    , Recipe.commit = commit
-    , Recipe.sha256 = hash
-    }
+  let sha256 = Just hash
+  rev <- Git.revision melpaDir Nothing [recipe]
+  pure Nix.Recipe { ename, rev, sha256 }

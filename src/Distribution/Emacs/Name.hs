@@ -21,15 +21,18 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 module Distribution.Emacs.Name ( Name (..) ) where
 
+import Data.Data (Data)
 import Data.Hashable ( Hashable )
 import Data.Text ( Text )
 import qualified Data.Text as Text
+import Data.Typeable (Typeable)
+import GHC.Generics (Generic)
 import Text.PrettyPrint.ANSI.Leijen ( Pretty (..) )
 import qualified Text.PrettyPrint.ANSI.Leijen as Pretty
 
 
 newtype Name = Name { fromName :: Text }
-  deriving (Eq, Hashable, Ord, Show)
+  deriving (Data, Eq, Generic, Hashable, Ord, Show, Typeable)
 
 
 instance Pretty Name where

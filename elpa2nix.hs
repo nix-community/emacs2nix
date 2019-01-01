@@ -179,10 +179,12 @@ hashPackage server namesMap (name, pkg) =
             other -> throwIO (DistNotImplemented other)
     let
       url = server </> basename <.> ext
-      fetch = Nix.URL { Nix.url = T.pack url
-                      , Nix.sha256 = Nothing
-                      , Nix.name = Nothing
-                      }
+      fetch =
+          Nix.fetchUrl Nix.Url
+              { url = T.pack url
+              , sha256 = Nothing
+              , name = Nothing
+              }
 
     (_, fetcher) <- Nix.prefetch name fetch
 

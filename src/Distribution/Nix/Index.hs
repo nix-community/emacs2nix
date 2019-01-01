@@ -28,6 +28,7 @@ import Prelude hiding ( (<$>) )
 import qualified System.IO.Streams as S
 import Text.PrettyPrint.ANSI.Leijen hiding ( sep )
 
+import qualified Distribution.Emacs.Name as Emacs
 import qualified Distribution.Nix.Name as Nix
 import System.IO.Streams.Pretty as Pretty
 
@@ -42,11 +43,10 @@ writeIndex output packages = do
       displayStream rendered =<< S.encodeUtf8 out
 
 packageIndex :: Map Nix.Name NExpr -> NExpr
-packageIndex (Map.toList -> packages) = mkFunction args body where
-  args = mkParamset [("callPackage", Nothing)] False
-  body = (mkNonRecSet . map bindPackage) packages
-  bindPackage (name, drv) =
-      bindTo (Nix.fromName name) expr
-    where
-      expr = (mkSym "callPackage") @@ drv @@ emptySet
-      emptySet = mkNonRecSet []
+packageIndex (Map.toList -> packages) =
+    mkFunction args body
+  where
+    args = mkParamset [("callPackage", Nothing)] False
+    body = (mkNonRecSet . map bindPackage) packages
+    bindPackage (Nix.Name { ename }, drv) =
+      ("\"" <> Emacs.fromName ename <> "\"") $= drv
