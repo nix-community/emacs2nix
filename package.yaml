@@ -88,14 +88,14 @@ library:
 executables:
   melpa2nix:
     main: melpa2nix.hs
-    ghc-options: -threaded
+    ghc-options: -threaded "-with-rtsopts=-qg"
     dependencies:
       - emacs2nix
       - optparse-applicative >= 0.11
 
   elpa2nix:
     main: elpa2nix.hs
-    ghc-options: -threaded
+    ghc-options: -threaded "-with-rtsopts=-qg"
     dependencies:
       - emacs2nix
       - optparse-applicative >= 0.11
