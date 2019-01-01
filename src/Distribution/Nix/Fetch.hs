@@ -18,8 +18,6 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 -}
 
-{-# LANGUAGE GADTs #-}
-
 module Distribution.Nix.Fetch where
 
 import Control.Error

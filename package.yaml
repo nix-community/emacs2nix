@@ -51,6 +51,7 @@ default-extensions:
   - DeriveGeneric
   - DuplicateRecordFields
   - ExistentialQuantification
+  - GADTs
   - GeneralizedNewtypeDeriving
   - LambdaCase
   - NamedFieldPuns
