@@ -35,7 +35,10 @@ The source file list is expanded from the recipe and passed to Git to limit the 
 
 All Emacs packages must be licensed GPL-3.
 
-* TODO Keep a bidirectional map of names
+* CANCELLED Keep a bidirectional map of names
+  :LOGBOOK:
+  - State "CANCELLED"  from "TODO"       [2019-01-01 Tue 13:16]
+  :END:
 
 A bidirectional map of names is useful to get Emacs names after parsing the
 package index from Nix. Keeping the map in the Nixpkgs tree makes it
@@ -56,7 +59,10 @@ The .cabal file is a mess of duplicated information. Switch to hpack for a clean
 
 * TODO Generate commit message and changelog
 
-* TODO Cache individual package expressions
+* DONE Cache individual package expressions
+  :LOGBOOK:
+  - State "DONE"       from "TODO"       [2019-01-01 Tue 11:34]
+  :END:
 
 Generating the package set is not interruptible because the package pre-fetch
 results are stored in memory. Individual package expressions should be written
@@ -65,4 +71,15 @@ use hashing to avoid updating the expressions needlessly, or we could use
 Nix. Assembling the final package set should simply be a matter of parsing and
 combining these individual expressions.
 
-* TODO Configure package names and builtins at runtime
+* DONE Configure package names at runtime
+  :LOGBOOK:
+  - State "DONE"       from "TODO"       [2019-01-01 Tue 11:34]
+  :END:
+* DONE Configure builtins at runtime
+  :LOGBOOK:
+  - State "DONE"       from "TODO"       [2019-01-02 Wed 09:31]
+  :END:
+* TODO Avoid using network to prefetch
+
+The recipes and source of packages is available from the MELPA checkout, so it
+should not be necessary to download again during prefetch.

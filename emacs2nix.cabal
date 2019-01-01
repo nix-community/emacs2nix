@@ -2,7 +2,7 @@
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 7ec8ee446d51bbe2159683f153325c52a3e4b438af379e8230ee71623ffa01f4
+-- hash: 9cad7f7b3fb21ccd069c7762e6529180cc6c7c058a96881947f487a8cc312498
 
 cabal-version:  >= 1.10
 name:           emacs2nix
@@ -44,7 +44,6 @@ library
       Distribution.Nix.Fetch
       Distribution.Nix.Hash
       Distribution.Nix.Index
-      Distribution.Nix.Name
       Distribution.Nix.Package.Elpa
       Distribution.Nix.Package.Melpa
       Exceptions

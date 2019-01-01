@@ -20,16 +20,12 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 {-# LANGUAGE TemplateHaskell #-}
 
-module Distribution.Melpa
-    ( updateMelpa
-    , getSelectedNames
-    ) where
+module Distribution.Melpa (updateMelpa) where
 
 import Control.Concurrent ( getNumCapabilities )
 import Control.Concurrent.Async ( Concurrently(..) )
 import Control.Concurrent.QSem
 import Data.Foldable ( toList )
-import Data.HashMap.Strict ( HashMap )
 import Data.HashSet ( HashSet )
 import Data.Semigroup
 import Nix.Expr (NExpr)
@@ -41,6 +37,7 @@ import qualified Data.HashSet as HashSet
 import qualified Data.Map.Strict as Map
 import qualified Data.Text as T
 import qualified System.Directory as Directory
+import qualified System.IO.Streams as Streams
 import qualified Text.PrettyPrint.ANSI.Leijen as Pretty
 
 import Distribution.Melpa.Fetcher
@@ -53,16 +50,15 @@ import qualified Distribution.Emacs.Name as Emacs
 import qualified Distribution.Git as Git
 import qualified Distribution.Nix.Fetch as Nix
 import qualified Distribution.Nix.Hash as Nix
-import qualified Distribution.Nix.Name as Nix
 import qualified Distribution.Nix.Package.Melpa as Recipe ( Recipe(..) )
 import qualified Distribution.Nix.Package.Melpa as Nix
 
 
-data MissingRecipeError = MissingRecipeError Nix.Name
+data MissingRecipeError = MissingRecipeError Emacs.Name
 mkException 'PrettyException ''MissingRecipeError
 
 instance Pretty MissingRecipeError where
-  pretty (MissingRecipeError Nix.Name { ename }) =
+  pretty (MissingRecipeError ename) =
     "No recipe found for Emacs package" <+> squotes (Pretty.pretty ename)
     where
       squotes doc = "‘" <> doc <> "’"
@@ -70,16 +66,14 @@ instance Pretty MissingRecipeError where
 
 updateMelpa
   :: FilePath
-  -> FilePath  -- ^ dump MELPA recipes here
-  -> HashMap Emacs.Name Nix.Name
-  -> HashSet Nix.Name
+  -> HashSet Emacs.Name
   -> IO ()
-updateMelpa melpaDir melpaOut names selectedNames = do
+updateMelpa melpaDir selectedNames = do
   melpaCommit <- Git.revision melpaDir Nothing []
   let melpa = Melpa {..}
 
-  archives <- getKeyNames names =<< readArchives melpa
-  recipes <- getKeyNames names =<< readRecipes melpa
+  archives <- readArchives melpa
+  recipes <- readRecipes melpa
 
   let
     select
@@ -93,10 +87,10 @@ updateMelpa melpaDir melpaOut names selectedNames = do
   sem <- newQSem =<< getNumCapabilities
 
   let
-    update name pkgInfo =
+    update ename pkgInfo =
       concurrently $ catchPretty $ inContext context $ do
         recipe <- getRecipe
-        getPackageExpression melpa names name pkgInfo recipe
+        getPackageExpression melpa ename pkgInfo recipe
       where
         concurrently =
             Concurrently . withQSem . const
@@ -105,37 +99,16 @@ updateMelpa melpaDir melpaOut names selectedNames = do
         context =
             "package" <+> Pretty.string sname
           where
-            Nix.Name { ename } = name
             tname = Emacs.fromName ename
             sname = T.unpack tname
         getRecipe =
-          case HashMap.lookup name recipes of
-            Nothing -> throwM (MissingRecipeError name)
+          case HashMap.lookup ename recipes of
+            Nothing -> throwM (MissingRecipeError ename)
             Just recipe -> return recipe
   updated <- runConcurrently (Map.traverseMaybeWithKey update selectedPackages)
 
-  writeIndex melpaOut updated
-
-
-getKeyNames
-  :: HashMap Emacs.Name Nix.Name
-  -> HashMap Emacs.Name a
-  -> IO (HashMap Nix.Name a)
-getKeyNames names _keyed =
-  do
-    _keyed <- traverse getName (HashMap.toList _keyed)
-    maybe (throwM DeferredErrors) (pure . HashMap.fromList) (sequenceA _keyed)
-  where
-    getName (ename, a) =
-      catchPretty $ (,) <$> Nix.getName names ename <*> pure a
-
-
-getSelectedNames
-  :: HashMap Emacs.Name Nix.Name
-  -> HashSet Emacs.Name
-  -> IO (HashSet Nix.Name)
-getSelectedNames names packages =
-  HashSet.fromMap <$> getKeyNames names (HashSet.toMap packages)
+  output <- Streams.encodeUtf8 Streams.stdout
+  writeIndex output updated
 
 
 {-|
@@ -175,50 +148,43 @@ package source and a "packages" subdirectory with the build product.
 
 getPackage
   :: Melpa
-  -> HashMap Emacs.Name Nix.Name
-  -> Nix.Name
+  -> Emacs.Name
   -> PkgInfo
   -> Fetcher
   -> IO Nix.Package
-getPackage melpa@(Melpa {..}) namesMap name pkgInfo fetcher =
+getPackage melpa@(Melpa {..}) ename pkgInfo fetcher =
   do
-    melpaRecipe <- freezeRecipe melpa ename
-    (_, fetch) <- Nix.prefetch tname (freeze fetcher commit)
-
-    nixDeps <- mapM (Nix.getName namesMap . Emacs.Name) (toList $ deps pkgInfo)
+    recipe <- freezeRecipe melpa ename
+    (_, fetch) <- Nix.prefetch (freeze fetcher commit)
 
     pure Nix.Package
-      { Nix.pname = name
-      , Nix.version = version pkgInfo
-      , Nix.fetch = fetch
-      , Nix.deps = nixDeps
-      , Nix.recipe = melpaRecipe
+      { ename
+      , version
+      , fetch
+      , deps = Emacs.Name <$> toList (deps pkgInfo)
+      , recipe
       }
   where
-    PkgInfo { commit } = pkgInfo
-    Nix.Name { ename } = name
-    tname = Emacs.fromName ename
+    PkgInfo { commit, version } = pkgInfo
 
 
 getPackageExpression
   :: Melpa
-  -> HashMap Emacs.Name Nix.Name
-  -> Nix.Name
+  -> Emacs.Name
   -> PkgInfo
   -> Fetcher
   -> IO NExpr
-getPackageExpression melpa namesMap name pkgInfo fetcher =
+getPackageExpression melpa ename pkgInfo fetcher =
   do
     Monad.ifM (Directory.doesFileExist nix)
       (Nix.readPackageExpression nix)
       (do
-          package <- getPackage melpa namesMap name pkgInfo fetcher
+          package <- getPackage melpa ename pkgInfo fetcher
           let expr = Nix.expression package
           Nix.writePackageExpression nix expr
           return expr
       )
   where
-    Nix.Name { ename } = name
     PkgInfo { version } = pkgInfo
     nix = packageExpressionNix melpa ename version
 

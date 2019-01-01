@@ -22,31 +22,30 @@ module Distribution.Nix.Index ( writeIndex ) where
 
 import Data.Map.Strict ( Map )
 import qualified Data.Map.Strict as Map
+import Data.Text (Text)
 import Nix.Expr
 import qualified Nix.Pretty
 import Prelude hiding ( (<$>) )
-import qualified System.IO.Streams as S
+import System.IO.Streams (OutputStream)
 import Text.PrettyPrint.ANSI.Leijen hiding ( sep )
 
 import qualified Distribution.Emacs.Name as Emacs
-import qualified Distribution.Nix.Name as Nix
 import System.IO.Streams.Pretty as Pretty
 
-writeIndex :: FilePath  -- ^ output file
-           -> Map Nix.Name NExpr
-           -> IO ()
-writeIndex output packages = do
-  S.withFileAsOutput output (write (packageIndex packages))
-  where
-    write index out = do
-      let rendered = renderSmart 1.0 80 (Nix.Pretty.prettyNix index)
-      displayStream rendered =<< S.encodeUtf8 out
+writeIndex
+    :: OutputStream Text
+    -> Map Emacs.Name NExpr
+    -> IO ()
+writeIndex output packages =
+  do
+    let
+      index = packageIndex packages
+      rendered = renderSmart 1.0 80 (Nix.Pretty.prettyNix index)
+    displayStream rendered output
 
-packageIndex :: Map Nix.Name NExpr -> NExpr
+packageIndex :: Map Emacs.Name NExpr -> NExpr
 packageIndex (Map.toList -> packages) =
-    mkFunction args body
+    (mkNonRecSet . map bindPackage) packages
   where
-    args = mkParamset [("callPackage", Nothing)] False
-    body = (mkNonRecSet . map bindPackage) packages
-    bindPackage (Nix.Name { ename }, drv) =
+    bindPackage (ename, drv) =
       ("\"" <> Emacs.fromName ename <> "\"") $= drv

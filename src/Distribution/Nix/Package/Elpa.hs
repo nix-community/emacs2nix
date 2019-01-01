@@ -24,22 +24,21 @@ import Data.Text (Text)
 import Nix.Expr
 
 import Distribution.Nix.Fetch (Fetch, fetchExpr)
-import Distribution.Nix.Name
+import qualified Distribution.Emacs.Name as Emacs
 
 data Package
   = Package
-    { pname :: !Name
-    , ename :: !Text
+    { ename :: !Emacs.Name
     , version :: !Text
     , fetch :: !Fetch
-    , deps :: ![Name]
+    , deps :: ![Emacs.Name]
     }
 
 expression :: Package -> NExpr
 expression (Package {..}) =
     mkNonRecSet
-         [ "ename" `bindTo` mkStr ename
-         , "version" `bindTo` mkStr version
-         , "src" `bindTo` fetchExpr fetch
-         , "deps" `bindTo` mkList (mkStr . fromName <$> deps)
+         [ "ename" $= mkStr (Emacs.fromName ename)
+         , "version" $= mkStr version
+         , "src" $= fetchExpr fetch
+         , "deps" $= mkList (mkStr . Emacs.fromName <$> deps)
          ]

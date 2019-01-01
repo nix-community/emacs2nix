@@ -43,28 +43,26 @@ import qualified Text.PrettyPrint.ANSI.Leijen as Pretty
 import qualified Distribution.Emacs.Name as Emacs
 import Distribution.Nix.Fetch (Fetch, Recipe)
 import qualified Distribution.Nix.Fetch as Fetch
-import qualified Distribution.Nix.Name as Nix
 import Exceptions
 import qualified System.IO.Streams.Pretty as Pretty
 
 data Package =
   Package
-    { pname :: !Nix.Name
+    { ename :: !Emacs.Name
     , version :: !Version
     , fetch :: !Fetch
-    , deps :: ![Nix.Name]
+    , deps :: ![Emacs.Name]
     , recipe :: !Recipe
     }
 
 expression :: Package -> NExpr
 expression (Package {..}) =
     mkNonRecSet
-        [ let Nix.Name { ename } = pname in
-          "ename" $= mkStr (Emacs.fromName ename)
+        [ "ename" $= mkStr (Emacs.fromName ename)
         , "version" $= mkStr (Text.pack $ showVersion version)
         , "src" $= Fetch.fetchExpr fetch
         , "recipe" $= Fetch.fetchExpr (Fetch.fetchRecipe recipe)
-        , "deps" $= mkList (mkStr . Nix.fromName <$> deps)
+        , "deps" $= mkList (mkStr . Emacs.fromName <$> deps)
         ]
 
 

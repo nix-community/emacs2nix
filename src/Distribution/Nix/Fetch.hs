@@ -194,9 +194,9 @@ data BadPrefetchOutput = BadPrefetchOutput
 
 instance Exception BadPrefetchOutput
 
-prefetch :: Text -> Fetch -> IO (FilePath, Fetch)
+prefetch :: Fetch -> IO (FilePath, Fetch)
 
-prefetch _ (FetchUrl fetch) = do
+prefetch (FetchUrl fetch) = do
   let args = [T.unpack url]
   prefetchHelper "nix-prefetch-url" args $ \out -> do
     hashes <- liftIO (S.lines out >>= S.decodeUtf8 >>= S.toList)
@@ -207,7 +207,7 @@ prefetch _ (FetchUrl fetch) = do
   where
     Url {..} = fetch
 
-prefetch _ (FetchGit fetch) = do
+prefetch (FetchGit fetch) = do
   let
     args = [ "--fetch-submodules"
            , "--url", T.unpack url, "--rev", T.unpack rev
@@ -226,7 +226,7 @@ prefetch _ (FetchGit fetch) = do
   where
     Git {..} = fetch
 
-prefetch _ (FetchHg fetch) = do
+prefetch (FetchHg fetch) = do
   let args = [T.unpack url, T.unpack rev]
   prefetchHelper "nix-prefetch-hg" args $ \out -> do
     hashes <- liftIO (S.lines out >>= S.decodeUtf8 >>= S.toList)
@@ -237,7 +237,7 @@ prefetch _ (FetchHg fetch) = do
   where
     Hg {..} = fetch
 
-prefetch _ (FetchGitHub fetch) = do
+prefetch (FetchGitHub fetch) = do
   let
     args = ["--name", T.unpack name, "--unpack", T.unpack url]
     url = "https://github.com/" <> owner <> "/" <> repo <> "/archive/" <> rev <> ".tar.gz"
@@ -251,7 +251,7 @@ prefetch _ (FetchGitHub fetch) = do
   where
     GitHub {..} = fetch
 
-prefetch _ (FetchGitLab fetch) = do
+prefetch (FetchGitLab fetch) = do
   let
     args = ["--name", T.unpack name, "--unpack", T.unpack url]
     url = "https://gitlab.com/" <> owner <> "/" <> repo
@@ -266,7 +266,7 @@ prefetch _ (FetchGitLab fetch) = do
   where
     GitLab {..} = fetch
 
-prefetch _ (FetchRecipe fetch) = do
+prefetch (FetchRecipe fetch) = do
   let args = [T.unpack url]
   prefetchHelper "nix-prefetch-url" args $ \out -> do
     hashes <- liftIO (S.lines out >>= S.decodeUtf8 >>= S.toList)
