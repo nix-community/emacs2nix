@@ -3,12 +3,12 @@ let nixpkgs = import ./nixpkgs.nix; in
 let
 
   inherit (nixpkgs) pkgs;
-  inherit (pkgs) haskellPackages lib;
+  inherit (pkgs) haskell haskellPackages lib;
 
 
   blacklistDirs = [ ".git" "dist" "dist-newstyle" ];
   whitelistExts = [ ".cabal" ".el" ".hs" ];
-  whitelistNames = [ "COPYING" "LICENSE" ];
+  whitelistNames = [ "COPYING" "LICENSE" "package.yaml" ];
 
   filterSrc =
     let
@@ -25,8 +25,14 @@ let
     in
       drv: overrideSrc drv (src: builtins.filterSource predicate src);
 
-  drv = filterSrc (haskellPackages.callPackage ./package.nix {});
+  drv =
+    lib.foldr lib.id
+      (haskellPackages.callPackage ./package.nix {})
+      [
+        haskell.lib.disableLibraryProfiling
+        filterSrc
+      ];
 
 in
 
-  drv
+drv

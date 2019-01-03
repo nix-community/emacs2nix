@@ -25,14 +25,12 @@ import Control.Monad ( join )
 import Data.HashSet ( HashSet )
 import qualified Data.HashSet as HashSet
 import Data.Monoid ( (<>) )
-import Data.Text ( Text )
 import qualified Data.Text as T
 import Options.Applicative
 import System.Environment ( setEnv, unsetEnv )
 
 import qualified Distribution.Emacs.Name as Emacs
 import Distribution.Melpa
-import qualified Distribution.Nix.Name as Nix.Name
 
 main :: IO ()
 main = join (execParser (info (helper <*> parser) desc))
@@ -44,47 +42,30 @@ parser =
   melpa2nix
   <$> (threads <|> pure 0)
   <*> melpa
-  <*> output
-  <*> names
-  <*> indexOnly
   <*> packages
   where
     threads = option auto (long "threads" <> short 't' <> metavar "N"
                           <> help "use N threads; default is number of CPUs")
     melpa = strOption (long "melpa" <> metavar "DIR"
                         <> help "path to MELPA repository")
-    output = strOption (long "output" <> short 'o' <> metavar "FILE"
-                        <> help "dump MELPA data to FILE")
-    names = strOption (long "names" <> metavar "FILE"
-                       <> help "map Emacs names to Nix names using FILE")
-    indexOnly = flag False True
-                (long "index-only"
-                  <> help "don't update packages, only update the index file")
-    packages = HashSet.fromList . map T.pack
+    packages = HashSet.fromList . map (Emacs.Name . T.pack)
                 <$> many (strArgument
                           (metavar "PACKAGE" <> help "only work on PACKAGE"))
 
 melpa2nix
   :: Int  -- ^ number of threads to use
   -> FilePath  -- ^ path to MELPA repository
-  -> FilePath  -- ^ dump MELPA recipes here
-  -> FilePath  -- ^ map of Emacs names to Nix names
-  -> Bool  -- ^ only generate the index
-  -> HashSet Text  -- ^ selected packages
+  -> HashSet Emacs.Name  -- ^ selected packages
   -> IO ()
-melpa2nix nthreads melpaDir melpaOut namesFile indexOnly packages =
+melpa2nix nthreads melpaDir selectedNames =
   do
     -- set number of threads before beginning
     if nthreads > 0
       then setNumCapabilities nthreads
       else getNumCapabilities >>= setNumCapabilities . (* 4)
-
-    names <- Nix.Name.readNames namesFile
-
-    selected <- getSelectedNames names (HashSet.map Emacs.Name packages)
-
     -- Force our TZ to match the melpa build machines
     setEnv "TZ" "PST8PDT"
     -- Any operation requiring a password should fail
     unsetEnv "SSH_ASKPASS"
-    updateMelpa melpaDir melpaOut indexOnly names selected
+
+    updateMelpa melpaDir selectedNames

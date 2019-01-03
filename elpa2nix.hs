@@ -27,10 +27,8 @@ import Control.Monad ( join, when )
 import Data.Aeson ( FromJSON(..), json' )
 import Data.Aeson.Types ( parseEither )
 import Data.ByteString ( ByteString )
-import Data.HashMap.Strict ( HashMap )
 import Data.Map.Strict ( Map )
-import qualified Data.Map.Strict as M
-import Data.Maybe ( catMaybes )
+import qualified Data.Map.Strict as Map
 import Data.Monoid ((<>))
 import Data.Text ( Text )
 import qualified Data.Text as T
@@ -40,22 +38,22 @@ import Options.Applicative
 import System.FilePath ( (</>), (<.>) )
 import System.IO ( hClose )
 import qualified System.IO.Streams as S
+import qualified System.IO.Streams as Streams
 import qualified System.IO.Streams.Attoparsec as S
 import System.IO.Temp ( withSystemTempFile )
 
-import Paths_emacs2nix
+import qualified Paths_emacs2nix as Paths
 
 import Distribution.Elpa ( Elpa )
+import Distribution.Nix.Package.Elpa ( Package )
+import Exceptions
+import Process
+
 import qualified Distribution.Elpa as Elpa
 import qualified Distribution.Emacs.Name as Emacs
 import qualified Distribution.Nix.Fetch as Nix
-import Distribution.Nix.Index
-import Distribution.Nix.Name ( Name )
-import qualified Distribution.Nix.Name as Nix
-import Distribution.Nix.Package.Elpa ( Package )
+import qualified Distribution.Nix.Index as Nix
 import qualified Distribution.Nix.Package.Elpa as Nix
-import Exceptions
-import Process
 
 main :: IO ()
 main = join (execParser (info (helper <*> parser) desc))
@@ -66,55 +64,35 @@ parser :: Parser (IO ())
 parser =
   elpa2nix
   <$> (threads <|> pure 0)
-  <*> output
   <*> server
-  <*> names
-  <*> indexOnly
   where
     threads = option auto
               (long "threads" <> short 't'
                <> metavar "N"
                <> help "use N threads; default is number of CPUs")
-    output = strOption
-             (long "output" <> short 'o'
-              <> metavar "FILE"
-              <> help "write output to FILE")
     server = strArgument
              (metavar "URL"
               <> help "get packages from server at URL")
-    names = strOption
-            (long "names"
-             <> metavar "FILE"
-             <> help "map Emacs package names to Nix package names using FILE")
-    indexOnly = flag False True
-                (long "index-only"
-                 <> help "don't update packages, only update the index file")
 
-elpa2nix :: Int -> FilePath -> String -> FilePath -> Bool -> IO ()
-elpa2nix threads output server namesMapFile indexOnly =
+elpa2nix :: Int -> String -> IO ()
+elpa2nix threads server =
   catchPretty_ $ do
     when (threads > 0) (setNumCapabilities threads)
-
-    namesMap <- Nix.readNames namesMapFile
     archives <- getPackages server
+    let update = updatePackage server
+    packages <- runConcurrently (Map.traverseMaybeWithKey update archives)
+    output <- Streams.encodeUtf8 Streams.stdout
+    Nix.writeIndex output packages
 
-    updated <- if indexOnly
-              then pure []
-              else runConcurrently (traverse (updatePackage server namesMap) (M.toList archives))
-
-    existing <- readIndex output
-
-    let packages = M.union (M.fromList (catMaybes updated)) existing
-
-    writeIndex output packages
-
-updatePackage :: String -> HashMap Emacs.Name Name -> (Text, Elpa)
-              -> Concurrently (Maybe (Name, NExpr))
-updatePackage server namesMap elpa = Concurrently $ do
-  hashed <- hashPackage server namesMap elpa
-  pure (toExpression <$> hashed)
+updatePackage
+    :: String
+    -> Emacs.Name
+    -> Elpa
+    -> Concurrently (Maybe NExpr)
+updatePackage server ename elpa =
+    concurrently (Nix.expression <$> hashPackage server ename elpa)
   where
-    toExpression pkg = (Nix.pname pkg, Nix.expression pkg)
+    concurrently = Concurrently . catchPretty
 
 -- * Error types
 
@@ -125,7 +103,7 @@ instance Exception ArchiveError
 
 -- * getPackages
 
-getPackages :: String -> IO (Map Text Elpa)
+getPackages :: String -> IO (Map Emacs.Name Elpa)
 getPackages uri = mapException ArchiveError $ do
   let args = [uri </> "archive-contents"]
   withSystemTempFile "elpa2nix-archive-contents-" $ \path h -> do
@@ -143,7 +121,7 @@ data ParseArchiveError = ParseArchiveError String
 
 instance Exception ParseArchiveError
 
-readArchive :: FilePath -> IO (Map Text Elpa)
+readArchive :: FilePath -> IO (Map Emacs.Name Elpa)
 readArchive path = mapException ArchiveError $ do
   let
     args = ["--eval", eval]
@@ -152,11 +130,11 @@ readArchive path = mapException ArchiveError $ do
     result <- parseJsonFromStream out
     case result of
       Left parseError -> throwIO (ParseArchiveError parseError)
-      Right pkgs -> pure pkgs
+      Right pkgs -> pure (Map.mapKeys Emacs.Name pkgs)
 
 emacs :: [String] -> (InputByteStream -> IO a) -> IO a
 emacs args go = do
-  load <- getDataFileName "scripts/elpa2json.el"
+  load <- Paths.getDataFileName "scripts/elpa2json.el"
   let
     args' = [ "-Q", "--batch", "--load", load ] ++ args
   runInteractiveProcess "emacs" args' Nothing Nothing go
@@ -171,37 +149,33 @@ data DistNotImplemented = DistNotImplemented Text
 
 instance Exception DistNotImplemented
 
-hashPackage :: String -> HashMap Emacs.Name Name -> (Text, Elpa)
-            -> IO (Maybe Package)
-hashPackage server namesMap (name, pkg) =
-  catchPretty $ do
+hashPackage :: String -> Emacs.Name -> Elpa -> IO Package
+hashPackage server ename elpa =
+  do
     let
-      ver = T.intercalate "." (map (T.pack . show) (Elpa.ver pkg))
+      Elpa.Elpa { ver } = elpa
+      version = T.intercalate "." (T.pack . show <$> ver)
       basename
-        | null (Elpa.ver pkg) = T.unpack name
-        | otherwise = T.unpack (name <> "-" <> ver)
+        | null ver = T.unpack tname
+        | otherwise = T.unpack (tname <> "-" <> version)
+        where
+          tname = Emacs.fromName ename
 
-    ext <- case Elpa.dist pkg of
+    ext <- case Elpa.dist elpa of
             "single" -> pure "el"
             "tar" -> pure "tar"
             other -> throwIO (DistNotImplemented other)
     let
       url = server </> basename <.> ext
-      fetch = Nix.URL { Nix.url = T.pack url
-                      , Nix.sha256 = Nothing
-                      , Nix.name = Nothing
-                      }
+      prefetch =
+          Nix.fetchUrl Nix.Url
+              { url = T.pack url
+              , sha256 = Nothing
+              , name = Nothing
+              }
 
-    (_, fetcher) <- Nix.prefetch name fetch
+    (_, fetch) <- Nix.prefetch prefetch
 
-    nixName <- Nix.getName namesMap (Emacs.Name name)
-    nixDeps <- mapM (Nix.getName namesMap . Emacs.Name)
-              (maybe [] M.keys (Elpa.deps pkg))
+    let deps = Emacs.Name <$> maybe [] Map.keys (Elpa.deps elpa)
 
-    pure Nix.Package
-      { Nix.pname = nixName
-      , Nix.ename = name
-      , Nix.version = ver
-      , Nix.fetch = fetcher
-      , Nix.deps = nixDeps
-      }
+    pure Nix.Package { ename, version, fetch, deps }

@@ -18,72 +18,89 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 -}
 
+{-# LANGUAGE TemplateHaskell #-}
+
 module Distribution.Nix.Package.Melpa
     ( Package(..)
     , Recipe(..)
     , expression
+    , writePackageExpression
+    , readPackageExpression
     ) where
 
-import Data.Fix
-import Data.Text ( Text )
-import qualified Data.Text as T
+import qualified Control.Exception as Exception
+import qualified Data.Text as Text
 import Data.Version ( Version, showVersion )
 import Nix.Expr
+import qualified Nix.Parser
+import qualified Nix.Pretty
+import qualified System.Directory as Directory
+import qualified System.FilePath as FilePath
+import qualified System.IO.Streams as Streams
+import qualified System.IO.Temp as Temp
+import qualified Text.PrettyPrint.ANSI.Leijen as Pretty
 
-import Distribution.Nix.Builtin
-import Distribution.Nix.Fetch ( Fetch, fetchExpr, importFetcher )
-import Distribution.Nix.Name
+import qualified Distribution.Emacs.Name as Emacs
+import Distribution.Nix.Fetch (Fetch, Recipe)
+import qualified Distribution.Nix.Fetch as Fetch
+import Exceptions
+import qualified System.IO.Streams.Pretty as Pretty
 
-data Package
-  = Package
-    { pname :: !Name
+data Package =
+  Package
+    { ename :: !Emacs.Name
     , version :: !Version
     , fetch :: !Fetch
-    , deps :: ![Name]
+    , deps :: ![Emacs.Name]
     , recipe :: !Recipe
     }
 
-data Recipe
-  = Recipe { ename :: !Text
-           , commit :: !Text
-           , sha256 :: !Text
-           }
-
 expression :: Package -> NExpr
-expression (Package {..}) = (mkSym "callPackage") @@ drv @@ emptySet where
-  drv = mkFunction args body
-  emptySet = mkNonRecSet []
-  requires = map fromName deps
-  args = (flip mkParamset False . map optionalBuiltins)
-         ("lib" : "melpaBuild" : "fetchurl" : importFetcher fetch : requires)
-  body = ((@@) (mkSym "melpaBuild") . mkNonRecSet)
-         [ "pname" `bindTo` mkStr (fromName pname)
-         , "ename" `bindTo` mkStr ename
-         , "version" `bindTo` mkStr (T.pack $ showVersion version)
-         , "src" `bindTo` fetchExpr fetch
-         , "recipe" `bindTo` fetchRecipe
-         , "packageRequires" `bindTo` mkList (map mkSym requires)
-         , "meta" `bindTo` meta
-         ]
-    where
-      Recipe { ename, commit } = recipe
-      meta = mkNonRecSet
-             [ "homepage" `bindTo` mkStr homepage
-             , "license" `bindTo` license
-             ]
-        where
-          homepage = T.append "https://melpa.org/#/" ename
-          license =
-            Fix (NSelect (mkSym "lib")
-                 [StaticKey "licenses", StaticKey "free"] Nothing)
-      fetchRecipe = ((@@) (mkSym "fetchurl") . mkNonRecSet)
-                    [ "url" `bindTo` mkStr
-                      (T.concat
-                       [ "https://raw.githubusercontent.com/milkypostman/melpa/"
-                       , commit
-                       , "/recipes/"
-                       , ename
-                       ])
-                    , "sha256" `bindTo` mkStr (sha256 recipe)
-                    , "name" `bindTo` mkStr "recipe"
-                    ]
+expression (Package {..}) =
+    mkNonRecSet
+        [ "ename" $= mkStr (Emacs.fromName ename)
+        , "version" $= mkStr (Text.pack $ showVersion version)
+        , "src" $= Fetch.fetchExpr fetch
+        , "recipe" $= Fetch.fetchExpr (Fetch.fetchRecipe recipe)
+        , "deps" $= mkList (mkStr . Emacs.fromName <$> deps)
+        ]
+
+
+writePackageExpression
+  :: FilePath
+  -> NExpr
+  -> IO ()
+writePackageExpression output expr =
+  do
+    let (directory, filename) = FilePath.splitFileName output
+    tmp <- Temp.emptyTempFile directory filename
+    Streams.withFileAsOutput tmp
+      (\out ->
+        do
+          let
+            doc = Nix.Pretty.prettyNix expr
+            rendered = Pretty.renderSmart 1.0 80 doc
+          Pretty.displayStream rendered =<< Streams.encodeUtf8 out
+      )
+    Directory.renameFile tmp output
+  where
+
+
+data NixParseFailure = NixParseFailure Pretty.Doc
+mkException 'PrettyException ''NixParseFailure
+
+
+instance Pretty.Pretty NixParseFailure where
+  pretty (NixParseFailure failed) =
+    "Failed to parse expression:" Pretty.<+> failed
+
+
+readPackageExpression :: FilePath -> IO NExpr
+readPackageExpression input =
+  do
+    result <- Nix.Parser.parseNixFile input
+    case result of
+      Nix.Parser.Failure failed ->
+        Exception.throwIO (NixParseFailure failed)
+      Nix.Parser.Success parsed ->
+        return parsed

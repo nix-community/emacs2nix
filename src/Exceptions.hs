@@ -34,10 +34,12 @@ module Exceptions
     , DeferredErrors (..)
     ) where
 
+import qualified Control.Monad as Monad
 import Control.Monad.Catch
 import Data.Semigroup
 import Data.Text ( Text )
 import qualified Data.Text as Text
+import qualified System.IO as System
 import Text.PrettyPrint.ANSI.Leijen ( Doc, Pretty, (<+>) )
 import qualified Text.PrettyPrint.ANSI.Leijen as Pretty
 
@@ -64,18 +66,17 @@ instance Pretty PrettyException where
 
 
 catchPretty :: IO a -> IO (Maybe a)
-catchPretty action = catch (Just <$> action) handler
+catchPretty action =
+    catch (Just <$> action) handler
   where
     handler (PrettyException e) =
       do
-        Pretty.putDoc (Pretty.pretty e)
+        Pretty.hPutDoc System.stderr (Pretty.pretty e)
         pure Nothing
 
 
 catchPretty_ :: IO () -> IO ()
-catchPretty_ action = catch action handler
-  where
-    handler (PrettyException e) = Pretty.putDoc (Pretty.pretty e)
+catchPretty_ = Monad.void . catchPretty
 
 
 data ManyExceptions = forall e. (Exception e, Pretty e) => ManyExceptions [e]

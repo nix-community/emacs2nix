@@ -39,8 +39,8 @@ import qualified Distribution.Nix.Fetch as Nix
 -- | A @Fetcher@ is parsed from a MELPA recipe and can be frozen to (ultimately)
 -- produce a Nix expression which will fetch the exact source of the package.
 -- @Fetcher@ can be parsed from JSON with 'parseFetcher'. Calling @freeze@ with
--- the local path to the package source produces a 'Nix.Fetch' which is used
--- to retrieve an exact version of the package source.
+-- the commit ID produces a 'Nix.Fetch' which is used to retrieve an exact
+-- version of the package source.
 newtype Fetcher = Fetcher { freeze :: Text -> Nix.Fetch }
 
 
@@ -91,27 +91,29 @@ parseFetcher =
   Aeson.withObject "recipe" $ \rcp ->
     do
       fetcher <- rcp .: "fetcher"
+      let sha256 = Nothing -- uninitialize in all cases
       case fetcher :: Text of
         "bitbucket" ->
           do
             repo <- rcp .: "repo"
-            let url = "https://bitbucket.com/" <> repo
-            pure Fetcher { freeze = Nix.fetchHg url }
+            let
+              url = "https://bitbucket.com/" <> repo
+            pure Fetcher { freeze = \rev -> Nix.fetchHg Nix.Hg {..} }
         "git" ->
           do
             url <- rcp .: "url"
-            branch <- rcp .:? "branch"
-            pure Fetcher { freeze = Nix.fetchGit url branch }
+            branchName <- rcp .:? "branch"
+            pure Fetcher { freeze = \rev -> Nix.fetchGit Nix.Git {..} }
         "github" ->
           do
             (owner, Text.drop 1 -> repo) <- Text.breakOn "/" <$> rcp .: "repo"
-            pure Fetcher { freeze = Nix.fetchGitHub owner repo }
+            pure Fetcher { freeze = \rev -> Nix.fetchGitHub Nix.GitHub {..} }
         "gitlab" ->
           do
             (owner, Text.drop 1 -> repo) <- Text.breakOn "/" <$> rcp .: "repo"
-            pure Fetcher { freeze = Nix.fetchGitLab owner repo }
+            pure Fetcher { freeze = \rev -> Nix.fetchGitLab Nix.GitLab {..} }
         "hg" ->
           do
             url <- rcp .: "url"
-            pure Fetcher { freeze = Nix.fetchHg url }
+            pure Fetcher { freeze = \rev -> Nix.fetchHg Nix.Hg {..} }
         _ -> fail ("fetcher `" ++ Text.unpack fetcher ++ "' not implemented")
