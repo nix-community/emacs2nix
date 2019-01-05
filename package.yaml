@@ -55,7 +55,6 @@ default-extensions:
   - GeneralizedNewtypeDeriving
   - LambdaCase
   - NamedFieldPuns
-  - OverloadedLists
   - OverloadedStrings
   - RankNTypes
   - RecordWildCards

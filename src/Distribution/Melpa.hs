@@ -27,7 +27,6 @@ import Control.Concurrent.Async ( Concurrently(..) )
 import Control.Concurrent.QSem
 import Data.Foldable ( toList )
 import Data.HashSet ( HashSet )
-import Data.Semigroup
 import Nix.Expr (NExpr)
 import Text.PrettyPrint.ANSI.Leijen ( Pretty, (<+>) )
 

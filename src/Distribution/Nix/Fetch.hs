@@ -20,6 +20,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 module Distribution.Nix.Fetch where
 
+import Control.Applicative
 import Control.Error
 import Control.Exception
 import Control.Monad.IO.Class
@@ -209,22 +210,31 @@ prefetch (FetchUrl fetch) = do
 
 prefetch (FetchGit fetch) = do
   let
-    args = [ "--fetch-submodules"
-           , "--url", T.unpack url, "--rev", T.unpack rev
-           ] ++ fromMaybe [] branch
-    branch = do
-      name <- branchName
-      pure ["--branch-name", T.unpack name]
+    name = Just rev
+    args :: [String]
+    args =
+        concat
+            [ [ "--fetch-submodules" ]
+            , [ "--url", T.unpack url ]
+            , [ "--rev", T.unpack rev ]
+            , [ "--name" , T.unpack rev ]
+            , branchArgs
+            ]
+      where
+        branchArgs =
+          do
+            branchName' <- maybe empty pure branchName
+            ["--branch-name", T.unpack branchName']
     jsonp = withObject "need an object" (\o -> o .:! "sha256")
   prefetchHelper "nix-prefetch-git" args $ \out -> do
     sha256_ <- liftIO $ parseEither jsonp <$> S.parseFromStream json' out
     pathes <- liftIO (S.lines out >>= S.decodeUtf8 >>= S.toList)
     case (sha256_, pathes) of
-      (Right sha, (_:path:_)) ->
-        pure (T.unpack path, fetchGit fetch { sha256 = sha })
+      (Right sha256, (_:path:_)) ->
+        pure (T.unpack path, fetchGit fetch { sha256 })
       _ -> throwIO BadPrefetchOutput
   where
-    Git {..} = fetch
+    Git { url, rev, branchName } = fetch
 
 prefetch (FetchHg fetch) = do
   let args = [T.unpack url, T.unpack rev]
