@@ -35,6 +35,7 @@ import qualified Data.HashMap.Strict as HashMap
 import qualified Data.HashSet as HashSet
 import qualified Data.Map.Strict as Map
 import qualified Data.Text as T
+import qualified Data.Text as Text
 import qualified System.Directory as Directory
 import qualified System.IO.Streams as Streams
 import qualified Data.Text.Prettyprint.Doc as Pretty
@@ -42,6 +43,11 @@ import qualified Data.Text.Prettyprint.Doc as Pretty
 import Distribution.Melpa.Fetcher
 import Distribution.Melpa.Melpa
 import Distribution.Melpa.PkgInfo
+import Distribution.Nix.Fetch (Git (..))
+import Distribution.Nix.Fetch (GitHub (..))
+import Distribution.Nix.Fetch (GitLab (..))
+import Distribution.Nix.Fetch (Hg (..))
+import Distribution.Nix.Fetch (Fetch (..))
 import Distribution.Nix.Index
 import Exceptions
 
@@ -154,7 +160,8 @@ getPackage
 getPackage melpa@(Melpa {..}) ename pkgInfo fetcher =
   do
     recipe <- freezeRecipe melpa ename
-    (_, fetch) <- Nix.prefetch (freeze fetcher commit)
+    let source = packageSource melpa ename
+    (_, fetch) <- prefetch source (freeze fetcher commit)
 
     pure Nix.Package
       { ename
@@ -195,3 +202,44 @@ freezeRecipe melpa@Melpa { melpaDir } ename = do
   let sha256 = Just hash
   rev <- Git.revision melpaDir Nothing [recipe]
   pure Nix.Recipe { ename, rev, sha256 }
+
+
+prefetch :: FilePath -> Fetch -> IO (FilePath, Fetch)
+prefetch source fetch =
+  case fetch of
+    FetchUrl _ -> Nix.prefetch fetch
+    FetchGit git ->
+      do
+        (filename, hash) <- Nix.prefetchGit git { url = Text.pack source }
+        return (filename, FetchGit git { sha256 = Just hash })
+    FetchHg hg ->
+      do
+        (filename, hash) <- Nix.prefetchHg hg { url = Text.pack source }
+        return (filename, FetchHg hg { sha256 = Just hash })
+    FetchGitHub gitHub ->
+      do
+        (filename, hash) <- Nix.prefetchGit git
+        return (filename, FetchGitHub gitHub { sha256 = Just hash })
+      where
+        GitHub { rev } = gitHub
+        git =
+            Git
+                { url = Text.pack source
+                , rev
+                , branchName = Nothing
+                , sha256 = Nothing
+                }
+    FetchGitLab gitLab ->
+      do
+        (filename, hash) <- Nix.prefetchGit git
+        return (filename, FetchGitLab gitLab { sha256 = Just hash })
+      where
+        GitLab { rev } = gitLab
+        git =
+            Git
+                { url = Text.pack source
+                , rev
+                , branchName = Nothing
+                , sha256 = Nothing
+                }
+    FetchRecipe _ -> Nix.prefetch fetch

@@ -29,6 +29,8 @@ module Distribution.Melpa.Melpa
   , archiveJson
   , recipesJson
   , recipeFile
+  , workingDir
+  , packageSource
   ) where
 
 import Control.Exception ( Exception )
@@ -95,3 +97,12 @@ packageExpressionNix melpa ename version =
 recipeFile :: Melpa -> Emacs.Name -> FilePath
 recipeFile melpa ename =
     recipesDir melpa </> (Text.unpack . Emacs.fromName) ename
+
+
+workingDir :: Melpa -> FilePath
+workingDir Melpa { melpaDir } = melpaDir </> "working"
+
+
+packageSource :: Melpa -> Emacs.Name -> FilePath
+packageSource melpa ename =
+    workingDir melpa </> (Text.unpack . Emacs.fromName) ename

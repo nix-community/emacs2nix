@@ -18,30 +18,33 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 -}
 
+{-# LANGUAGE TemplateHaskell #-}
+
 module Distribution.Nix.Fetch where
 
 import Control.Applicative
 import Control.Error
 import Control.Exception
 import Control.Monad.IO.Class
+import Data.Aeson ((.:))
 import Data.ByteString (ByteString)
 import Data.Data (Data)
 import Data.Text (Text)
-import qualified Data.Text as T
+import Data.Text.Prettyprint.Doc ( Pretty (..) )
 import Data.Typeable (Typeable)
 import GHC.Generics (Generic)
 import Nix.Expr
 import System.Environment (getEnvironment)
+
+import qualified Data.Aeson as Aeson
+import qualified Data.Aeson.Types as Aeson
+import qualified Data.Text as T
 import qualified System.IO.Streams as S
 import qualified System.IO.Streams.Attoparsec as S
-import Data.Aeson ( (.:!), withObject )
-import Data.Aeson.Parser ( json' )
-import Data.Aeson.Types ( parseEither )
-import Data.Text.Prettyprint.Doc ( Pretty (..) )
-
-import Process
 
 import qualified Distribution.Emacs.Name as Emacs
+import Exceptions
+import Process
 
 data Url =
     Url
@@ -191,60 +194,77 @@ addToEnv :: [(String, String)] -> IO [(String, String)]
 addToEnv env = (++ env) <$> getEnvironment
 
 data BadPrefetchOutput = BadPrefetchOutput
-  deriving (Show, Typeable)
+mkException 'PrettyException ''BadPrefetchOutput
 
-instance Exception BadPrefetchOutput
+instance Pretty BadPrefetchOutput where
+    pretty _ = "bad prefetch output"
+
+prefetchUrl :: Url -> IO (FilePath, Text)
+prefetchUrl Url {..} =
+  do
+    let args = [T.unpack url]
+    prefetchHelper "nix-prefetch-url" args $ \out ->
+      liftIO $ do
+        hashes <- S.lines out >>= S.decodeUtf8 >>= S.toList
+        case hashes of
+          (hash:path:_) -> pure (T.unpack path, hash)
+          _ -> throwIO BadPrefetchOutput
+
+prefetchGit :: Git -> IO (FilePath, Text)
+prefetchGit Git { url, rev, branchName } =
+  do
+    let
+      args :: [String]
+      args =
+          concat
+              [ [ "--fetch-submodules" ]
+              , [ "--url", T.unpack url ]
+              , [ "--rev", T.unpack rev ]
+              , [ "--name" , T.unpack rev ]
+              , branchArgs
+              ]
+        where
+          branchArgs =
+            do
+              branchName' <- maybe empty pure branchName
+              ["--branch-name", T.unpack branchName']
+    prefetchHelper "nix-prefetch-git" args $ \out ->
+      liftIO $ do
+        hash' <- Aeson.parseEither jsonp <$> S.parseFromStream Aeson.json' out
+        paths <- S.lines out >>= S.decodeUtf8 >>= S.toList
+        case (hash', paths) of
+          (Right hash, (_:path:_)) -> pure (T.unpack path, hash)
+          _ -> throwIO BadPrefetchOutput
+  where
+    jsonp :: Aeson.Value -> Aeson.Parser Text
+    jsonp = Aeson.withObject "need an object" (\o -> o .: "sha256")
+
+prefetchHg :: Hg -> IO (FilePath, Text)
+prefetchHg Hg {..} =
+  do
+    let args = [T.unpack url, T.unpack rev]
+    prefetchHelper "nix-prefetch-hg" args $ \out ->
+      liftIO $ do
+        hashes <- S.lines out >>= S.decodeUtf8 >>= S.toList
+        case hashes of
+          (hash:path:_) -> pure (T.unpack path, hash)
+          _ -> throwIO BadPrefetchOutput
 
 prefetch :: Fetch -> IO (FilePath, Fetch)
-
-prefetch (FetchUrl fetch) = do
-  let args = [T.unpack url]
-  prefetchHelper "nix-prefetch-url" args $ \out -> do
-    hashes <- liftIO (S.lines out >>= S.decodeUtf8 >>= S.toList)
-    case hashes of
-      (hash:path:_) ->
-        pure (T.unpack path, fetchUrl fetch { sha256 = Just hash })
-      _ -> throwIO BadPrefetchOutput
-  where
-    Url {..} = fetch
+prefetch (FetchUrl fetch) =
+  do
+    (filename, hash) <- prefetchUrl fetch
+    return (filename, fetchUrl fetch { sha256 = Just hash })
 
 prefetch (FetchGit fetch) = do
-  let
-    args :: [String]
-    args =
-        concat
-            [ [ "--fetch-submodules" ]
-            , [ "--url", T.unpack url ]
-            , [ "--rev", T.unpack rev ]
-            , [ "--name" , T.unpack rev ]
-            , branchArgs
-            ]
-      where
-        branchArgs =
-          do
-            branchName' <- maybe empty pure branchName
-            ["--branch-name", T.unpack branchName']
-    jsonp = withObject "need an object" (\o -> o .:! "sha256")
-  prefetchHelper "nix-prefetch-git" args $ \out -> do
-    sha256_ <- liftIO $ parseEither jsonp <$> S.parseFromStream json' out
-    pathes <- liftIO (S.lines out >>= S.decodeUtf8 >>= S.toList)
-    case (sha256_, pathes) of
-      (Right sha256, (_:path:_)) ->
-        pure (T.unpack path, fetchGit fetch { sha256 })
-      _ -> throwIO BadPrefetchOutput
-  where
-    Git { url, rev, branchName } = fetch
+  do
+    (filename, hash) <- prefetchGit fetch
+    return (filename, fetchGit fetch { sha256 = Just hash })
 
-prefetch (FetchHg fetch) = do
-  let args = [T.unpack url, T.unpack rev]
-  prefetchHelper "nix-prefetch-hg" args $ \out -> do
-    hashes <- liftIO (S.lines out >>= S.decodeUtf8 >>= S.toList)
-    case hashes of
-      (hash:path:_) ->
-        pure (T.unpack path, fetchHg fetch { sha256 = Just hash })
-      _ -> throwIO BadPrefetchOutput
-  where
-    Hg {..} = fetch
+prefetch (FetchHg hg) =
+  do
+    (filename, hash) <- prefetchHg hg
+    return (filename, fetchHg hg { sha256 = Just hash })
 
 prefetch (FetchGitHub fetch) = do
   let

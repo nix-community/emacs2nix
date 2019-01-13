@@ -86,7 +86,10 @@ combining these individual expressions.
     Nix also cannot handle URL-encoding. Instead, we must set the source name to something unoffensive.
   :END:
 
-* TODO Avoid using network to prefetch
+* DONE Avoid using network to prefetch
+  :LOGBOOK:
+  - State "DONE"       from "TODO"       [2019-01-13 Sun 05:57]
+  :END:
 
 The recipes and source of packages is available from the MELPA checkout, so it
 should not be necessary to download again during prefetch.
