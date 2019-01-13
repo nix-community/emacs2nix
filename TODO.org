@@ -100,3 +100,5 @@ should not be necessary to download again during prefetch.
   :END:
 
 * TODO Make `deps' a set
+
+* TODO Apply `fetch*' functions
