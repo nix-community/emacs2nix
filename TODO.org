@@ -102,3 +102,5 @@ should not be necessary to download again during prefetch.
 * TODO Make `deps' a set
 
 * TODO Apply `fetch*' functions
+
+* TODO Apply `mkDerivation'
