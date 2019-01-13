@@ -25,7 +25,7 @@ module System.IO.Streams.Pretty where
 import qualified Control.Exception as Exception
 import qualified Data.Text as Text
 import qualified System.IO.Streams as Streams
-import qualified Text.PrettyPrint.ANSI.Leijen as Pretty
+import qualified Data.Text.Prettyprint.Doc as Pretty
 
 import Exceptions
 
@@ -35,7 +35,10 @@ mkException 'PrettyException ''DisplayException
 instance Pretty.Pretty DisplayException where
   pretty DisplayException = "Could not display document!"
 
-displayStream :: Pretty.SimpleDoc -> Streams.OutputStream Text.Text -> IO ()
+displayStream
+    :: Pretty.SimpleDocStream ann
+    -> Streams.OutputStream Text.Text
+    -> IO ()
 displayStream sdoc out =
     display sdoc
   where
@@ -48,10 +51,11 @@ displayStream sdoc out =
         display sdoc'
     display (Pretty.SText _ t sdoc') =
       do
-        Streams.write (Just (Text.pack t)) out
+        Streams.write (Just t) out
         display sdoc'
     display (Pretty.SLine i sdoc') =
       do
         Streams.write (Just (Text.cons '\n' (indentation i))) out
         display sdoc'
-    display (Pretty.SSGR _ sdoc') = display sdoc'
+    display (Pretty.SAnnPush _ sdoc') = display sdoc'
+    display (Pretty.SAnnPop sdoc') = display sdoc'

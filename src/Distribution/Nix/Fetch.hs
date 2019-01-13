@@ -26,7 +26,6 @@ import Control.Exception
 import Control.Monad.IO.Class
 import Data.ByteString (ByteString)
 import Data.Data (Data)
-import Data.Monoid
 import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Typeable (Typeable)
@@ -38,6 +37,7 @@ import qualified System.IO.Streams.Attoparsec as S
 import Data.Aeson ( (.:!), withObject )
 import Data.Aeson.Parser ( json' )
 import Data.Aeson.Types ( parseEither )
+import Data.Text.Prettyprint.Doc ( Pretty (..) )
 
 import Process
 
@@ -210,7 +210,6 @@ prefetch (FetchUrl fetch) = do
 
 prefetch (FetchGit fetch) = do
   let
-    name = Just rev
     args :: [String]
     args =
         concat

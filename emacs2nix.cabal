@@ -1,10 +1,11 @@
--- This file has been generated from package.yaml by hpack version 0.28.2.
+cabal-version: 1.12
+
+-- This file has been generated from package.yaml by hpack version 0.31.1.
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 9cad7f7b3fb21ccd069c7762e6529180cc6c7c058a96881947f487a8cc312498
+-- hash: ff84b9a6d0f2a5d897fd8f0a91a9023a6bf4dc6aa71d4720c7d3526ca261229a
 
-cabal-version:  >= 1.10
 name:           emacs2nix
 version:        0.1.0.0
 synopsis:       Generate Nix expressions for Emacs packages
@@ -54,11 +55,10 @@ library
       Paths_emacs2nix
   hs-source-dirs:
       src
-  default-extensions: DeriveDataTypeable DeriveGeneric DuplicateRecordFields ExistentialQuantification GADTs GeneralizedNewtypeDeriving LambdaCase NamedFieldPuns OverloadedLists OverloadedStrings RankNTypes RecordWildCards ScopedTypeVariables StandaloneDeriving ViewPatterns
+  default-extensions: DeriveDataTypeable DeriveGeneric DuplicateRecordFields ExistentialQuantification GADTs GeneralizedNewtypeDeriving LambdaCase NamedFieldPuns OverloadedStrings RankNTypes RecordWildCards ScopedTypeVariables StandaloneDeriving ViewPatterns
   ghc-options: -Wall
   build-depends:
       aeson >=0.8
-    , ansi-wl-pprint >=0.6
     , async >=2.0
     , attoparsec >=0.13
     , base >=4.7 && <5
@@ -74,6 +74,7 @@ library
     , hnix
     , http-streams >=0.7.2.0
     , io-streams >=1.3
+    , prettyprinter >=1
     , scientific >=0.3
     , taggy >=0.2
     , template-haskell >=2.12
@@ -88,11 +89,10 @@ executable elpa2nix
   main-is: elpa2nix.hs
   other-modules:
       Paths_emacs2nix
-  default-extensions: DeriveDataTypeable DeriveGeneric DuplicateRecordFields ExistentialQuantification GADTs GeneralizedNewtypeDeriving LambdaCase NamedFieldPuns OverloadedLists OverloadedStrings RankNTypes RecordWildCards ScopedTypeVariables StandaloneDeriving ViewPatterns
+  default-extensions: DeriveDataTypeable DeriveGeneric DuplicateRecordFields ExistentialQuantification GADTs GeneralizedNewtypeDeriving LambdaCase NamedFieldPuns OverloadedStrings RankNTypes RecordWildCards ScopedTypeVariables StandaloneDeriving ViewPatterns
   ghc-options: -Wall -threaded "-with-rtsopts=-qg"
   build-depends:
       aeson >=0.8
-    , ansi-wl-pprint >=0.6
     , async >=2.0
     , attoparsec >=0.13
     , base >=4.7 && <5
@@ -110,6 +110,7 @@ executable elpa2nix
     , http-streams >=0.7.2.0
     , io-streams >=1.3
     , optparse-applicative >=0.11
+    , prettyprinter >=1
     , scientific >=0.3
     , taggy >=0.2
     , template-haskell >=2.12
@@ -124,11 +125,10 @@ executable melpa2nix
   main-is: melpa2nix.hs
   other-modules:
       Paths_emacs2nix
-  default-extensions: DeriveDataTypeable DeriveGeneric DuplicateRecordFields ExistentialQuantification GADTs GeneralizedNewtypeDeriving LambdaCase NamedFieldPuns OverloadedLists OverloadedStrings RankNTypes RecordWildCards ScopedTypeVariables StandaloneDeriving ViewPatterns
+  default-extensions: DeriveDataTypeable DeriveGeneric DuplicateRecordFields ExistentialQuantification GADTs GeneralizedNewtypeDeriving LambdaCase NamedFieldPuns OverloadedStrings RankNTypes RecordWildCards ScopedTypeVariables StandaloneDeriving ViewPatterns
   ghc-options: -Wall -threaded "-with-rtsopts=-qg"
   build-depends:
       aeson >=0.8
-    , ansi-wl-pprint >=0.6
     , async >=2.0
     , attoparsec >=0.13
     , base >=4.7 && <5
@@ -146,6 +146,7 @@ executable melpa2nix
     , http-streams >=0.7.2.0
     , io-streams >=1.3
     , optparse-applicative >=0.11
+    , prettyprinter >=1
     , scientific >=0.3
     , taggy >=0.2
     , template-haskell >=2.12

@@ -1,12 +1,10 @@
 self: super:
+let lib = self.haskell.lib; in
 {
   haskellPackages = super.haskellPackages.override (args: {
-    overrides = self: super_:
-      let
-        super = (args.overrides or (self: super: super)) self super_;
-      in
-        super // {
-          ghcWithPackages = self.ghcWithHoogle;
-        };
+    overrides = self: super:
+      (args.overrides or (self: super: super)) self super // {
+        ghcWithPackages = self.ghcWithHoogle;
+      };
   });
 }

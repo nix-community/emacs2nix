@@ -28,7 +28,7 @@ import Control.Concurrent.QSem
 import Data.Foldable ( toList )
 import Data.HashSet ( HashSet )
 import Nix.Expr (NExpr)
-import Text.PrettyPrint.ANSI.Leijen ( Pretty, (<+>) )
+import Data.Text.Prettyprint.Doc ( Pretty, (<+>) )
 
 import qualified Control.Monad.Extra as Monad
 import qualified Data.HashMap.Strict as HashMap
@@ -37,7 +37,7 @@ import qualified Data.Map.Strict as Map
 import qualified Data.Text as T
 import qualified System.Directory as Directory
 import qualified System.IO.Streams as Streams
-import qualified Text.PrettyPrint.ANSI.Leijen as Pretty
+import qualified Data.Text.Prettyprint.Doc as Pretty
 
 import Distribution.Melpa.Fetcher
 import Distribution.Melpa.Melpa
@@ -96,7 +96,7 @@ updateMelpa melpaDir selectedNames = do
           where
             withQSem = bracket (waitQSem sem) (\_ -> signalQSem sem)
         context =
-            "package" <+> Pretty.string sname
+            "package" <+> Pretty.pretty sname
           where
             tname = Emacs.fromName ename
             sname = T.unpack tname

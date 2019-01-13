@@ -24,11 +24,10 @@ module Distribution.Emacs.Name ( Name (..) ) where
 import Data.Data (Data)
 import Data.Hashable ( Hashable )
 import Data.Text ( Text )
-import qualified Data.Text as Text
 import Data.Typeable (Typeable)
 import GHC.Generics (Generic)
-import Text.PrettyPrint.ANSI.Leijen ( Pretty (..) )
-import qualified Text.PrettyPrint.ANSI.Leijen as Pretty
+import Data.Text.Prettyprint.Doc ( Pretty (..) )
+import qualified Data.Text.Prettyprint.Doc as Pretty
 
 
 newtype Name = Name { fromName :: Text }
@@ -36,4 +35,4 @@ newtype Name = Name { fromName :: Text }
 
 
 instance Pretty Name where
-  pretty = Pretty.text . Text.unpack . fromName
+  pretty = Pretty.pretty . fromName
