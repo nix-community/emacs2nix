@@ -25,7 +25,6 @@ import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Types as Aeson
 import Data.HashMap.Strict ( HashMap )
 import qualified Data.HashMap.Strict as HashMap
-import Data.Monoid
 import Data.Text ( Text )
 import qualified Data.Text as Text
 import qualified System.IO.Streams as Stream

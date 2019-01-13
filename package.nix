@@ -1,8 +1,9 @@
-{ mkDerivation, aeson, ansi-wl-pprint, async, attoparsec, base
-, bytestring, containers, data-fix, directory, errors, exceptions
-, extra, filepath, hashable, hnix, hpack, http-streams, io-streams
-, optparse-applicative, scientific, stdenv, taggy, template-haskell
-, temporary, text, time, transformers, unordered-containers
+{ mkDerivation, aeson, async, attoparsec, base, bytestring
+, containers, data-fix, directory, errors, exceptions, extra
+, filepath, hashable, hnix, hpack, http-streams, io-streams
+, optparse-applicative, prettyprinter, scientific, stdenv, taggy
+, template-haskell, temporary, text, time, transformers
+, unordered-containers
 }:
 mkDerivation {
   pname = "emacs2nix";
@@ -12,17 +13,18 @@ mkDerivation {
   isExecutable = true;
   enableSeparateDataOutput = true;
   libraryHaskellDepends = [
-    aeson ansi-wl-pprint async attoparsec base bytestring containers
-    data-fix directory errors exceptions extra filepath hashable hnix
-    http-streams io-streams scientific taggy template-haskell temporary
-    text time transformers unordered-containers
+    aeson async attoparsec base bytestring containers data-fix
+    directory errors exceptions extra filepath hashable hnix
+    http-streams io-streams prettyprinter scientific taggy
+    template-haskell temporary text time transformers
+    unordered-containers
   ];
   libraryToolDepends = [ hpack ];
   executableHaskellDepends = [
-    aeson ansi-wl-pprint async attoparsec base bytestring containers
-    data-fix directory errors exceptions extra filepath hashable hnix
-    http-streams io-streams optparse-applicative scientific taggy
-    template-haskell temporary text time transformers
+    aeson async attoparsec base bytestring containers data-fix
+    directory errors exceptions extra filepath hashable hnix
+    http-streams io-streams optparse-applicative prettyprinter
+    scientific taggy template-haskell temporary text time transformers
     unordered-containers
   ];
   preConfigure = "hpack";

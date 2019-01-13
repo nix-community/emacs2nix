@@ -36,8 +36,8 @@ import Data.Text ( Text )
 import Data.Version ( Version, makeVersion )
 import qualified System.IO.Streams as Stream
 import qualified System.IO.Streams.Attoparsec as Stream
-import Text.PrettyPrint.ANSI.Leijen ( (<+>) )
-import qualified Text.PrettyPrint.ANSI.Leijen as Pretty
+import Data.Text.Prettyprint.Doc ( (<+>) )
+import qualified Data.Text.Prettyprint.Doc as Pretty
 
 import qualified Distribution.Emacs.Name as Emacs
 import Distribution.Melpa.Melpa
@@ -112,7 +112,7 @@ See also: 'archiveJson'
 readArchives :: Melpa -> IO (HashMap Emacs.Name PkgInfo)
 readArchives melpa =
   let archiveFile = archiveJson melpa in
-  inContext ("reading" <+> Pretty.string archiveFile)
+  inContext ("reading" <+> Pretty.pretty archiveFile)
   $ Stream.withFileAsInput archiveFile $ \archiveInput ->
     do
       archives <- Stream.parseFromStream Aeson.json' archiveInput

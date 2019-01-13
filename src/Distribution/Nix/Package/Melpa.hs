@@ -38,7 +38,7 @@ import qualified System.Directory as Directory
 import qualified System.FilePath as FilePath
 import qualified System.IO.Streams as Streams
 import qualified System.IO.Temp as Temp
-import qualified Text.PrettyPrint.ANSI.Leijen as Pretty
+import qualified Data.Text.Prettyprint.Doc as Pretty
 
 import qualified Distribution.Emacs.Name as Emacs
 import Distribution.Nix.Fetch (Fetch, Recipe)
@@ -79,20 +79,20 @@ writePackageExpression output expr =
         do
           let
             doc = Nix.Pretty.prettyNix expr
-            rendered = Pretty.renderSmart 1.0 80 doc
+            rendered = Pretty.layoutPretty Pretty.defaultLayoutOptions doc
           Pretty.displayStream rendered =<< Streams.encodeUtf8 out
       )
     Directory.renameFile tmp output
   where
 
 
-data NixParseFailure = NixParseFailure Pretty.Doc
+data NixParseFailure = NixParseFailure (Pretty.Doc ())
 mkException 'PrettyException ''NixParseFailure
 
 
 instance Pretty.Pretty NixParseFailure where
   pretty (NixParseFailure failed) =
-    "Failed to parse expression:" Pretty.<+> failed
+    "Failed to parse expression:" Pretty.<+> Pretty.unAnnotate failed
 
 
 readPackageExpression :: FilePath -> IO NExpr
@@ -101,6 +101,6 @@ readPackageExpression input =
     result <- Nix.Parser.parseNixFile input
     case result of
       Nix.Parser.Failure failed ->
-        Exception.throwIO (NixParseFailure failed)
+        Exception.throwIO (NixParseFailure (Pretty.unAnnotate failed))
       Nix.Parser.Success parsed ->
         return parsed

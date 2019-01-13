@@ -3,3 +3,4 @@
 *.prof
 /.shell.drv
 /.result*
+.ghc.environment.*

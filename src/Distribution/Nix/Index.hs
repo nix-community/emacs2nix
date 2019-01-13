@@ -27,7 +27,7 @@ import Nix.Expr
 import qualified Nix.Pretty
 import Prelude hiding ( (<$>) )
 import System.IO.Streams (OutputStream)
-import Text.PrettyPrint.ANSI.Leijen hiding ( sep )
+import qualified Data.Text.Prettyprint.Doc as Pretty
 
 import qualified Distribution.Emacs.Name as Emacs
 import System.IO.Streams.Pretty as Pretty
@@ -40,7 +40,10 @@ writeIndex output packages =
   do
     let
       index = packageIndex packages
-      rendered = renderSmart 1.0 80 (Nix.Pretty.prettyNix index)
+      rendered =
+          Pretty.layoutPretty
+              Pretty.defaultLayoutOptions
+              (Nix.Pretty.prettyNix index)
     displayStream rendered output
 
 packageIndex :: Map Emacs.Name NExpr -> NExpr

@@ -36,12 +36,11 @@ module Exceptions
 
 import qualified Control.Monad as Monad
 import Control.Monad.Catch
-import Data.Semigroup
 import Data.Text ( Text )
-import qualified Data.Text as Text
 import qualified System.IO as System
-import Text.PrettyPrint.ANSI.Leijen ( Doc, Pretty, (<+>) )
-import qualified Text.PrettyPrint.ANSI.Leijen as Pretty
+import Data.Text.Prettyprint.Doc ( Doc, Pretty, (<+>) )
+import qualified Data.Text.Prettyprint.Doc as Pretty
+import qualified Data.Text.Prettyprint.Doc.Render.Text as Pretty
 
 import Exceptions.TH
 
@@ -93,12 +92,12 @@ manyExceptions = ManyExceptions
 
 data Context =
   forall e. (Exception e, Pretty e) =>
-  Context { context :: Doc, exception :: e }
+  Context { context :: Doc (), exception :: e }
 mkException 'PrettyException ''Context
 
 instance Pretty Context where
   pretty Context {..} =
-    "in " <> context <> ": " <> Pretty.pretty exception
+    "in " <> Pretty.unAnnotate context <> ": " <> Pretty.pretty exception
 
 
 mapExceptionM :: (Exception e1, Exception e2, MonadCatch m, MonadThrow m)
@@ -106,7 +105,7 @@ mapExceptionM :: (Exception e1, Exception e2, MonadCatch m, MonadThrow m)
 mapExceptionM f = handle (\e1 -> throwM (f e1))
 
 
-inContext :: (MonadCatch m, MonadThrow m) => Doc -> m a -> m a
+inContext :: (MonadCatch m, MonadThrow m) => Doc () -> m a -> m a
 inContext context =
   mapExceptionM (\(PrettyException exception) -> Context {..})
 
@@ -127,7 +126,7 @@ instance Pretty Died where
   pretty (Died exit err) =
     Pretty.vsep
     [ "died with exit code" <+> Pretty.pretty exit <> ":"
-    , Pretty.string (Text.unpack err)
+    , Pretty.pretty err
     ]
 
 
@@ -139,5 +138,5 @@ instance Pretty ParseFilesError where
   pretty (ParseFilesError err) =
     Pretty.vsep
     [ "parse error:"
-    , Pretty.string err
+    , Pretty.pretty err
     ]

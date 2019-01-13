@@ -29,7 +29,7 @@ import Debug.Trace
 import System.Exit (ExitCode(..))
 import System.IO.Streams (InputStream)
 import qualified System.IO.Streams as S
-import qualified Text.PrettyPrint.ANSI.Leijen as Pretty
+import qualified Data.Text.Prettyprint.Doc as Pretty
 
 import Exceptions
 
@@ -42,7 +42,7 @@ runInteractiveProcess
   -> (InputStream ByteString -> IO a)
   -> IO a
 runInteractiveProcess cmd args cwd env withOutput =
-  inContext ("process " <> Pretty.string (S.showCommandForUser cmd args)) $ do
+  inContext ("process " <> Pretty.pretty (S.showCommandForUser cmd args)) $ do
     (_, out, err, pid) <- S.runInteractiveProcess cmd args cwd env
     let
       getOutput =
