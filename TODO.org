@@ -98,3 +98,5 @@ should not be necessary to download again during prefetch.
   :LOGBOOK:
   - State "DONE"       from "TODO"       [2019-01-13 Sun 05:57]
   :END:
+
+* TODO Make `deps' a set
