@@ -83,7 +83,6 @@ writePackageExpression output expr =
           Pretty.displayStream rendered =<< Streams.encodeUtf8 out
       )
     Directory.renameFile tmp output
-  where
 
 
 data NixParseFailure = NixParseFailure (Pretty.Doc ())

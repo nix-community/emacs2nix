@@ -25,11 +25,11 @@ import qualified Data.Map.Strict as Map
 import Data.Text (Text)
 import Nix.Expr
 import qualified Nix.Pretty
-import Prelude hiding ( (<$>) )
 import System.IO.Streams (OutputStream)
 import qualified Data.Text.Prettyprint.Doc as Pretty
 
 import qualified Distribution.Emacs.Name as Emacs
+import qualified Distribution.Nix.Fetch as Fetch
 import System.IO.Streams.Pretty as Pretty
 
 writeIndex
@@ -48,7 +48,12 @@ writeIndex output packages =
 
 packageIndex :: Map Emacs.Name NExpr -> NExpr
 packageIndex (Map.toList -> packages) =
-    (mkNonRecSet . map bindPackage) packages
+    mkFunction params body
   where
+    params =
+        (mkParamset . concat)
+            [ Fetch.fetchParams ]
+            False
+    body = mkNonRecSet (bindPackage <$> packages)
     bindPackage (ename, drv) =
       ("\"" <> Emacs.fromName ename <> "\"") $= drv

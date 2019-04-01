@@ -129,53 +129,6 @@ fetchGitLab = FetchGitLab
 fetchRecipe :: Recipe -> Fetch
 fetchRecipe = FetchRecipe
 
-fetchExpr :: Fetch -> NExpr
-fetchExpr (FetchUrl Url {..}) =
-    (mkNonRecSet . catMaybes)
-        [ (pure . bindTo "fetcher") (mkStr "url")
-        , (pure . bindTo "url") (mkStr url)
-        , bindTo "sha256" . mkStr <$> sha256
-        , bindTo "name" . mkStr <$> name
-        ]
-fetchExpr (FetchGit Git {..}) =
-    (mkNonRecSet . catMaybes)
-        [ (pure . bindTo "fetcher") (mkStr "git")
-        , (pure . bindTo "url") (mkStr url)
-        , (pure . bindTo "rev") (mkStr rev)
-        , bindTo "branchName" . mkStr <$> branchName
-        , bindTo "sha256" . mkStr <$> sha256
-        ]
-fetchExpr (FetchHg Hg {..}) =
-    (mkNonRecSet . catMaybes)
-        [ (pure . bindTo "fetcher") (mkStr "hg")
-        , (pure . bindTo "url") (mkStr url)
-        , (pure . bindTo "rev") (mkStr rev)
-        , bindTo "sha256" . mkStr <$> sha256
-        ]
-fetchExpr (FetchGitHub GitHub {..}) =
-    (mkNonRecSet . catMaybes)
-        [ (pure . bindTo "fetcher") (mkStr "github")
-        , (pure . bindTo "owner") (mkStr owner)
-        , (pure . bindTo "repo") (mkStr repo)
-        , (pure . bindTo "rev") (mkStr rev)
-        , bindTo "sha256" . mkStr <$> sha256
-        ]
-fetchExpr (FetchGitLab GitLab {..}) =
-    (mkNonRecSet . catMaybes)
-        [ (pure . bindTo "fetcher") (mkStr "gitlab")
-        , (pure . bindTo "owner") (mkStr owner)
-        , (pure . bindTo "repo") (mkStr repo)
-        , (pure . bindTo "rev") (mkStr rev)
-        , bindTo "sha256" . mkStr <$> sha256
-        ]
-fetchExpr (FetchRecipe Recipe {..}) =
-    (mkNonRecSet . catMaybes)
-        [ pure ("fetcher" $= mkStr "recipe")
-        , pure ("ename" $= mkStr (Emacs.fromName ename))
-        , pure ("rev" $= mkStr rev)
-        , bindTo "sha256" . mkStr <$> sha256
-        ]
-
 newtype FetchError = FetchError SomeException
   deriving (Show, Typeable)
 
@@ -313,3 +266,54 @@ prefetch (FetchRecipe fetch) = do
             , "/recipes/"
             , tname
             ]
+
+fetchParams :: [(Text, Maybe NExpr)]
+fetchParams =
+    [ ("fetchurl", Nothing)
+    , ("fetchgit", Nothing)
+    , ("fetchhg", Nothing)
+    , ("fetchFromGitHub", Nothing)
+    , ("fetchFromGitLab", Nothing)
+    , ("fetchRecipe", Nothing)
+    ]
+
+fetchExpr :: Fetch -> NExpr
+fetchExpr (FetchUrl Url {..}) =
+    ((@@) (mkSym "fetchurl") . mkNonRecSet . catMaybes)
+        [ (pure . bindTo "url") (mkStr url)
+        , bindTo "sha256" . mkStr <$> sha256
+        , bindTo "name" . mkStr <$> name
+        ]
+fetchExpr (FetchGit Git {..}) =
+    ((@@) (mkSym "fetchgit") . mkNonRecSet . catMaybes)
+        [ (pure . bindTo "url") (mkStr url)
+        , (pure . bindTo "rev") (mkStr rev)
+        , bindTo "branchName" . mkStr <$> branchName
+        , bindTo "sha256" . mkStr <$> sha256
+        ]
+fetchExpr (FetchHg Hg {..}) =
+    ((@@) (mkSym "fetchhg") . mkNonRecSet . catMaybes)
+        [ (pure . bindTo "url") (mkStr url)
+        , (pure . bindTo "rev") (mkStr rev)
+        , bindTo "sha256" . mkStr <$> sha256
+        ]
+fetchExpr (FetchGitHub GitHub {..}) =
+    ((@@) (mkSym "fetchFromGitHub") . mkNonRecSet . catMaybes)
+        [ (pure . bindTo "owner") (mkStr owner)
+        , (pure . bindTo "repo") (mkStr repo)
+        , (pure . bindTo "rev") (mkStr rev)
+        , bindTo "sha256" . mkStr <$> sha256
+        ]
+fetchExpr (FetchGitLab GitLab {..}) =
+    ((@@) (mkSym "fetchFromGitLab") . mkNonRecSet . catMaybes)
+        [ (pure . bindTo "owner") (mkStr owner)
+        , (pure . bindTo "repo") (mkStr repo)
+        , (pure . bindTo "rev") (mkStr rev)
+        , bindTo "sha256" . mkStr <$> sha256
+        ]
+fetchExpr (FetchRecipe Recipe {..}) =
+    ((@@) (mkSym "fetchRecipe") . mkNonRecSet . catMaybes)
+        [ pure ("ename" $= mkStr (Emacs.fromName ename))
+        , pure ("rev" $= mkStr rev)
+        , bindTo "sha256" . mkStr <$> sha256
+        ]
