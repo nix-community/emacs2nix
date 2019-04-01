@@ -101,6 +101,9 @@ should not be necessary to download again during prefetch.
 
 * TODO Make `deps' a set
 
-* TODO Apply `fetch*' functions
+* DONE Apply `fetch*' functions
+  :LOGBOOK:
+  - State "DONE"       from "TODO"       [2019-03-31 Sun 19:26]
+  :END:
 
 * TODO Apply `mkDerivation'
