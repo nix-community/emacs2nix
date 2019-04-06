@@ -29,7 +29,6 @@ import System.IO.Streams (OutputStream)
 import qualified Data.Text.Prettyprint.Doc as Pretty
 
 import qualified Distribution.Emacs.Name as Emacs
-import qualified Distribution.Nix.Fetch as Fetch
 import System.IO.Streams.Pretty as Pretty
 
 writeIndex
@@ -50,10 +49,7 @@ packageIndex :: Map Emacs.Name NExpr -> NExpr
 packageIndex (Map.toList -> packages) =
     mkFunction params body
   where
-    params =
-        (mkParamset . concat)
-            [ Fetch.fetchParams ]
-            False
+    params = (mkParamset . concat) [] False
     body = mkNonRecSet (bindPackage <$> packages)
     bindPackage (ename, drv) =
       ("\"" <> Emacs.fromName ename <> "\"") $= drv

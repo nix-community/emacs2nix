@@ -267,52 +267,48 @@ prefetch (FetchRecipe fetch) = do
             , tname
             ]
 
-fetchParams :: [(Text, Maybe NExpr)]
-fetchParams =
-    [ ("fetchurl", Nothing)
-    , ("fetchgit", Nothing)
-    , ("fetchhg", Nothing)
-    , ("fetchFromGitHub", Nothing)
-    , ("fetchFromGitLab", Nothing)
-    , ("fetchRecipe", Nothing)
-    ]
+{- | Apply the named Church-encoded sum constructor.
+ -}
+applyConstr :: Text -> NExpr -> NExpr
+applyConstr constr =
+    (==>) (mkParamset [(constr, Nothing)] True) . (@@) (mkSym constr)
 
 fetchExpr :: Fetch -> NExpr
 fetchExpr (FetchUrl Url {..}) =
-    ((@@) (mkSym "fetchurl") . mkNonRecSet . catMaybes)
+    (applyConstr "Url" . mkNonRecSet . catMaybes)
         [ (pure . bindTo "url") (mkStr url)
         , bindTo "sha256" . mkStr <$> sha256
         , bindTo "name" . mkStr <$> name
         ]
 fetchExpr (FetchGit Git {..}) =
-    ((@@) (mkSym "fetchgit") . mkNonRecSet . catMaybes)
+    (applyConstr "Git" . mkNonRecSet . catMaybes)
         [ (pure . bindTo "url") (mkStr url)
         , (pure . bindTo "rev") (mkStr rev)
         , bindTo "branchName" . mkStr <$> branchName
         , bindTo "sha256" . mkStr <$> sha256
         ]
 fetchExpr (FetchHg Hg {..}) =
-    ((@@) (mkSym "fetchhg") . mkNonRecSet . catMaybes)
+    (applyConstr "Hg" . mkNonRecSet . catMaybes)
         [ (pure . bindTo "url") (mkStr url)
         , (pure . bindTo "rev") (mkStr rev)
         , bindTo "sha256" . mkStr <$> sha256
         ]
 fetchExpr (FetchGitHub GitHub {..}) =
-    ((@@) (mkSym "fetchFromGitHub") . mkNonRecSet . catMaybes)
+    (applyConstr "GitHub" . mkNonRecSet . catMaybes)
         [ (pure . bindTo "owner") (mkStr owner)
         , (pure . bindTo "repo") (mkStr repo)
         , (pure . bindTo "rev") (mkStr rev)
         , bindTo "sha256" . mkStr <$> sha256
         ]
 fetchExpr (FetchGitLab GitLab {..}) =
-    ((@@) (mkSym "fetchFromGitLab") . mkNonRecSet . catMaybes)
+    (applyConstr "GitLab" . mkNonRecSet . catMaybes)
         [ (pure . bindTo "owner") (mkStr owner)
         , (pure . bindTo "repo") (mkStr repo)
         , (pure . bindTo "rev") (mkStr rev)
         , bindTo "sha256" . mkStr <$> sha256
         ]
 fetchExpr (FetchRecipe Recipe {..}) =
-    ((@@) (mkSym "fetchRecipe") . mkNonRecSet . catMaybes)
+    (applyConstr "Recipe" . mkNonRecSet . catMaybes)
         [ pure ("ename" $= mkStr (Emacs.fromName ename))
         , pure ("rev" $= mkStr rev)
         , bindTo "sha256" . mkStr <$> sha256
