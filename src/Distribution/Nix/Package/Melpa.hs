@@ -62,8 +62,11 @@ expression (Package {..}) =
         , "version" $= mkStr (Text.pack $ showVersion version)
         , "src" $= Fetch.fetchExpr fetch
         , "recipe" $= Fetch.fetchExpr (Fetch.fetchRecipe recipe)
-        , "deps" $= mkList (mkStr . Emacs.fromName <$> deps)
+        , "deps" $= mkNonRecSet (mkDep <$> deps)
         ]
+  where
+    mkDep dep = quoted (Emacs.fromName dep) $= mkNull
+    quoted str = "\"" <> str <> "\""
 
 
 writePackageExpression
