@@ -3,4 +3,4 @@
 
 # usage: ./org-packages.sh -o PATH
 
-elpa2nix http://orgmode.org/elpa/ "$@"
+elpa2nix https://orgmode.org/elpa/ "$@"
