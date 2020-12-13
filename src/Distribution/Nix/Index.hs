@@ -74,6 +74,7 @@ writeIndex output packages = do
     write index out = do
       let rendered = renderSmart 1.0 80 (prettyNix index)
       displayStream rendered =<< S.encodeUtf8 out
+      S.write (Just "\n") =<< S.encodeUtf8 out
 
 getFunctionBody :: NExpr -> Maybe NExpr
 getFunctionBody (Fix (NAbs _ body)) = Just body
