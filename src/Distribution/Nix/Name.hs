@@ -91,7 +91,7 @@ mkException 'InvalidName ''LeadingDigit
 
 instance Pretty LeadingDigit where
   pretty LeadingDigit {..} =
-    "‘" <> Pretty.string (Text.unpack invalidName) <> "’ begins with a digit"
+    "'" <> Pretty.string (Text.unpack invalidName) <> "' begins with a digit"
 
 
 -- | An exception thrown if @invalidName@ is invalid due to the illegal
@@ -103,8 +103,8 @@ mkException 'InvalidName ''IllegalChar
 
 instance Pretty IllegalChar where
   pretty IllegalChar {..} =
-    "‘" <> Pretty.string (Text.unpack invalidName)
-    <> "’ contains illegal character ‘" <> Pretty.char illegalChar <> "’"
+    "'" <> Pretty.string (Text.unpack invalidName)
+    <> "' contains illegal character '" <> Pretty.char illegalChar <> "'"
 
 -- | Characters that may not appear in a Nix identifier.
 illegalChars :: Set Char
