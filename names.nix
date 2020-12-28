@@ -15,6 +15,7 @@
   "markdown-mode+" = "markdown-mode-plus";
   "package+" = "package-plus";
   "rect+" = "rect-plus";
+  "shell-command+" = "shell-command-plus";
   "term+" = "term-plus";
   "term+key-intercept" = "term-plus-key-intercept";
   "term+mux" = "term-plus-mux";
