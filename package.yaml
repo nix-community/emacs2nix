@@ -42,6 +42,7 @@ dependencies:
   - time >= 1.5
   - transformers >= 0.4
   - unordered-containers >= 0.2
+  - uri-encode >= 1.5
 
 ghc-options: -Wall
 

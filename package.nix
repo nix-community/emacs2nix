@@ -2,7 +2,7 @@
 , bytestring, containers, data-fix, directory, errors, exceptions
 , filepath, hashable, hnix, http-streams, io-streams
 , optparse-applicative, scientific, stdenv, taggy, template-haskell
-, temporary, text, time, transformers, unordered-containers
+, temporary, text, time, transformers, unordered-containers, uri-encode
 }:
 mkDerivation {
   pname = "emacs2nix";
@@ -15,14 +15,14 @@ mkDerivation {
     aeson ansi-wl-pprint async attoparsec base bytestring containers
     data-fix directory errors exceptions filepath hashable hnix
     http-streams io-streams scientific taggy template-haskell temporary
-    text time transformers unordered-containers
+    text time transformers unordered-containers uri-encode
   ];
   executableHaskellDepends = [
     aeson ansi-wl-pprint async attoparsec base bytestring containers
     data-fix directory errors exceptions filepath hashable hnix
     http-streams io-streams optparse-applicative scientific taggy
     template-haskell temporary text time transformers
-    unordered-containers
+    unordered-containers uri-encode
   ];
   homepage = "https://github.com/ttuegel/emacs2nix#readme";
   description = "Generate Nix expressions for Emacs packages";
