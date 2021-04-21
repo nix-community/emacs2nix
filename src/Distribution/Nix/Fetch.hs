@@ -32,6 +32,7 @@ import Data.Monoid
 import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Typeable (Typeable)
+import Network.URI.Encode (encodeText)
 import Nix.Expr
 import System.Environment (getEnvironment)
 import qualified System.IO.Streams as S
@@ -225,8 +226,10 @@ prefetch _ fetch@(GitHub {..}) = do
 prefetch _ fetch@(GitLab {..}) = do
   let
     args = ["--name", T.unpack name, "--unpack", T.unpack url]
-    url = "https://gitlab.com/" <> owner <> "/" <> repo
-          <> "/repository/archive.tar.gz?ref=" <> rev
+    slug = encodeText $ owner <> "/" <> repo
+    escapedRev = encodeText rev
+    url = "https://gitlab.com/api/v4/projects/" <> slug
+      <> "/repository/archive.tar.gz?sha=" <> escapedRev
     name = repo <> "-" <> rev <> "-src"
   prefetchHelper "nix-prefetch-url" args $ \out -> do
     hashes <- liftIO (S.lines out >>= S.decodeUtf8 >>= S.toList)
