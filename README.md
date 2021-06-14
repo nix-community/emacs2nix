@@ -8,9 +8,9 @@ git submodule update --init
 ```
 before building this package!
 
-The scripts `elpa-packages.sh`, `org-packages.sh`, `melpa-packages.sh`, and
-`melpa-stable-packages.sh` regenerate each package set. They require
-Nix to build.
+The scripts `elpa-packages.sh`, `nongnu-packages.sh`, `org-packages.sh`,
+`melpa-packages.sh`, and `melpa-stable-packages.sh` regenerate each package
+set. They require Nix to build.
 
 To update the ELPA or org-mode packages, run
 ```.bash
