@@ -11,6 +11,7 @@
 , split, stdenv, syb, tasty, tasty-hedgehog, tasty-hunit
 , tasty-quickcheck, tasty-th, template-haskell, text, these, time
 , transformers, unix, unordered-containers, vector, xml
+, lib
 }:
 mkDerivation {
   pname = "hnix";
@@ -54,5 +55,5 @@ mkDerivation {
   ];
   homepage = "https://github.com/haskell-nix/hnix#readme";
   description = "Haskell implementation of the Nix language";
-  license = stdenv.lib.licenses.bsd3;
+  license = lib.licenses.bsd3;
 }

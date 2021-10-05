@@ -1,15 +1,16 @@
+{ pkgs ? import <nixpkgs> {} }:
+
 let
-  nixpkgs = import ./nixpkgs.nix;
-  emacs2nix = import ./default.nix;
+  emacs2nix = import ./default.nix { inherit pkgs; };
 in
 
-with nixpkgs;
+with pkgs;
 
 stdenv.mkDerivation {
   name = "interactive-${emacs2nix.name}-environment";
   nativeBuildInputs = [
     emacs nix nix-prefetch-scripts
-    bazaar cvs curl fossil git mercurial subversion
+    breezy cvs curl fossil git mercurial subversion
     emacs2nix
   ];
   shellHook = ''

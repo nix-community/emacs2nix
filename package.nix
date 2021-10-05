@@ -3,6 +3,7 @@
 , filepath, hashable, hnix, http-streams, io-streams
 , optparse-applicative, scientific, stdenv, taggy, template-haskell
 , temporary, text, time, transformers, unordered-containers, uri-encode
+, lib
 }:
 mkDerivation {
   pname = "emacs2nix";
@@ -26,5 +27,5 @@ mkDerivation {
   ];
   homepage = "https://github.com/ttuegel/emacs2nix#readme";
   description = "Generate Nix expressions for Emacs packages";
-  license = stdenv.lib.licenses.gpl3;
+  license = lib.licenses.gpl3;
 }
