@@ -1,6 +1,8 @@
 let
   nixpkgs = import ./nixpkgs.nix;
   emacs2nix = import ./default.nix;
+  systemPkgs = import <nixpkgs> {};
+
 in
 
 with nixpkgs;
@@ -13,6 +15,6 @@ stdenv.mkDerivation {
     emacs2nix
   ];
   shellHook = ''
-    export SSL_CERT_FILE="${cacert}/etc/ssl/certs/ca-bundle.crt"
+    export SSL_CERT_FILE="${systemPkgs.cacert}/etc/ssl/certs/ca-bundle.crt"
   '';
 }
