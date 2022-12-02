@@ -42,6 +42,7 @@ optionalBuiltins dep
               , "chart"
               , "checkdoc"
               , "cl-lib"
+              , "cl-print"
               , "cwarn"
               , "delim-col"
               , "dunnet"
