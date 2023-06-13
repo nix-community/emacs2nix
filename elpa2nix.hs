@@ -181,7 +181,8 @@ hashPackage :: String -> HashMap Emacs.Name Name -> (Text, Elpa)
 hashPackage server namesMap (name, pkg) =
   catchPretty $ do
     let
-      ver = T.intercalate "." (map (T.pack . show) (Elpa.ver pkg))
+      unShorthand = (T.replace ".-1." "pre") . (T.replace ".-4." "snapshot")
+      ver = unShorthand $ T.intercalate "." (map (T.pack . show) (Elpa.ver pkg))
       basename
         | null (Elpa.ver pkg) = T.unpack name
         | otherwise = T.unpack (name <> "-" <> ver)
