@@ -3,3 +3,7 @@
 *.prof
 /.shell.drv
 /.result*
+/dist-newstyle/
+.envrc
+TAGS
+tags
