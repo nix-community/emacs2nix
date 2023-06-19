@@ -25,6 +25,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 module Main (main) where
 
+import Control.Arrow ( (>>>) )
 import Control.Concurrent ( setNumCapabilities )
 import Control.Concurrent.Async ( Concurrently(..) )
 import Control.Exception
@@ -32,6 +33,7 @@ import Control.Monad ( join, when )
 import Data.Aeson ( FromJSON(..), json' )
 import Data.Aeson.Types ( parseEither )
 import Data.ByteString ( ByteString )
+import Data.Function ( (&) )
 import Data.HashMap.Strict ( HashMap )
 import Data.Map.Strict ( Map )
 import qualified Data.Map.Strict as M
@@ -181,8 +183,11 @@ hashPackage :: String -> HashMap Emacs.Name Name -> (Text, Elpa)
 hashPackage server namesMap (name, pkg) =
   catchPretty $ do
     let
-      unShorthand = (T.replace ".-1." "pre") . (T.replace ".-4." "snapshot")
-      ver = unShorthand $ T.intercalate "." (map (T.pack . show) (Elpa.ver pkg))
+      ver = (Elpa.ver pkg) &
+        ((map (T.pack . show))
+        >>> (T.intercalate ".")
+        >>> (T.replace ".-4." "snapshot")
+        >>> (T.replace ".-1." "pre"))
       basename
         | null (Elpa.ver pkg) = T.unpack name
         | otherwise = T.unpack (name <> "-" <> ver)
