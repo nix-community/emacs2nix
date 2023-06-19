@@ -8,19 +8,15 @@ git submodule update --init
 ```
 before building this package!
 
-The scripts `elpa-packages.sh`, `nongnu-packages.sh`, `org-packages.sh`,
+The scripts `elpa-packages.sh`, `nongnu-packages.sh`,
 `melpa-packages.sh`, and `melpa-stable-packages.sh` regenerate each package
 set. They require Nix to build.
 
-To update the ELPA or org-mode packages, run
+To update the ELPA packages, run
 ```.bash
 # For ELPA packages
 ./elpa-packages.sh \
   -o $NIXPKGS/pkgs/applications/editors/emacs-modes/elpa-generated.nix \
-  --names names.nix
-# For org-mode packages
-./org-packages.sh \
-  -o $NIXPKGS/pkgs/applications/editors/emacs-modes/org-generated.nix \
   --names names.nix
 ```
 `$NIXPKGS` should be the path to the Nixpkgs clone which you are updating.
