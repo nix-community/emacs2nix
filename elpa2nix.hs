@@ -121,7 +121,7 @@ updatePackage server namesMap elpa = Concurrently $ do
   hashed <- hashPackage server namesMap elpa
   pure (toExpression <$> hashed)
   where
-    toExpression pkg = (Nix.pname pkg, Nix.expression pkg)
+    toExpression pkg = (Nix.pname pkg, Nix.expression pkg server)
 
 -- * Error types
 
