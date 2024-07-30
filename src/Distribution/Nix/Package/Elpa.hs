@@ -28,6 +28,7 @@ import Data.Fix
 import Data.Text ( Text )
 import qualified Data.Text as T
 import Nix.Expr
+import System.FilePath ( (</>), (<.>) )
 
 import Distribution.Nix.Builtin
 import Distribution.Nix.Fetch ( Fetch, fetchExpr, importFetcher )
@@ -42,8 +43,8 @@ data Package
     , deps :: ![Name]
     }
 
-expression :: Package -> NExpr
-expression (Package {..}) = (mkSym "callPackage") @@ drv @@ emptySet where
+expression :: Package -> String -> NExpr
+expression (Package {..}) server = (mkSym "callPackage") @@ drv @@ emptySet where
   drv = mkFunction args body
   emptySet = mkNonRecSet []
   requires = map fromName deps
@@ -63,9 +64,5 @@ expression (Package {..}) = (mkSym "callPackage") @@ drv @@ emptySet where
              , "license" `bindTo` license
              ]
         where
-          homepage = T.concat
-                     [ "https://elpa.gnu.org/packages/"
-                     , ename
-                     , ".html"
-                     ]
+          homepage = T.pack $ server </> T.unpack ename <.> "html"
           license = Fix (NSelect (mkSym "lib") [StaticKey "licenses", StaticKey "free"] Nothing)
