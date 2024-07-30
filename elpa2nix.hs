@@ -207,7 +207,8 @@ hashPackage server namesMap (name, pkg) =
 
     nixName <- Nix.getName namesMap (Emacs.Name name)
     nixDeps <- mapM (Nix.getName namesMap . Emacs.Name)
-              (maybe [] M.keys (Elpa.deps pkg))
+              $ filter (\dep -> dep /= "emacs") -- filter dummy dep emacs to reduce closure size
+              $ (maybe [] M.keys (Elpa.deps pkg))
 
     pure Nix.Package
       { Nix.pname = nixName
