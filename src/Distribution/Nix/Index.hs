@@ -83,8 +83,17 @@ getFunctionBody _ = Nothing
 getPackages :: NExpr -> Maybe (Map Nix.Name NExpr)
 getPackages (Fix (NSet bindings)) =
   let
+    getEname (Fix (NAbs _ (Fix (NBinary NApp (Fix (NSym _)) (Fix (NSet bindings')))))) =
+      lookup (StaticKey "ename" :| []) $ map (\(NamedVar name value _) -> (name, value)) bindings'
+    getEname _ = Nothing
+    getDrv (Fix (NBinary NApp (Fix (NBinary NApp (Fix (NSym "callPackage")) drv)) (Fix (NSet [])))) =
+      Just drv
+    getDrv _ = Nothing
     getPackage (NamedVar (StaticKey name :| []) expr _) =
-      Just (Nix.Name { Nix.fromName = name, Nix.ename = Emacs.Name name }, expr)
+      case getDrv expr >>= getEname of
+        Just (Fix (NStr (DoubleQuoted [Plain ename]))) ->
+          Just (Nix.Name { Nix.fromName = name, Nix.ename = Emacs.Name ename }, expr)
+        _ -> Nothing
     getPackage _ = Nothing
   in
     fmap Map.fromList (traverse getPackage bindings)
