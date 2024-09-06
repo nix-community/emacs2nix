@@ -9,8 +9,8 @@ git submodule update --init
 before building this package!
 
 The scripts `elpa-packages.sh`, `nongnu-packages.sh`, `nongnu-devel-packages.sh`,
-`melpa-packages.sh`, and `melpa-stable-packages.sh` regenerate each package
-set. They require Nix to build.
+`melpa-packages.sh`, `melpa-stable-packages.sh`, and `jcs-elpa-packages.sh`
+regenerate each package set. They require Nix to build.
 
 To update the ELPA packages, run
 ```.bash
