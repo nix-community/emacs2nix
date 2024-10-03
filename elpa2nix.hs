@@ -183,10 +183,14 @@ hashPackage :: String -> HashMap Emacs.Name Name -> (Text, Elpa)
 hashPackage server namesMap (name, pkg) =
   catchPretty $ do
     let
+      -- ver can not be completely correct but works well for now
+      -- see doc string of version-regexp-alist and version-to-list
       ver = (Elpa.ver pkg) &
         ((map (T.pack . show))
         >>> (T.intercalate ".")
         >>> (T.replace ".-4." "snapshot")
+        >>> (T.replace ".-3." "alpha")
+        >>> (T.replace ".-2." "beta")
         >>> (T.replace ".-1." "pre"))
       basename
         | null (Elpa.ver pkg) = T.unpack name
