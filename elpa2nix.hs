@@ -187,11 +187,11 @@ hashPackage server namesMap (name, pkg) =
       -- see doc string of version-regexp-alist and version-to-list
       ver = (Elpa.ver pkg) &
         ((map (T.pack . show))
-        >>> (T.intercalate ".")
-        >>> (T.replace ".-4." "snapshot")
-        >>> (T.replace ".-3." "alpha")
-        >>> (T.replace ".-2." "beta")
-        >>> (T.replace ".-1." "pre"))
+         >>> (T.intercalate ".")
+         >>> (T.replace ".-4." "snapshot")
+         >>> (T.replace ".-3." "alpha")
+         >>> (T.replace ".-2." "beta")
+         >>> (T.replace ".-1." "pre"))
       basename
         | null (Elpa.ver pkg) = T.unpack name
         | otherwise = T.unpack (name <> "-" <> ver)
